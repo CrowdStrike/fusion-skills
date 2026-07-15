@@ -1,0 +1,397 @@
+# Example: IP Address Enrichment with AbuseIPDB
+# Category: threat-intel
+# Source: CrowdStrike Content Library playbook "IP Address Enrichment AbuseIPDB"
+#   (https://falcon.crowdstrike.com/login/?unilogin=true&next=/content-library/details/global:fusion_playbook:a7b373be38244bf6b5a974e0c5a6c906),
+#   installed and exported unmodified from the Falcon console. Passes validate.py
+#   at all tiers, including server-side API validation.
+# This is an exported workflow. Editing this file is not recommended.
+
+name: IP Address  Enrichment AbuseIPDB
+description: Enriches IP addresses with threat intelligence from AbuseIPDB, gathering reputation data, network block information, and abuse reports to provide comprehensive context for security investigations. This playbook can be triggered on-demand from an Next-Gen SIEM Case or integrated into other automated playbooks to perform enrichment when provided a detection ID and the relevant entity (such as IP addresses, domains, URLs, or file hashes).
+trigger:
+    next:
+        - data39ip39_null_ampamp_data39ip39_3434_ampamp_cs_ip_validdata39ip39
+    name: On demand
+    parameters:
+        properties:
+            case_id:
+                type: string
+                title: Case ID
+                format: ngsiemCaseID
+            detection_id:
+                type: string
+                title: Detection ID
+                format: investigatableID
+            entity_id:
+                type: string
+                title: Entity ID
+                format: ngsiemComponentID
+            ip:
+                type: string
+                title: IP
+                format: IP Address
+        required:
+            - ip
+        type: object
+    type: On demand
+actions:
+    AbuseIPDBCheckBlockEndpoint:
+        id: a020fc71fb9842908d5c676721b1cc3e
+        default_name: AbuseIPDB - Check-Block Endpoint
+        continue_on_error: true
+        name: AbuseIPDB - Check-Block Endpoint
+        next:
+            - AbuseIPDBReportsEndpoint
+        properties:
+            params:
+                query:
+                    maxAgeInDays: 30
+                    network: ${data['ip']+"/24"}
+    AbuseIPDBCheckEndpoint:
+        id: de8e170284874b63808e84511baa8b16
+        default_name: AbuseIPDB - Check Endpoint
+        continue_on_error: true
+        name: AbuseIPDB - Check Endpoint
+        next:
+            - AbuseIPDBCheckBlockEndpoint
+        properties:
+            params:
+                query:
+                    ipAddress: ${data['ip']}
+                    maxAgeInDays: 30
+    AbuseIPDBReportsEndpoint:
+        id: 0cc74c8b3b2c4aa8a0418c51141aada4
+        default_name: AbuseIPDB - Reports Endpoint
+        continue_on_error: true
+        name: AbuseIPDB - Reports Endpoint
+        next:
+            - CreateVariableIPEnrichmentDataStorage
+        properties:
+            params:
+                query:
+                    ipAddress: ${data['ip']}
+                    maxAgeInDays: 365
+                    page: 1
+                    perPage: 10
+    AddCommentToCaseEnrichmentComments:
+        id: a16f4fdd1b244b0bfeecd47e25dbe0e0
+        default_name: Add Comment to Case
+        name: Add Comment to Case - Enrichment comments
+        properties:
+            case_id: ${case_id}
+            comment: ${data['WorkflowCustomVariable.comment_header'] + "\n" + data['WorkflowCustomVariable.comment'].replace('|~|', '')}
+            component_id: ${entity_id}
+        version_constraint: ~1
+    AddCommentToDetectionFinalEnrichmentComments:
+        id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+        default_name: Add comment to detection
+        name: Add comment to detection - Final enrichment comments
+        properties:
+            comment: ${data['WorkflowCustomVariable.current_comment']}
+            investigatable_id: ${detection_id}
+        version_constraint: ~0
+    AddTagsToCase:
+        id: 696f57b7cdcd475e5c56e6196836ee39
+        default_name: Add tags to case
+        name: Add tags to case - Enrichment tags
+        properties:
+            case_id: ${case_id}
+            tags:
+                - ${data['WorkflowCustomVariable.tags']}
+        version_constraint: ~1
+    CreateVariableIPEnrichmentDataStorage:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - IP enrichment data storage
+        next:
+            - UpdateVariableBuildIPEnrichmentFields
+        properties:
+            variable_schema:
+                properties:
+                    IP_block:
+                        type: string
+                    IP_report:
+                        type: string
+                    IP_reputation:
+                        type: string
+                type: object
+        version_constraint: ~1
+    CreateVariableInitializeCommentAndTagsStorage:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize comment and tags storage
+        next:
+            - UpdateVariableSetEnrichmentCommentHeader
+        properties:
+            variable_schema:
+                properties:
+                    comment:
+                        type: string
+                    comment_header:
+                        type: string
+                    tags:
+                        items:
+                            type: string
+                        type: array
+                type: object
+        version_constraint: ~1
+    CreateVariableInitializeCommentChunkingVars:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize comment chunking vars
+        next:
+            - UpdateVariableParseCommentChunkingVars
+        properties:
+            variable_schema:
+                properties:
+                    current_comment:
+                        type: string
+                    current_index:
+                        type: integer
+                    field_and_value_array:
+                        items:
+                            type: string
+                        type: array
+                type: object
+        version_constraint: ~1
+    SleepBeforeAddingCaseComment:
+        id: 4f1af1ae4c13dc1e3bcd725f8dc0f63b
+        default_name: Sleep
+        name: Sleep - Before adding case comment
+        next:
+            - AddCommentToCaseEnrichmentComments
+        properties:
+            sleep_time: 10s
+        version_constraint: ~1
+    UpdateVariableBuildIPEnrichmentFields:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        continue_on_error: true
+        name: Update variable - Build IP enrichment fields
+        next:
+            - UpdateVariableSetEnrichmentCommentAndTags
+        properties:
+            WorkflowCustomVariable:
+                IP_block: '${[(data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.networkAddress'']!=null&&data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.networkAddress'']!="")?"- CIDR Block: "+data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.networkAddress'']+"/24"+"|~|\n":"",(data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.netmask'']!=null&&data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.netmask'']!="")?"- Netmask: "+data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.netmask'']+"|~|\n":"",(data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.addressSpaceDesc'']!=null&&data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.addressSpaceDesc'']!="")?"- Address Space: "+data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.addressSpaceDesc'']+"|~|\n":"",(data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.minAddress'']!=null&&data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.minAddress'']!=""&&data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.maxAddress'']!=null&&data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.maxAddress'']!="")?"- IP Range: "+data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.minAddress'']+" - "+data[''AbuseIPDBCheckBlockEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check-Block_Endpoint.body.data.maxAddress'']+"|~|\n":""].filter(s,s!="").join("")}'
+                IP_report: '${[(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''] != null &&size(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results'']) > 0 &&data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].reportedAt != null &&data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].reportedAt != "")?"- Report Date: "+data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].reportedAt+"|~|\n":"",(  data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''] != null &&  size(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results'']) > 0 &&  data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].categories != null &&  size(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].categories) > 0)?"- Attack Categories: "+(  data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].categories    .transformList(i, c, string(c))    .join('','') +  ''\n     (Reference: https://www.abuseipdb.com/categories)'')+"|~|\n":"",(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''] != null &&size(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results'']) > 0 &&data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].reporterCountryName != null &&data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].reporterCountryName!="")?"- Reported From: "+data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].reporterCountryName+"|~|\n":"",(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''] != null &&size(data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results'']) > 0 &&data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].comment != null &&data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].comment!="")?"- Details: "+data[''AbuseIPDBReportsEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Reports_Endpoint.body.data.results''][0].comment+"|~|\n":""].filter(s,s!="").join("")}'
+                IP_reputation: |-
+                    ${[(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.ipVersion']!=null)?"- IP Version: IPv"+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.ipVersion'])+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.abuseConfidenceScore']!=null)?"- Abuse Confidence Score: "+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.abuseConfidenceScore'])+"%"+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isWhitelisted']!=null)?"- Whitelisted: "+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isWhitelisted'])+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isPublic']!=null)?"- Public IP: "+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isPublic'])+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isTor']!=null)?"- Tor Exit Node: "+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isTor'])+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.totalReports']!=null&&data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.totalReports']>0&&data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.numDistinctUsers']!=null&&data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.numDistinctUsers']>0)?"- Total Abuse Reports: "+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.totalReports'])+" from "+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.numDistinctUsers'])+" distinct reporters"+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.countryName'] != null &&data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.countryName'] != '')? "- Country: "+data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.countryName']: (  data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.countryCode'] != null &&  data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.countryCode'] != ''  ? "- Country Code: "+data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.countryCode']+"|~|\n": ''),(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isp']!=null&&data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isp']!="")?"- ISP: "+data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isp']+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.usageType']!=null&&data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.usageType']!="")?"- Usage Type: "+data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.usageType']+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.domain']!=null&&data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.domain']!="")?"- Domain: "+data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.domain']+"|~|\n":"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.hostnames']!=null&&size(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.hostnames'])>0)?"- Hostnames: "+data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.hostnames'].join(",")+"|~|\n":""].filter(s,s!="").join("")
+                    }
+        version_constraint: ~1
+    UpdateVariableParseCommentChunkingVars:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Parse comment chunking vars
+        next:
+            - Loop1
+        properties:
+            WorkflowCustomVariable:
+                current_comment: '${data[''WorkflowCustomVariable.comment''].trim().split("|~|").size() > 0 ? data[''WorkflowCustomVariable.comment_header''] + "\n" : ""}'
+                current_index: "0"
+                field_and_value_array: '${data[''WorkflowCustomVariable.comment''].split("|~|").size() > 1 ? data[''WorkflowCustomVariable.comment''].split("|~|").map(pair, pair.trim()) : []}'
+        version_constraint: ~1
+    UpdateVariableSetEnrichmentCommentAndTags:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        continue_on_error: true
+        name: Update variable - Set enrichment comment and tags
+        next:
+            - case_id_exists
+            - detection_id_exists
+            - data39workflow_execution_errors39__null_ampamp_data39workflow_execution_errors39_size_gt_0
+        properties:
+            WorkflowCustomVariable:
+                comment: ${[(data['WorkflowCustomVariable.IP_reputation']!="")?"IP Reputation:"+"|~|\n"+data['WorkflowCustomVariable.IP_reputation']:"",(data['WorkflowCustomVariable.IP_block']!="")?"Network Block Information:"+"|~|\n"+data['WorkflowCustomVariable.IP_block']:"",(data['WorkflowCustomVariable.IP_report']!="")?"Latest Abuse Report:"+"|~|\n"+data['WorkflowCustomVariable.IP_report']:""].filter(s,s!="").join("\n")}
+                tags: ${[(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isTor']!=null)?"AbuseIPDB:"+data['ip']+":isTor:"+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isTor']):"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isPublic']!=null)?"AbuseIPDB:"+data['ip']+":isPublic:"+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isPublic']):"",(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isWhitelisted']!=null)?"AbuseIPDB:"+data['ip']+":isWhitelisted:"+string(data['AbuseIPDBCheckEndpoint.API_Integration.Custom_AbuseIPDB.AbuseIPDB_-_Check_Endpoint.body.data.isWhitelisted']):""].filter(s,s!="")}
+        version_constraint: ~1
+    UpdateVariableSetEnrichmentCommentHeader:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        continue_on_error: true
+        name: Update variable - Set enrichment comment header
+        next:
+            - AbuseIPDBCheckEndpoint
+        properties:
+            WorkflowCustomVariable:
+                comment_header: 'AbuseIPDB IP Enrichment for ${data[''ip'']} :'
+        version_constraint: ~1
+    WriteToLogRepoInvalidIP:
+        id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+        default_name: Write to log repo
+        name: Write to log repo - Invalid IP
+        properties:
+            _fields:
+                - ${Workflow.Definition.Name}
+            custom_json:
+                Error: 'Invalid IP : ${data[''ip'']}'
+        version_constraint: ~1
+    WriteToLogRepoLogWorkflowErrors:
+        id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+        default_name: Write to log repo
+        name: Write to log repo - Log Workflow Errors
+        properties:
+            _fields:
+                - ${Workflow.Definition.Name}
+            custom_json:
+                WorkflowErrors: ${data['Workflow.Execution.Errors']}
+        version_constraint: ~1
+conditions:
+    case_id_exists:
+        next:
+            - data39workflowcustomvariable_tags39_size_gt_0
+            - data39workflowcustomvariable_comment39_size_gt_0_ampamp_data39workflowcustomvariable_comment39_trim_
+        expression: case_id:!null
+        display:
+            - Case ID exists
+    data39ip39_null_ampamp_data39ip39_3434_ampamp_cs_ip_validdata39ip39:
+        next:
+            - CreateVariableInitializeCommentAndTagsStorage
+        cel_expression: data['ip'] !=null && data['ip'] !="" && cs.ip.valid(data['ip'])
+        display:
+            - data[&#39;ip&#39;] !=null &amp;&amp; data[&#39;ip&#39;] !=&#34;&#34; &amp;&amp; cs.ip.valid(data[&#39;ip&#39;])
+        else:
+            - WriteToLogRepoInvalidIP
+    data39workflow_execution_errors39__null_ampamp_data39workflow_execution_errors39_size_gt_0:
+        next:
+            - WriteToLogRepoLogWorkflowErrors
+        cel_expression: data['Workflow.Execution.Errors'] != null && data['Workflow.Execution.Errors'].size() > 0
+        display:
+            - data[&#39;Workflow.Execution.Errors&#39;] != null &amp;&amp; data[&#39;Workflow.Execution.Errors&#39;].size() &gt; 0
+    data39workflowcustomvariable_comment39_size_gt_0:
+        next:
+            - CreateVariableInitializeCommentChunkingVars
+        cel_expression: data['WorkflowCustomVariable.comment'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.comment&#39;].size() &gt; 0
+    data39workflowcustomvariable_comment39_size_gt_0_ampamp_data39workflowcustomvariable_comment39_trim_:
+        next:
+            - SleepBeforeAddingCaseComment
+        cel_expression: data['WorkflowCustomVariable.comment'].size() > 0 && data['WorkflowCustomVariable.comment'].trim().size() != data['WorkflowCustomVariable.comment_header'].trim().size()
+        display:
+            - data[&#39;WorkflowCustomVariable.comment&#39;].size() &gt; 0 &amp;&amp; data[&#39;WorkflowCustomVariable.comment&#39;].trim().size() != data[&#39;WorkflowCustomVariable.comment_header&#39;].trim().size()
+    data39workflowcustomvariable_current_comment39_size_gt_0_ampamp_data39workflowcustomvariable_current:
+        next:
+            - AddCommentToDetectionFinalEnrichmentComments
+        cel_expression: data['WorkflowCustomVariable.current_comment'].size() > 0 && data['WorkflowCustomVariable.current_comment'].trim().size() != (data['WorkflowCustomVariable.comment_header'] + "\n").trim().size()
+        display:
+            - data[&#39;WorkflowCustomVariable.current_comment&#39;].size() &gt; 0 &amp;&amp; data[&#39;WorkflowCustomVariable.current_comment&#39;].trim().size() != (data[&#39;WorkflowCustomVariable.comment_header&#39;] + &#34;\n&#34;).trim().size()
+    data39workflowcustomvariable_tags39_size_gt_0:
+        next:
+            - AddTagsToCase
+        cel_expression: data['WorkflowCustomVariable.tags'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.tags&#39;].size() &gt; 0
+    data39workflowcustomvariable_tags39_size_gt_1:
+        next:
+            - Loop
+        cel_expression: data['WorkflowCustomVariable.tags'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.tags&#39;].size() &gt; 0
+    detection_id_exists:
+        next:
+            - data39workflowcustomvariable_tags39_size_gt_1
+            - data39workflowcustomvariable_comment39_size_gt_0
+        expression: detection_id:!null
+        display:
+            - Detection ID exists
+loops:
+    Loop:
+        display: For each tags; Sequentially
+        name: For each tags; Sequentially
+        for:
+            input: WorkflowCustomVariable.tags
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - data39workflowcustomvariable_tags_39_size_lt_75
+        actions:
+            AddCommentToDetectionTagExceedsLimit:
+                id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+                default_name: Add comment to detection
+                name: Add comment to detection - Tag Exceeds Limit
+                properties:
+                    comment: |-
+                        Tag exceeded the character limit and was added as a comment instead.
+
+                        ${data['WorkflowCustomVariable.tags.#']}
+                    investigatable_id: ${detection_id}
+                version_constraint: ~0
+            AddTagToDetectionSingleEnrichmentTag:
+                id: 6de8a462880ad419680ed5c291b9413f
+                default_name: Add tag to alert
+                name: Add tag to detection - Single enrichment tag
+                properties:
+                    investigatable_id: ${detection_id}
+                    tag: ${data['WorkflowCustomVariable.tags.#']}
+                version_constraint: ~0
+        conditions:
+            data39workflowcustomvariable_tags_39_size_lt_75:
+                next:
+                    - AddTagToDetectionSingleEnrichmentTag
+                cel_expression: data['WorkflowCustomVariable.tags.#'].size() < 75
+                display:
+                    - data[&#39;WorkflowCustomVariable.tags.#&#39;].size() &lt; 75
+                else:
+                    - AddCommentToDetectionTagExceedsLimit
+    Loop1:
+        display: While data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+        name: While data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+        next:
+            - data39workflowcustomvariable_current_comment39_size_gt_0_ampamp_data39workflowcustomvariable_current
+        for:
+            input: ""
+            cel_condition: data['WorkflowCustomVariable.current_index'] < data['WorkflowCustomVariable.field_and_value_array'].size()
+            condition_display:
+                - data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - data39workflowcustomvariable_current_comment39_size__data39workflowcustomvariable_field_and_value_ar
+        actions:
+            AddCommentToDetectionContinuedCommentChunk:
+                id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+                default_name: Add comment to detection
+                name: Add comment to detection - Continued comment chunk
+                next:
+                    - UpdateVariableResetCommentForContinuation
+                properties:
+                    comment: ${data['WorkflowCustomVariable.current_comment'] + "\n[Continued in next comment...]"}
+                    investigatable_id: ${detection_id}
+                version_constraint: ~0
+            UpdateVariable3:
+                id: 6c6eab39063fa3b72d98c82af60deb8a
+                default_name: Update variable
+                class: UpdateVariable
+                name: Update variable - Append field to current comment
+                properties:
+                    WorkflowCustomVariable:
+                        current_comment: ${data['WorkflowCustomVariable.current_comment'] + data['WorkflowCustomVariable.field_and_value_array'][data['WorkflowCustomVariable.current_index']] + "\n"}
+                        current_index: ${data['WorkflowCustomVariable.current_index'] + 1}
+                version_constraint: ~1
+            UpdateVariableResetCommentForContinuation:
+                id: 6c6eab39063fa3b72d98c82af60deb8a
+                default_name: Update variable
+                class: UpdateVariable
+                name: Update variable - Reset comment for continuation
+                properties:
+                    WorkflowCustomVariable:
+                        current_comment: ${data['WorkflowCustomVariable.comment_header'] + "\n"}
+                version_constraint: ~1
+        conditions:
+            data39workflowcustomvariable_current_comment39_size__data39workflowcustomvariable_field_and_value_ar:
+                next:
+                    - UpdateVariable3
+                cel_expression: data['WorkflowCustomVariable.current_comment'].size() + data['WorkflowCustomVariable.field_and_value_array'][data['WorkflowCustomVariable.current_index']].size() + string("\n").size() < (500 - string("\n[Continued in next comment...]").size())
+                display:
+                    - data[&#39;WorkflowCustomVariable.current_comment&#39;].size() + data[&#39;WorkflowCustomVariable.field_and_value_array&#39;][data[&#39;WorkflowCustomVariable.current_index&#39;]].size() + string(&#34;\n&#34;).size() &lt; (500 - string(&#34;\n[Continued in next comment...]&#34;).size())
+                else:
+                    - AddCommentToDetectionContinuedCommentChunk

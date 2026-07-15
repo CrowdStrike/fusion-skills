@@ -1,0 +1,236 @@
+name: Fusion Skills CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Install ShellCheck
+        run: command -v shellcheck || { sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck; }
+      - name: Run ShellCheck
+        run: |
+          shellcheck hooks/*.sh bin/*.sh
+          shellcheck --severity=error *.sh
+
+  test-hooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install pyyaml crowdstrike-falconpy
+      - name: Run hook tests
+        run: |
+          source .venv/bin/activate
+          ./test-hooks.sh
+      - name: Run structural validation
+        run: |
+          source .venv/bin/activate
+          ./test-validate.sh
+      - name: Run scorecard parser tests
+        run: |
+          ./test-scorecard-parser.sh
+          ./test-skill-scorecard.sh
+
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements-test.txt
+      - name: Run unit tests
+        run: |
+          source .venv/bin/activate
+          pytest tests/ -v \
+            --cov=common/scripts \
+            --cov=skills/authoring/scripts \
+            --cov=skills/deployment/scripts \
+            --cov=skills/execution/scripts \
+            --cov=skills/lookup-files/scripts \
+            --cov=bin \
+            --cov-report=term-missing \
+            --cov-fail-under=90
+
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install pylint crowdstrike-falconpy pyyaml tomli
+      - name: Run pylint (fail-under=10 enforced by .pylintrc)
+        run: |
+          source .venv/bin/activate
+          pylint --rcfile=.pylintrc \
+            common/scripts/*.py \
+            skills/authoring/scripts/*.py \
+            skills/deployment/scripts/*.py \
+            skills/execution/scripts/*.py \
+            skills/lookup-files/scripts/*.py \
+            bin/*.py
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Validate JSON files
+        run: |
+          for f in \
+            hooks/hooks.json \
+            .claude-plugin/plugin.json \
+            .claude-plugin/marketplace.json \
+            test-result-schema.json \
+            verify-result-schema.json; do
+            echo "Validating $f"
+            python -m json.tool "$f" > /dev/null
+          done
+      - name: Validate SKILL.md frontmatter
+        run: |
+          fail=0
+          for skill in skills/*/SKILL.md; do
+            for field in name description version; do
+              if ! head -20 "$skill" | grep -q "^${field}:"; then
+                echo "FAIL: $skill missing '$field' in frontmatter"
+                fail=1
+              fi
+            done
+          done
+          exit $fail
+      - name: Validate skill size budgets
+        run: |
+          fail=0
+          total_desc_chars=0
+          max_tokens=5500
+
+          for skill in skills/*/SKILL.md; do
+            name=$(basename "$(dirname "$skill")")
+            chars=$(wc -c < "$skill")
+            approx_tokens=$((chars / 4))
+            pct=$((approx_tokens * 100 / max_tokens))
+
+            if [ "$approx_tokens" -gt "$max_tokens" ]; then
+              echo "FAIL: $name ~${approx_tokens} tokens (${pct}% of ${max_tokens} limit)"
+              fail=1
+            elif [ "$approx_tokens" -gt 4500 ]; then
+              echo "WARN: $name ~${approx_tokens} tokens (${pct}% of ${max_tokens} limit)"
+            fi
+
+            desc=$(sed -n 's/^description: *//p' "$skill")
+            desc_len=${#desc}
+            total_desc_chars=$((total_desc_chars + desc_len))
+
+            if [ "$desc_len" -gt 1536 ]; then
+              echo "FAIL: $name description ${desc_len} chars (max 1536)"
+              fail=1
+            fi
+          done
+
+          desc_budget=8000
+          desc_pct=$((total_desc_chars * 100 / desc_budget))
+          echo ""
+          echo "Description budget: ${total_desc_chars} / ~${desc_budget} chars (${desc_pct}%) — 1% of 200k context at ~4 chars/token"
+          exit $fail
+      - name: Validate hook scripts are executable
+        run: |
+          fail=0
+          for script in hooks/*.sh; do
+            [ -x "$script" ] || { echo "FAIL: $script is not executable"; fail=1; }
+          done
+          exit $fail
+      - name: Validate Python scripts are syntactically valid
+        run: |
+          fail=0
+          while IFS= read -r py; do
+            if ! python -c "import ast, sys; ast.parse(open(sys.argv[1], encoding='utf-8').read())" "$py"; then
+              echo "FAIL: $py has a syntax error"
+              fail=1
+            fi
+          done < <(find . -name '*.py' -not -path '*/__pycache__/*' -not -path '*/.venv/*')
+          exit $fail
+      - name: Validate no PLACEHOLDER values in example workflows
+        run: |
+          fail=0
+          while IFS= read -r wf; do
+            if grep -qE 'PLACEHOLDER_[A-Z_]+' "$wf"; then
+              echo "FAIL: $wf contains PLACEHOLDER_* values (action IDs must be resolved)"
+              grep -nE 'PLACEHOLDER_[A-Z_]+' "$wf"
+              fail=1
+            fi
+          done < <(find skills/authoring/examples -name '*.yaml' -o -name '*.yml')
+          [ $fail -eq 0 ] && echo "No PLACEHOLDER_* values in example workflows"
+          exit $fail
+      - name: Validate version consistency
+        run: |
+          fail=0
+          plugin_version=$(jq -r '.version' .claude-plugin/plugin.json)
+          marketplace_version=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+          echo "plugin.json version: $plugin_version"
+          echo "marketplace.json plugins[0].version: $marketplace_version"
+
+          # marketplace.json must match plugin.json
+          if [ "$marketplace_version" != "$plugin_version" ]; then
+            echo "FAIL: marketplace.json plugins[0].version '$marketplace_version' != plugin.json '$plugin_version'"
+            fail=1
+          fi
+
+          # All SKILL.md versions must match plugin.json
+          for skill in skills/*/SKILL.md; do
+            skill_version=$(sed -n 's/^version: *//p' "$skill")
+            if [ "$skill_version" != "$plugin_version" ]; then
+              echo "FAIL: $skill version '$skill_version' != plugin.json '$plugin_version'"
+              fail=1
+            fi
+          done
+
+          # CHANGELOG must have an entry for this version
+          if ! grep -q "## \[${plugin_version}\]" CHANGELOG.md; then
+            echo "FAIL: CHANGELOG.md missing entry for version $plugin_version"
+            fail=1
+          fi
+
+          # README badge must match
+          if ! grep -q "version-${plugin_version}-blue" README.md; then
+            echo "FAIL: README.md badge doesn't match version $plugin_version"
+            fail=1
+          fi
+
+          [ $fail -eq 0 ] && echo "All versions consistent: $plugin_version"
+          exit $fail
+
+  markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
+        with:
+          node-version: 22
+      - name: Run markdownlint
+        run: npx markdownlint-cli2 "**/*.md"

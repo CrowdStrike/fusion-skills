@@ -1,0 +1,220 @@
+# Example: Introduction to Lookup File Actions
+# Category: tutorials
+# Source: CrowdStrike Content Library
+
+name: Introduction to lookup file actions
+description: Learn how to use lookup file actions from Fusion. This workflow uses the create, append, overwrite, and update operations to modify a sample employee table lookup file formatted in CSV.
+trigger:
+  next:
+    - data_filename_endswith_csv_true
+    - default_gateway_decision_a99962c3_9f64_4633_b4de_27f43ea4753
+  name: On demand
+  type: On demand
+  parameters:
+    properties:
+      filename:
+        type: string
+        title: Unique file name ending in .csv
+        description: Unique file name ending in .csv
+      operation:
+        enum:
+          - overwrite
+          - append
+          - update
+        type: string
+    required:
+      - filename
+      - operation
+    type: object
+actions:
+  AppendLookupFileCSVOnly:
+    id: fe8acd4b4b2a30759745b2fcc6335306
+    name: Append lookup file (CSV only)
+    version_constraint: ~1
+    properties:
+      lookup_file_content_text: 'Employee_ID,First_Name,Last_Name,Email,Department,Job_Title,Manager,Phone,Office_Location,Start_Date
+
+        EMP010,Karen,White,karen.white@example.com,Executive,Chief Financial Officer,,555-0204,Denver CO,2018-11-05'
+      lookup_file_content_type: text
+      lookup_file_name: ${data['filename']}
+      lookup_file_repo: third-party
+  AppendToExistingLookupFile:
+    id: fe8acd4b4b2a30759745b2fcc6335306
+    name: append to existing lookup file
+    version_constraint: ~1
+    properties:
+      lookup_file_content_text: 'Employee_ID,First_Name,Last_Name,Email,Department,Job_Title,Manager,Phone,Office_Location,Start_Date
+
+        EMP010,Karen,White,karen.white@example.com,Executive,Chief Financial Officer,,555-0204,Denver CO,2018-11-05'
+      lookup_file_content_type: text
+      lookup_file_name: ${data['GetLookupFileMetadata.lookup_file_name']}
+      lookup_file_repo: third-party
+  CreateANewLookupFileIfLookupFileDoesntExist:
+    id: 51c4db34ab30465f796d7550f3e3e97b
+    name: Create a new lookup file if lookup file doesnt exist
+    version_constraint: ~1
+    next:
+      - operation_is_equal_to_update
+      - operation_is_equal_to_append
+      - operation_is_equal_to_overwrite
+    properties:
+      lookup_file_content_text: 'Employee_ID,First_Name,Last_Name,Email,Department,Job_Title,Manager,Phone,Office_Location,Start_Date
+
+        EMP001,John,Smith,john.smith@example.com,Engineering,Senior Software Engineer,Sarah Johnson,555-0101,Austin TX,2022-03-15
+
+        EMP002,Sarah,Johnson,sarah.johnson@example.com,Engineering,Engineering Manager,Michael Chen,555-0102,Austin TX,2020-06-01
+
+        EMP003,Emily,Rodriguez,emily.rodriguez@example.com,Sales,Account Executive,David Park,555-0103,New York NY,2023-01-10'
+      lookup_file_content_type: text
+      lookup_file_name: ${data['filename']}
+      lookup_file_repo: third-party
+  GetLookupFileMetadata:
+    id: ace50afa2ea8438162f098b621f790fb
+    name: Get lookup file metadata
+    version_constraint: ~1
+    next:
+      - lookup_file_exists_is_equal_to_false
+      - lookup_file_exists_is_equal_to_true
+      - lookup_file_exists_is_equal_to_true_2
+      - lookup_file_exists_is_equal_to_true_3
+    properties:
+      lookup_file_name: ${data['filename']}
+      lookup_file_repo: third-party
+  OverwriteExistingLookupFile:
+    id: 3fa82584a1c9103b21fb80477102a05b
+    name: overwrite existing lookup file
+    version_constraint: ~1
+    properties:
+      lookup_file_content_text: 'Employee_ID,First_Name,Last_Name,Email,Department,Job_Title,Manager,Phone,Office_Location,Start_Date
+
+        EMP001,Robert,Williams,robert.williams@example.com,Finance,Financial Analyst,Jennifer Martinez,555-0201,Chicago IL,2023-02-20
+
+        EMP002,Jennifer,Martinez,jennifer.martinez@example.com,Finance,Finance Manager,Thomas Brown,555-0202,Chicago IL,2021-08-15
+
+        EMP003,Thomas,Brown,thomas.brown@example.com,Operations,Operations Director,Karen White,555-0203,Denver CO,2020-01-10
+
+        EMP004,Mohamed,Ali,mohamed.ali@example.com,Executive,Chief Boxing Officer,,555-0204,Boulder CO,2018-11-05
+
+        EMP005,David,Lee,david.lee@example.com,HR,HR Specialist,Patricia Garcia,555-0205,Seattle WA,2023-09-01
+
+        EMP006,Patricia,Garcia,patricia.garcia@example.com,HR,HR Manager,Karen White,555-0206,Seattle WA,2022-04-12
+
+        EMP007,James,Anderson,james.anderson@example.com,IT,IT Support Technician,Mark Johnson,555-0207,Boston MA,2024-01-15
+
+        EMP008,Mark,Johnson,mark.johnson@example.com,IT,IT Manager,Karen White,555-0208,Boston MA,2021-03-22'
+      lookup_file_content_type: text
+      lookup_file_name: ${data['GetLookupFileMetadata.lookup_file_name']}
+      lookup_file_repo: third-party
+  OverwriteLookupFile:
+    id: 3fa82584a1c9103b21fb80477102a05b
+    name: Overwrite lookup file
+    version_constraint: ~1
+    properties:
+      lookup_file_content_text: 'Employee_ID,First_Name,Last_Name,Email,Department,Job_Title,Manager,Phone,Office_Location,Start_Date
+
+        EMP001,Robert,Williams,robert.williams@example.com,Finance,Financial Analyst,Jennifer Martinez,555-0201,Chicago IL,2023-02-20
+
+        EMP002,Jennifer,Martinez,jennifer.martinez@example.com,Finance,Finance Manager,Thomas Brown,555-0202,Chicago IL,2021-08-15
+
+        EMP003,Thomas,Brown,thomas.brown@example.com,Operations,Operations Director,Karen White,555-0203,Denver CO,2020-01-10
+
+        EMP004,Mohamed,Ali,mohamed.ali@example.com,Executive,Chief Boxing Officer,,555-0204,Boulder CO,2018-11-05
+
+        EMP005,David,Lee,david.lee@example.com,HR,HR Specialist,Patricia Garcia,555-0205,Seattle WA,2023-09-01
+
+        EMP006,Patricia,Garcia,patricia.garcia@example.com,HR,HR Manager,Karen White,555-0206,Seattle WA,2022-04-12
+
+        EMP007,James,Anderson,james.anderson@example.com,IT,IT Support Technician,Mark Johnson,555-0207,Boston MA,2024-01-15
+
+        EMP008,Mark,Johnson,mark.johnson@example.com,IT,IT Manager,Karen White,555-0208,Boston MA,2021-03-22'
+      lookup_file_content_type: text
+      lookup_file_name: ${data['CreateANewLookupFileIfLookupFileDoesntExist.lookup_file_name']}
+      lookup_file_repo: third-party
+  PrintData2:
+    id: aadbf530e35fc452a032f5f8acaaac2a
+    name: Print data - 2
+    version_constraint: ~1
+    properties:
+      text_data: The lookup file name must end in .csv
+  UpdateExistingLookupFile:
+    id: bd97b8cdd275c4aa09564189f725ae24
+    name: update existing lookup file
+    version_constraint: ~1
+    properties:
+      lookup_file_content_text: 'Employee_ID,First_Name,Last_Name,Email,Department,Job_Title,Manager,Phone,Office_Location,Start_Date
+
+        EMP002,Sarah,Johnson,sarah.johnson@example.com,Engineering,Senior Engineering Manager,Michael Chen,555-0102,Austin TX,2020-06-01'
+      lookup_file_content_type: text
+      lookup_file_csv_key_columns: Employee_ID
+      lookup_file_matching_ignore_case: true
+      lookup_file_name: ${data['GetLookupFileMetadata.lookup_file_name']}
+      lookup_file_repo: third-party
+  UpdateLookupFileCSVOnly:
+    id: bd97b8cdd275c4aa09564189f725ae24
+    name: Update lookup file (CSV only)
+    version_constraint: ~1
+    properties:
+      lookup_file_content_text: 'Employee_ID,First_Name,Last_Name,Email,Department,Job_Title,Manager,Phone,Office_Location,Start_Date
+
+        EMP002,Sarah,Johnson,sarah.johnson@example.com,Engineering,Senior Engineering Manager,Michael Chen,555-0102,Austin TX,2020-06-01'
+      lookup_file_content_type: text
+      lookup_file_csv_key_columns: Employee_ID
+      lookup_file_matching_ignore_case: true
+      lookup_file_name: ${data['filename']}
+      lookup_file_repo: third-party
+conditions:
+  data_filename_endswith_csv_true:
+    next:
+      - GetLookupFileMetadata
+    cel_expression: data['filename'].endsWith('.csv') == true
+    display:
+      - data[&#39;filename&#39;].endsWith(&#39;.csv&#39;) == true
+  default_gateway_decision_a99962c3_9f64_4633_b4de_27f43ea4753:
+    next:
+      - PrintData2
+    default: true
+  lookup_file_exists_is_equal_to_false:
+    next:
+      - CreateANewLookupFileIfLookupFileDoesntExist
+    expression: GetLookupFileMetadata.lookup_file_exists:false
+    display:
+      - Lookup file exists is equal to False
+  lookup_file_exists_is_equal_to_true:
+    next:
+      - UpdateExistingLookupFile
+    expression: GetLookupFileMetadata.lookup_file_exists:true+operation:'update'
+    display:
+      - Lookup file exists is equal to True
+      - Operation is equal to update
+  lookup_file_exists_is_equal_to_true_2:
+    next:
+      - OverwriteExistingLookupFile
+    expression: GetLookupFileMetadata.lookup_file_exists:true+operation:'overwrite'
+    display:
+      - Lookup file exists is equal to True
+      - Operation is equal to overwrite
+  lookup_file_exists_is_equal_to_true_3:
+    next:
+      - AppendToExistingLookupFile
+    expression: GetLookupFileMetadata.lookup_file_exists:true+operation:'append'
+    display:
+      - Lookup file exists is equal to True
+      - Operation is equal to append
+  operation_is_equal_to_update:
+    next:
+      - UpdateLookupFileCSVOnly
+    expression: operation:'update'
+    display:
+      - Operation is equal to update
+  operation_is_equal_to_append:
+    next:
+      - AppendLookupFileCSVOnly
+    expression: operation:'append'
+    display:
+      - Operation is equal to append
+  operation_is_equal_to_overwrite:
+    next:
+      - OverwriteLookupFile
+    expression: operation:'overwrite'
+    display:
+      - Operation is equal to overwrite

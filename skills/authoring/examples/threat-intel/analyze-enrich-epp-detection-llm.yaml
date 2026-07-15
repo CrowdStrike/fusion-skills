@@ -1,0 +1,497 @@
+# Source: CrowdStrike Content Library playbook "Analyze and Enrich EPP Defense
+# Evasion Detections" (global:fusion_playbook:e7e665a85ed5487298fee75326396f6e),
+# installed and exported unmodified from the Falcon console (us-2). Passes
+# validate.py at all tiers, including server-side API validation.
+#
+# Why this is the anti-"hollow-enrichment" reference: the Charlotte AI LLM
+# output is decoded and its REAL fields (risk_level, verdict, confidence,
+# conclusion, recommended_actions) are forwarded into detection comments and
+# tags via WorkflowCustomVariable — never a canned "analysis completed" string.
+# See references/http-actions.md (hollow-enrichment section) for the rule.
+# This is an exported workflow. Editing this file is not recommended.
+
+name: Analyze and Enrich EPP Defense Evasion Detections
+description: 'Enriches Endpoint Protection (EPP) defense evasion detections by analyzing process injection events with detailed forensic context, using Charlotte AI to provide risk assessments, verdicts, and recommended actions when medium or higher severity detections involve defense evasion tactics. Note: This playbook uses Charlotte AI and may require Charlotte AI credits. Please perform due diligence before actioning any recommendation by AI agent.'
+disconnected_nodes:
+    - '{"id":"notes_54932a10-79f0-4e71-ae70-6f0da0fee6fd","position":{"x":-370.05485395173554,"y":697.1136532449021},"node_type":"notes","comment":"Please configure flags:\nuse_llm: False (Default)\nseverity_level: ''Medium'' (Default)"}'
+trigger:
+    next:
+        - tactic_is_equal_to_defense_evasion
+    event: Investigatable/EPP
+    name: Detection > EPP Detection
+    type: Signal
+    version_constraint: ~1
+actions:
+    AddCommentToAlertRiskLevelAndVerdictConclusion:
+        id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+        default_name: Add comment to detection
+        name: Add comment to alert - Risk level and verdict conclusion
+        properties:
+            comment: ${data['WorkflowCustomVariable.comment_conclusion']}
+            investigatable_id: ${Trigger.Detection.DetectionID}
+        version_constraint: ~0
+    AddCommentToDetectionInjectionSummarynoLLM:
+        id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+        default_name: Add comment to detection
+        name: Add comment to alert - Injection summary without LLM analysis
+        properties:
+            comment: ${data['WorkflowCustomVariable.comment_no_llm']}
+            investigatable_id: ${Trigger.Detection.DetectionID}
+        version_constraint: ~0
+    AddCommentToDetectionRecommendations:
+        id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+        default_name: Add comment to detection
+        name: Add comment to alert - Recommended actions from LLM
+        next:
+            - AddCommentToAlertRiskLevelAndVerdictConclusion
+        properties:
+            comment: ${data['WorkflowCustomVariable.comment_recommendations']}
+            investigatable_id: ${Trigger.Detection.DetectionID}
+        version_constraint: ~0
+    CharlotteAILLMCompletion:
+        id: bdfecafafdb44919a458fcf51d6b93a7_98dec86072334d24b37dd798098cfd63
+        default_name: Charlotte AI - LLM Completion
+        continue_on_error: true
+        name: Charlotte AI - LLM Completion - Analyze injection patterns
+        next:
+            - UpdateVariableParseLLMOutput
+        properties:
+            data_to_include:
+                - ${WorkflowSpecificEventQueryInjectionEventsWithPR2Context.raw_results}
+                - ${data['Trigger.Detection.EPP']}
+            json_schema: |4-
+                 {
+                    "type": "object",
+                    "properties": {
+                      "analysis": {
+                        "type": "object",
+                        "properties": {
+                          "executive_summary": {
+                            "type": "object",
+                            "properties": {
+                              "hostname": {"type": "string"},
+                              "aid": {"type": "string"},
+                              "observation_window": {"type": "string"},
+                              "total_events": {"type": "integer"},
+                              "injection_types": {"type": "array", "items": {"type": "string"}},
+                              "risk_level": {"type": "string", "enum": ["BENIGN", "SUSPICIOUS", "MALICIOUS"]},
+                              "overall_verdict": {"type": "string", "enum": ["TRUE_POSITIVE", "FALSE_POSITIVE", "REQUIRES_INVESTIGATION"]},
+                              "confidence": {"type": "string", "enum": ["HIGH", "MEDIUM", "LOW"]},
+                              "conclusion": {"type": "string"}
+                            },
+                            "required": ["hostname", "aid", "observation_window", "total_events", "injection_types", "risk_level",
+                  "overall_verdict", "confidence", "conclusion"]
+                          },
+                          "detailed_forensics": {
+                            "type": "object",
+                            "properties": {
+                              "timeline_summary": {"type": "string"},
+                              "injection_patterns": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {"type": "integer"},
+                                    "injection_type": {"type": "string"},
+                                    "mitre_mapping": {"type": "string"},
+                                    "time_range": {"type": "string"},
+                                    "injector_process": {"type": ["string", "null"]},
+                                    "injector_commandline": {"type": ["string", "null"]},
+                                    "injector_parent": {"type": ["string", "null"]},
+                                    "injector_category": {"type": "string"},
+                                    "victim_process": {"type": ["string", "null"]},
+                                    "relationship": {"type": ["string", "null"]},
+                                    "injected_dll": {"type": ["string", "null"]},
+                                    "thread_flags": {"type": ["string", "null"]},
+                                    "thread_flags_meaning": {"type": ["string", "null"]},
+                                    "victim_is_sensitive_process": {"type": ["boolean", "null"]},
+                                    "sensitive_process_name": {"type": ["string", "null"]},
+                                    "event_count": {"type": "integer"},
+                                    "fields_available": {"type": "array", "items": {"type": "string"}},
+                                    "fields_unavailable": {"type": "array", "items": {"type": "string"}},
+                                    "risk_classification": {"type": "string", "enum": ["BENIGN", "SUSPICIOUS", "MALICIOUS"]},
+                                    "evidence_and_reasoning": {"type": "string"}
+                                  },
+                                  "required": ["id", "injection_type", "mitre_mapping", "time_range", "injector_category", "event_count",
+                  "fields_available", "fields_unavailable", "risk_classification", "evidence_and_reasoning"]
+                                }
+                              },
+                              "mitre_techniques_observed": {"type": "array", "items": {"type": "string"}},
+                              "recommended_actions": {"type": "array", "items": {"type": "string"}}
+                            },
+                            "required": ["timeline_summary", "injection_patterns", "mitre_techniques_observed", "recommended_actions"]
+                          }
+                        },
+                        "required": ["executive_summary", "detailed_forensics"]
+                      }
+                    },
+                    "required": ["analysis"]
+                  }
+            model_name: Claude Sonnet 4
+            temperature: 0
+            user_prompt: "  You are a CrowdStrike Falcon threat analyst. You are triaging a Defense Evasion detection involving process injection on a SINGLE\n   endpoint. The data below contains all injection events observed on this host in the 10 minutes leading up to the detection,\n  enriched with process context from a 6-hour ProcessRollup2 lookback.\n\n  Analyze the events and produce an executive triage summary AND detailed forensic breakdown.\n\n  INPUT FIELDS AND THEIR MEANING:\n  The injection events were enriched by joining ContextProcessId to a ProcessRollup2 (PR2) lookup on TargetProcessId.\n  ContextProcessId is the ID of the process responsible for the event — for ALL injection event types this is the INJECTOR (the  process that performed the injection). The PR2 join therefore ALWAYS retrieves the INJECTOR's process details.\n\n  FIELD DEFINITIONS:\n  - @timestamp: Unix epoch milliseconds when the event was recorded. Use this to reconstruct the chronological sequence of  injection activity on the host.\n  - aid: CrowdStrike sensor agent ID.\n  - ComputerName: Hostname. All events are from the SAME host.\n  - #event_simpleName: Injection event type:\n      * ProcessInjection — a remote process wrote and executed code in another process.\n      * DllInjection — a DLL was injected into a process.\n      * JavaInjectedThread — a Java process injected a thread into another process.\n      * BrowserInjectedThread — a browser process injected a thread into another process.\n      * DocumentProgramInjectedThread — a document program (Word, Excel, PDF reader) injected a thread into another process.\n      * InjectedThreadFromUnsignedModule — a thread was injected from an unsigned module. Inherently more suspicious.\n  - InjectorImageFileName: File path of the INJECTOR. Only populated on ProcessInjection events.\n  - InjecteeImageFileName: File path of the VICTIM (process injected into). Only populated on ProcessInjection events.\n  - InjectedDll: File path of the injected DLL. Only populated on DllInjection events.\n  - InjectedThreadFlags: Bitmask flags describing the injected thread. Populated on thread-detection events only. NOT on ProcessInjection.\n  - OriginatingProcessName: File path of the INJECTOR process (from PR2 join on ContextProcessId). On ALL injection event types.\n  this is the process that PERFORMED the injection.\n  - OriginatingCommandLine: Command line of the INJECTOR process (from PR2 join). Always describes the injector.\n  - OriginatingParentBaseFileName: Parent process of the INJECTOR (from PR2 join). Always describes the injector's parent.\n\n  WHO IS WHO:\n  - INJECTOR (who performed the injection):\n      * On ProcessInjection: InjectorImageFileName (native) AND OriginatingProcessName/OriginatingCommandLine/OriginatingParentBaseFileName (from PR2).\n      * On thread-detection events: OriginatingProcessName/OriginatingCommandLine/OriginatingParentBaseFileName (from PR2). The injector CATEGORY is also revealed by #event_simpleName (Java, browser, document program, unsigned module).\n  - VICTIM (who was injected into):\n      * On ProcessInjection: InjecteeImageFileName (native).\n      * On thread-detection events: the specific victim process is NOT identifiable from the available fields.\n\n  HANDLING MISSING DATA:\n  Fields contain \"Not Available\" when not applicable to the event type or when the PR2 lookup found no match (e.g., the injector  process started more than 6 hours ago or its PR2 was not captured). This is NORMAL, not evasion. Rules:\n  - NEVER treat \"Not Available\" as a value to analyze. Skip it.\n  - NEVER infer malicious intent from missing data.\n  - In output, set any field sourced from \"Not Available\" to null.\n  - When classifying risk, only cite fields with real values.\n  - If OriginatingProcessName is \"Not Available\", it means the PR2 lookup did not find the injector's process record within the 6-hour lookback. Note this as \"injector process context unavailable (PR2 miss)\" in the evidence. Do NOT treat this as suspicious on its own.\n\n  FIELD AVAILABILITY BY EVENT TYPE:\n\n  ProcessInjection:\n    Always populated: InjectorImageFileName (INJECTOR), InjecteeImageFileName (VICTIM).\n    Never populated: InjectedDll, InjectedThreadFlags.\n    Sometimes populated: OriginatingProcessName (INJECTOR from PR2), OriginatingCommandLine (INJECTOR),\n  OriginatingParentBaseFileName (INJECTOR parent).\n    Analysis: Both sides available. Profile the INJECTOR from InjectorImageFileName + Originating* fields. Identify the VICTIM from InjecteeImageFileName. Determine: self-injection (injector path == injectee path) or cross-process.\n\n  DllInjection:\n    Always populated: InjectedDll, InjectedThreadFlags.\n    Never populated: InjectorImageFileName, InjecteeImageFileName.\n    Sometimes populated: OriginatingProcessName (INJECTOR from PR2), OriginatingCommandLine (INJECTOR), \n  OriginatingParentBaseFileName (INJECTOR parent).\n    Analysis: Know WHAT was injected (DLL) and WHO did it (Originating* = injector), but NOT the specific victim. Assess from DLL path, injector identity, thread flags.\n\n  JavaInjectedThread:\n    Always populated: InjectedThreadFlags.\n    Never populated: InjectorImageFileName, InjecteeImageFileName, InjectedDll.\n    Sometimes populated: OriginatingProcessName (INJECTOR from PR2), OriginatingCommandLine (INJECTOR),\n  OriginatingParentBaseFileName (INJECTOR parent).\n    Analysis: Injector is a JAVA PROCESS. OriginatingCommandLine shows what the INJECTOR was running. Known benign patterns: ByteBuddy agent attacher (net.bytebuddy.agent.Attacher, com.sun.tools.attach.VirtualMachine), jcmd VM diagnostics (VM.uptime, VM.info), Gradle/Maven build tooling, IDE-spawned Java (parent: Code.exe, Cursor.exe, idea64.exe).\n\n  BrowserInjectedThread:\n    Always populated: InjectedThreadFlags.\n    Never populated: InjectorImageFileName, InjecteeImageFileName, InjectedDll.\n    Sometimes populated: OriginatingProcessName (INJECTOR browser from PR2), OriginatingCommandLine (INJECTOR),\n  OriginatingParentBaseFileName (INJECTOR parent).\n    Analysis: Injector is a BROWSER. Browser self-injection into child processes and extension-related injection are common and  typically benign.\n\n  InjectedThreadFromUnsignedModule:\n    Always populated: InjectedThreadFlags.\n    Never populated: InjectorImageFileName, InjecteeImageFileName, InjectedDll.\n    Sometimes populated: OriginatingProcessName (INJECTOR from PR2), OriginatingCommandLine (INJECTOR),\n  OriginatingParentBaseFileName (INJECTOR parent).\n    Analysis: Unsigned module — elevated baseline suspicion. Examine injector identity from Originating* fields. Known legitimate: WMI providers (WmiPrvSE.exe), management agents. Unknown injectors or user-writable paths warrant escalation.\n\n  DocumentProgramInjectedThread:\n    Always populated: InjectedThreadFlags.\n    Sometimes populated: OriginatingProcessName (INJECTOR document app from PR2), OriginatingCommandLine (INJECTOR), \n  OriginatingParentBaseFileName (INJECTOR parent).\n    Analysis: Injector is a DOCUMENT PROGRAM. Inherently suspicious — common malware vector. Some Office IPC is legitimate. Assess injector identity, thread flags, parent process.\n\n  INJECTED THREAD FLAG INTERPRETATION:\n  - START_ADDRESS_PRIVATE_MEM: Thread start in private (non-image-backed) memory. ELEVATED CONCERN — shellcode pattern, but also legitimate JIT (Java, .NET).\n  - START_ADDRESS_IN_NAMED_PE: Thread starts in a loaded named PE module. LOWER CONCERN.\n  - START_ADDRESS_IN_WIN_DLL: Thread starts in a Windows system DLL. LOWER CONCERN with START_ADDRESS_IN_NAMED_PE.\n  - START_ADDRESS_IN_NTDLL: Thread starts in ntdll.dll. Context-dependent.\n  - START_ADDRESS_IN_SYS_RANGE: Kernel/system range. Typically legitimate.\n  - SYSTEM_THREAD: Kernel/system thread. Typically legitimate.\n  - PREV_MODE_KERNEL: Previous mode kernel. Typically legitimate.\n  - SOURCE_PROCESS_IS_SYSTEM: Source is SYSTEM process. Typically legitimate.\n  - TARGET_ANALYSIS_FAILED / CONTEXT_ANALYSIS_FAILED: Sensor analysis incomplete. Increases uncertainty, note in evidence.\n\n  Common benign combinations:\n  - START_ADDRESS_IN_NAMED_PE | START_ADDRESS_IN_WIN_DLL\n  - START_ADDRESS_IN_NAMED_PE | START_ADDRESS_IN_SYS_RANGE | SYSTEM_THREAD\n  - START_ADDRESS_IN_NAMED_PE | START_ADDRESS_IN_WIN_DLL | START_ADDRESS_IN_NTDLL\n\n  Higher concern:\n  - START_ADDRESS_PRIVATE_MEM alone — potential shellcode, but also JVM instrumentation.\n  - START_ADDRESS_PRIVATE_MEM with unknown/suspicious injector — requires investigation.\n\n  ANALYSIS STEPS:\n  1. Sort all events by @timestamp to establish chronological order.\n  2. Group by #event_simpleName to identify the types of injection occurring on this host.\n  3. Analyze ONLY fields with actual values per event type rules above.\n  4. Map #event_simpleName to MITRE ATT&CK T1055 sub-techniques.\n  5. For ProcessInjection: profile INJECTOR from InjectorImageFileName + Originating*. Identify VICTIM from InjecteeImageFileName.\n  Determine self-injection vs. cross-process.\n  6. For thread-detection events: profile INJECTOR from Originating* fields + event type category. Note victim is unknown.\n  7. Assess injector legitimacy: endpoint security agents, Java dev tooling (ByteBuddy, Gradle, jcmd), IDE extensions (VS Code, Cursor, IntelliJ), Microsoft Defender DLP (MpDlpService, MpDetours.dll), browsers (Edge, Chrome), Office IPC are commonly benign.\n  8. For ProcessInjection with known victim: flag sensitive victims (lsass.exe, wininit.exe, winlogon.exe, csrss.exe, svchost.exe, dwm.exe, LogonUI.exe, services.exe).\n  9. Use the timeline (@timestamp) to identify patterns: rapid repeated injections from the same injector may indicate automated tooling (benign) or spray-style injection (suspicious). Note the time span of activity.\n  10. Classify: BENIGN (known legitimate injector with expected behavior), SUSPICIOUS (unusual injector, sparse data, or uncertain), MALICIOUS (anomalous injector targeting sensitive processes with no legitimate explanation). Sparse data defaults to   SUSPICIOUS.\n  11. Deduplicate: consolidate rows sharing same pattern differing only by PID or timestamp into one pattern with event_count and a time_range (earliest to latest @timestamp).\n\n  12. When generating recommended_actions, follow this ordering:\n    - Begin with analytical/investigative actions first.\n    - Order remaining actions from least to most disruptive.\n    - Only recommend isolation or containment if necessary based on the severity of the activity.\n    - If isolation or containment is recommended, it should be listed last and phrased conditionally: \"If analysis confirms malicious activity, assess operational impact before isolating the host.\"\n\n  Respond ONLY with valid JSON matching the schema below.\n\n  OUTPUT JSON SCHEMA:\n  {\n    \"analysis\": {\n      \"executive_summary\": {\n        \"hostname\": \"<from ComputerName>\",\n        \"aid\": \"<from aid>\",\n        \"observation_window\": \"<earliest @timestamp to latest @timestamp, formatted as ISO8601>\",\n        \"total_events\": <int>,\n        \"injection_types\": [\"<from #event_simpleName values>\"],\n        \"risk_level\": \"BENIGN | SUSPICIOUS | MALICIOUS\",\n        \"overall_verdict\": \"TRUE_POSITIVE | FALSE_POSITIVE | REQUIRES_INVESTIGATION\",\n        \"confidence\": \"HIGH | MEDIUM | LOW\",\n        \"conclusion\": \"<2-3 sentences: root cause, threat assessment, recommended action>\"\n      },\n      \"detailed_forensics\": {\n        \"timeline_summary\": \"<1-2 sentences describing what happened chronologically on this host based on @timestamp ordering>\",\n        \"injection_patterns\": [\n          {\n            \"id\": <int>,\n            \"injection_type\": \"<from #event_simpleName>\",\n            \"mitre_mapping\": \"<T1055.xxx - sub-technique name>\",\n            \"time_range\": \"<earliest to latest @timestamp for this pattern, ISO8601>\",\n            \"injector_process\": \"<from InjectorImageFileName or OriginatingProcessName, or null>\",\n            \"injector_commandline\": \"<from OriginatingCommandLine max 150 chars, or null>\",\n            \"injector_parent\": \"<from OriginatingParentBaseFileName, or null>\",\n            \"injector_category\": \"<from #event_simpleName: Java process | browser | document program | unsigned module | identified\n   process>\",\n            \"victim_process\": \"<from InjecteeImageFileName on ProcessInjection, or null on thread events>\",\n            \"relationship\": \"<self-injection | cross-process | null if victim unknown>\",\n            \"injected_dll\": \"<from InjectedDll, or null>\",\n            \"thread_flags\": \"<from InjectedThreadFlags, or null>\",\n            \"thread_flags_meaning\": \"<interpretation, or null>\",\n            \"victim_is_sensitive_process\": <true | false | null if victim unknown>,\n            \"sensitive_process_name\": \"<if applicable, or null>\",\n            \"event_count\": <int>,\n            \"fields_available\": [\"<fields with real data>\"],\n            \"fields_unavailable\": [\"<fields that were Not Available>\"],\n            \"risk_classification\": \"BENIGN | SUSPICIOUS | MALICIOUS\",\n            \"evidence_and_reasoning\": \"<2-3 sentences citing ONLY fields with real values. State which field each conclusion \n  derives from. Note when confidence is limited by missing data.>\"\n          }\n        ],\n        \"mitre_techniques_observed\": [\"<T-codes with names>\"],\n        \"recommended_actions\": [\"<specific actionable next steps for this host>\"]\n      }\n    }\n  }"
+        version_constraint: ~0
+    CreateVariable:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize custom variables
+        next:
+            - UpdateVariableSetDefaultFlags
+        properties:
+            variable_schema:
+                properties:
+                    comment_conclusion:
+                        type: string
+                    comment_no_llm:
+                        type: string
+                    comment_recommendations:
+                        type: string
+                    confidence:
+                        type: string
+                    risk_level:
+                        type: string
+                    severity_level:
+                        enum:
+                            - Low
+                            - Medium
+                            - High
+                            - Critical
+                        type: string
+                    tags:
+                        items:
+                            type: string
+                        type: array
+                    use_llm:
+                        type: boolean
+                    verdict:
+                        type: string
+                type: object
+        version_constraint: ~1
+    PrintData3:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data - LLM analysis failure notification
+        next:
+            - UpdateVariableBuildNoLLMComment
+        properties:
+            text_data: AI Agent analysis failed. Raw results added to detection.
+        version_constraint: ~1
+    PrintDataNoInjectionEvents:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data - Empty injection event results
+        properties:
+            text_data: No injection events found during the 10-minute search window for sensor ${data['Trigger.Detection.EPP.Sensor.SensorID']}. No enrichment added to detection.
+        version_constraint: ~1
+    PrintDataSeverityBelowThreshold:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data - Severity below threshold
+        properties:
+            text_data: Detection severity ${data['Trigger.Detection.SeverityDisplayName']} is below the configured threshold ${data['WorkflowCustomVariable.severity_level']}. To change the threshold, update the severity_level value in the Update variable - Set default flags action. No enrichment performed.
+        version_constraint: ~1
+    UpdateVariableBuildExecutiveSummaryComment:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Format executive summary and recommendations
+        next:
+            - UpdateVariableBuildTags
+        properties:
+            WorkflowCustomVariable:
+                comment_conclusion: '${cs.string.truncate(''AI Agent: '' + (data[''WorkflowCustomVariable.risk_level''] == ''MALICIOUS'' ? ''[!] '' : (data[''WorkflowCustomVariable.risk_level''] == ''SUSPICIOUS'' ? ''[?] '' : ''[i] '')) + data[''WorkflowCustomVariable.risk_level''] + '' - '' + data[''WorkflowCustomVariable.verdict''] + '' ('' + data[''WorkflowCustomVariable.confidence''] + '' confidence)'' + ''\n'' + ''Conclusion: '' + string((data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion''] != null && data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion''] != '''' && cs.json.valid(data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion''])) ? cs.json.decode(data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'']).analysis.executive_summary.conclusion : ''''), 490)}'
+                comment_recommendations: '${cs.string.truncate(''AI Agent: Recommended Actions:\n'' + ((data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion''] != null && data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion''] != '''' && cs.json.valid(data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion''])) ? cs.json.decode(data[''CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'']).analysis.detailed_forensics.recommended_actions.map(item, ''- '' + item).join(''\n'') : ''''), 428) + ''\nRefer to fusion log repo for detailed forensics.''}'
+        version_constraint: ~1
+    UpdateVariableBuildNoLLMComment:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Build no-LLM injection comment
+        next:
+            - WriteToLogRepoNoLLMInjectionResults
+        properties:
+            WorkflowCustomVariable:
+                comment_no_llm: |-
+                    ${cs.string.truncate(
+                    'Injection Activity (No AI Agent) | ' +
+                    data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.results'][0].ComputerName +
+                    ' | ' +
+                    string(data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.event_count']) +
+                    (data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.event_count'] > 1 ? ' events' : ' event') +
+                    '\n\n' +
+                    data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.results']
+                    .transformList(idx, item, idx < 3 ?
+                      item['#event_simpleName'] + ': ' +
+                      (item.OriginatingParentBaseFileName != 'Not Available' ? item.OriginatingParentBaseFileName + ' > ' : '') +
+                      (item.OriginatingProcessName != 'Not Available'
+                        ? item.OriginatingProcessName.split('\\')[item.OriginatingProcessName.split('\\').size() - 1]
+                        : (item.InjectorImageFileName != 'Not Available'
+                          ? item.InjectorImageFileName.split('\\')[item.InjectorImageFileName.split('\\').size() - 1]
+                          : '[unknown]')) +
+                      (item.InjecteeImageFileName != 'Not Available'
+                        ? ' -> ' + item.InjecteeImageFileName.split('\\')[item.InjecteeImageFileName.split('\\').size() - 1]
+                        : '') +
+                      (item.InjectedDll != 'Not Available'
+                        ? ' -- ' + item.InjectedDll.split('\\')[item.InjectedDll.split('\\').size() - 1]
+                        : '') +
+                      (item.InjecteeImageFileName != 'Not Available' && (
+                        item.InjecteeImageFileName.contains('lsass') ||
+                        item.InjecteeImageFileName.contains('csrss') ||
+                        item.InjecteeImageFileName.contains('winlogon'))
+                        ? ' [!]' : '')
+                    : '').filter(line, line != '').join('\n') +
+                    (data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.event_count'] > 3
+                      ? '\n(+' + string(data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.event_count'] - 3) + ' more events)'
+                      : '') +
+                    (data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.event_count'] == 1 &&
+                     data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.results'][0].OriginatingCommandLine != 'Not Available'
+                      ? '\n  Cmd: ' + cs.string.truncate(data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.results'][0].OriginatingCommandLine, 55)
+                      : '') +
+                    (data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.results']
+                      .filter(e, e.InjecteeImageFileName.contains('lsass') || e.InjecteeImageFileName.contains('csrss'))
+                      .size() > 0 ? '\n\n[!] Sensitive process targeted' : '')
+                    , 438) + '\nRefer to fusion log repo for raw injection results.'}
+        version_constraint: ~1
+    UpdateVariableBuildTags:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Build tags
+        next:
+            - Loop
+            - WriteToLogRepoLLMOutput
+        properties:
+            WorkflowCustomVariable:
+                tags: |-
+                    ${[cs.string.truncate('AI Agent:' + cs.string.capitalize((data['WorkflowCustomVariable.risk_level'] == null ? '' : data['WorkflowCustomVariable.risk_level']).lowerAscii()) + ' risk', 75),
+                     cs.string.truncate('AI Agent:' + cs.string.capitalize(cs.string.replaceRegex((data['WorkflowCustomVariable.verdict'] == null ? '' : data['WorkflowCustomVariable.verdict']).lowerAscii(), '_', ' ')) + ' verdict', 75),
+                     cs.string.truncate('AI Agent:' + cs.string.capitalize((data['WorkflowCustomVariable.confidence'] == null ? '' : data['WorkflowCustomVariable.confidence']).lowerAscii()) + ' confidence', 75)]}
+        version_constraint: ~1
+    UpdateVariableParseLLMOutput:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Parse LLM risk verdict confidence
+        next:
+            - data39workflowcustomvariable_risk_level39__39unknown39_ampamp_data39workflowcustomvariable_verdict39
+        properties:
+            WorkflowCustomVariable:
+                confidence: |-
+                    ${data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'] != null &&
+                    data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'] != '' &&
+                    cs.json.valid(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']) &&
+                    cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis != null &&
+                    cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis.executive_summary != null &&
+                    cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis.executive_summary.confidence != null
+                    ? cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis.executive_summary.confidence
+                    : 'UNKNOWN'}
+                risk_level: |-
+                    ${data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'] != null &&
+                    data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'] != '' &&
+                    cs.json.valid(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']) &&
+                    cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis != null &&
+                    cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis.executive_summary != null &&
+                    cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis.executive_summary.risk_level != null
+                      ? cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis.executive_summary.risk_level
+                      : 'UNKNOWN'}
+                verdict: |-
+                    ${data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'] != null &&
+                    data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion'] != '' &&
+                    cs.json.valid(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']) ?
+                      cs.json.decode(data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']).analysis.executive_summary.overall_verdict
+                      : 'UNKNOWN'}
+        version_constraint: ~1
+    UpdateVariableSetDefaultFlags:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Set default flags
+        next:
+            - detection_severity_meets_or_exceeds_configured_threshold
+        properties:
+            WorkflowCustomVariable:
+                severity_level: Medium
+                use_llm: false
+        version_constraint: ~1
+    WorkflowSpecificEventQueryInjectionEventsWithPR2Context:
+        id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+        default_name: Workflow-specific event query
+        inline_configuration:
+            input_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                properties:
+                    sensor_id:
+                        type: string
+                        title: Sensor id
+                        default: '*'
+                required:
+                    - sensor_id
+                type: object
+                description: Generated request schema
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                properties:
+                    ComputerName:
+                        type: string
+                        title: ComputerName
+                    InjectedDll:
+                        type: string
+                        title: InjectedDll
+                    InjectedThreadFlags:
+                        type: string
+                        title: InjectedThreadFlags
+                    InjecteeImageFileName:
+                        type: string
+                        title: InjecteeImageFileName
+                    InjectorImageFileName:
+                        type: string
+                        title: InjectorImageFileName
+                    OriginatingCommandLine:
+                        type: string
+                        title: OriginatingCommandLine
+                    OriginatingParentBaseFileName:
+                        type: string
+                        title: OriginatingParentBaseFileName
+                    OriginatingProcessName:
+                        type: string
+                        title: OriginatingProcessName
+                    aid:
+                        type: string
+                        title: Aid
+                required:
+                    - ComputerName
+                    - InjectedDll
+                    - InjectedThreadFlags
+                    - InjecteeImageFileName
+                    - InjectorImageFileName
+                    - OriginatingCommandLine
+                    - OriginatingParentBaseFileName
+                    - OriginatingProcessName
+                    - aid
+                type: object
+                description: Generated response schema
+            config:
+                description: ""
+                end: now
+                repo_or_view: search-all
+                search_name: injection query
+                search_query: "// Build PR2 lookup table with renamed fields looking at all processes in the last day for the specific aid\n  defineTable(\n      query={\n          #event_simpleName=ProcessRollup2 OR #event_simpleName=SyntheticProcessRollup2\n          | aid=?sensor_id\n          | rename(field=ImageFileName, as=OriginatingProcessName)\n          | rename(field=CommandLine, as=OriginatingCommandLine)\n          | rename(field=\"ParentBaseFileName\", as=\"OriginatingParentBaseFileName\")\n      },\n      name=\"pr2_lookup\",\n      include=[TargetProcessId, OriginatingProcessName, OriginatingCommandLine, OriginatingParentBaseFileName],\n      start=6h, end=now\n  )\n\n  // Find all injection related events around the time of detection\n  | aid=?sensor_id\n   | in(field=\"#event_simpleName\", values=[BrowserInjectedThread,ProcessInjection,DllInjection, DocumentProgramInjectedThread, InjectedThreadFromUnsignedModule, JavaInjectedThread])\n  //Find the PR2 event that is responsible for the injection event\n   | match(table=\"pr2_lookup\", field=ContextProcessId, column=TargetProcessId, strict=false)\n  //Refer to events-data-dictionary for InjectedThreadFlag bitmask mapping \n   | bitfield:extractFlagsAsString(field=\"InjectedThreadFlag\", flagNames=[\n      [0, \"PREV_MODE_KERNEL\"],\n      [1, \"START_ADDRESS_IN_NAMED_PE\"],\n      [2, \"START_ADDRESS_IN_SYS_RANGE\"],\n      [3, \"SYSTEM_THREAD\"],\n      [4, \"SOURCE_PROCESS_IS_SYSTEM\"],\n      [5, \"TARGET_ANALYSIS_FAILED\"],\n      [6, \"CONTEXT_ANALYSIS_FAILED\"],\n      [7, \"START_ADDRESS_IN_NTDLL\"],\n      [8, \"START_ADDRESS_IN_WIN_DLL\"],\n      [9, \"START_ADDRESS_PRIVATE_MEM\"]\n  ], as=\"InjectedThreadFlags\", separator=\" | \")\n  // Default empty fields\n  | default(field=InjectedDll, value=\"Not Available\", replaceEmpty=true)\n  | default(field=OriginatingProcessName, value=\"Not Available\", replaceEmpty=true)\n  | default(field=InjectorImageFileName, value=\"Not Available\", replaceEmpty=true)\n  | default(field=InjecteeImageFileName, value=\"Not Available\", replaceEmpty=true)\n  | default(field=OriginatingCommandLine, value=\"Not Available\", replaceEmpty=true)\n  | default(field=InjectedThreadFlags, value=\"Not Available\", replaceEmpty=true)\n  | default(field=OriginatingParentBaseFileName, value=\"Not Available\", replaceEmpty=true)\n    // Strip \\Device\\HarddiskVolumeN\\ prefix from all filename fields\n  | regex(\"\\\\\\\\Device\\\\\\\\HarddiskVolume\\\\d+\\\\\\\\(?<InjectorImageFileName>.+)\", field=InjectorImageFileName, strict=false)\n  | regex(\"\\\\\\\\Device\\\\\\\\HarddiskVolume\\\\d+\\\\\\\\(?<InjecteeImageFileName>.+)\", field=InjecteeImageFileName, strict=false)\n  | regex(\"\\\\\\\\Device\\\\\\\\HarddiskVolume\\\\d+\\\\\\\\(?<OriginatingProcessName>.+)\", field=OriginatingProcessName, strict=false)\n\n\n  | groupBy([@timestamp, aid, ComputerName, #event_simpleName, ComputerName, InjectorImageFileName, InjecteeImageFileName, InjectedDll, InjectedThreadFlags, OriginatingProcessName, OriginatingCommandLine, OriginatingParentBaseFileName], limit=max)\n  | drop([_count])"
+                search_query_args:
+                    sensor_id: '*'
+                start: 10m
+                tags: []
+        class: Inline.QueryEvent
+        continue_on_error: true
+        name: Workflow-specific event query - Injection events with PR2 context
+        next:
+            - injection_query_returned_results_event_count_gt_0
+        properties:
+            output_files_only: false
+            sensor_id: ${data['Trigger.Detection.EPP.Sensor.SensorID']}
+            workflow_csv_header_fields:
+                - InjectedDll
+                - ComputerName
+            workflow_export_event_query_results_to_csv: false
+        version_constraint: ~1
+    WriteToLogRepoLLMOutput:
+        id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+        default_name: Write to log repo
+        name: Write to log repo - Complete LLM response with metadata
+        properties:
+            _fields:
+                - ${Workflow.Definition.Name}
+            custom_json:
+                confidence: ${data['WorkflowCustomVariable.confidence']}
+                detection_id: ${Trigger.Detection.DetectionID}
+                event_type: llm_injection_analysis
+                llm_output: ${data['CharlotteAILLMCompletion.FaaS.nlpassistantapi.llminvocator_handler.completion']}
+                risk_level: ${data['WorkflowCustomVariable.risk_level']}
+                sensor_id: ${data['Trigger.Detection.EPP.Sensor.SensorID']}
+                verdict: ${data['WorkflowCustomVariable.verdict']}
+                workflow_execution_id: ${Workflow.Execution.ID}
+                workflow_name: ${Workflow.Definition.Name}
+        version_constraint: ~1
+    WriteToLogRepoNoLLMInjectionResults:
+        id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+        default_name: Write to log repo
+        name: Write to log repo - Raw injection results (no AI Agent)
+        next:
+            - AddCommentToDetectionInjectionSummarynoLLM
+        properties:
+            _fields:
+                - ${Workflow.Definition.Name}
+            custom_json:
+                detection_id: ${Trigger.Detection.DetectionID}
+                event_type: no_llm_injection_results
+                injection_event_count: ${data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.event_count']}
+                raw_results: ${WorkflowSpecificEventQueryInjectionEventsWithPR2Context.raw_results}
+                sensor_id: ${data['Trigger.Detection.EPP.Sensor.SensorID']}
+                workflow_execution_id: ${Workflow.Execution.ID}
+                workflow_name: ${Workflow.Definition.Name}
+        version_constraint: ~1
+conditions:
+    data39workflowcustomvariable_risk_level39__39unknown39_ampamp_data39workflowcustomvariable_verdict39:
+        next:
+            - UpdateVariableBuildExecutiveSummaryComment
+        cel_expression: "data['WorkflowCustomVariable.risk_level'] != 'UNKNOWN' \n  && data['WorkflowCustomVariable.verdict'] != 'UNKNOWN' \n  && data['WorkflowCustomVariable.confidence'] != 'UNKNOWN'\n"
+        display:
+            - data[&#39;WorkflowCustomVariable.risk_level&#39;] != &#39;UNKNOWN&#39; &amp;&amp; data[&#39;WorkflowCustomVariable.verdict&#39;] != &#39;UNKNOWN&#39; &amp;&amp; data[&#39;WorkflowCustomVariable.confidence&#39;] != &#39;UNKNOWN&#39;
+        else:
+            - PrintData3
+    detection_severity_meets_or_exceeds_configured_threshold:
+        next:
+            - WorkflowSpecificEventQueryInjectionEventsWithPR2Context
+        cel_expression: (data['WorkflowCustomVariable.severity_level'] == 'Low' && data['Trigger.Detection.SeverityDisplayName'] in ['Low','Medium','High','Critical']) || (data['WorkflowCustomVariable.severity_level'] == 'Medium' && data['Trigger.Detection.SeverityDisplayName'] in ['Medium','High','Critical']) || (data['WorkflowCustomVariable.severity_level'] == 'High' && data['Trigger.Detection.SeverityDisplayName'] in ['High','Critical']) || (data['WorkflowCustomVariable.severity_level'] == 'Critical' && data['Trigger.Detection.SeverityDisplayName'] in ['Critical'])
+        display:
+            - Detection severity meets or exceeds configured threshold
+        else:
+            - PrintDataSeverityBelowThreshold
+    injection_query_returned_results_event_count_gt_0:
+        next:
+            - use_llm_is_true
+        cel_expression: data['WorkflowSpecificEventQueryInjectionEventsWithPR2Context.event_count'] > 0
+        display:
+            - Injection query returned results (event_count &gt; 0)
+        else:
+            - PrintDataNoInjectionEvents
+    tactic_is_equal_to_defense_evasion:
+        next:
+            - CreateVariable
+        expression: Trigger.Detection.EPP.Behavior.TacticName:'Defense Evasion'
+        display:
+            - Tactic is equal to Defense Evasion
+    use_llm_is_false:
+        next:
+            - UpdateVariableBuildNoLLMComment
+        cel_expression: data['WorkflowCustomVariable.use_llm'] == false
+        display:
+            - use_llm is false
+    use_llm_is_true:
+        next:
+            - CharlotteAILLMCompletion
+        cel_expression: data['WorkflowCustomVariable.use_llm'] == true
+        display:
+            - use_llm is true
+        else_if: use_llm_is_false
+loops:
+    Loop:
+        display: For each tags; Sequentially
+        name: For each tags; Sequentially
+        next:
+            - AddCommentToDetectionRecommendations
+        for:
+            input: WorkflowCustomVariable.tags
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - AddTagToAlertLLMEnrichmentTags
+        actions:
+            AddTagToAlertLLMEnrichmentTags:
+                id: 6de8a462880ad419680ed5c291b9413f
+                default_name: Add tag to alert
+                name: Add tag to alert - LLM enrichment tags
+                properties:
+                    investigatable_id: ${Trigger.Detection.DetectionID}
+                    tag: ${data['WorkflowCustomVariable.tags.#']}

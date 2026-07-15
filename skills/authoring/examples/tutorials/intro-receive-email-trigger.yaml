@@ -1,0 +1,41 @@
+# Example: Introduction to Receive Email Trigger: Create a Lookup File from an Email
+# Category: tutorials
+# Source: CrowdStrike Content Library
+
+name: 'Introduction to Receive Email trigger: How to create a lookup file from an email attachment'
+description: Learn how to create a lookup file from a file attachment. Requires user has setup the O365 Monitored Mailbox app from the CrowdStrike store.
+trigger:
+  next:
+    - data_trigger_monitoredemail_attachmentfiles_null_data_trigge
+    - default_gateway_decision_ae829b82_ef89_45bf_85e8_8340bd76251
+  name: Receive email
+  event: MonitoredEmail
+  type: Signal
+  version_constraint: ~1
+actions:
+  CreateLookupFileWithoutLoop:
+    id: 51c4db34ab30465f796d7550f3e3e97b
+    name: create lookup file without loop
+    version_constraint: ~1
+    properties:
+      lookup_file_content_file: ${data['Trigger.MonitoredEmail.AttachmentFiles'][0]}
+      lookup_file_content_type: file
+      lookup_file_name: ${cs.json.decode(data['Trigger.MonitoredEmail.AttachmentFiles'][0]).Name}
+      lookup_file_repo: search-all
+  PrintData:
+    id: aadbf530e35fc452a032f5f8acaaac2a
+    name: Print data
+    version_constraint: ~1
+    properties:
+      text_data: "Attachment file types are not .csv${data['Trigger.MonitoredEmail.AttachmentFiles'] != null ?\n  data['Trigger.MonitoredEmail.AttachmentFiles']\n    .transformList(i, a, cs.json.decode(a).Name)\n    .join(', ') :\n  ''}"
+conditions:
+  data_trigger_monitoredemail_attachmentfiles_null_data_trigge:
+    next:
+      - CreateLookupFileWithoutLoop
+    cel_expression: "data['Trigger.MonitoredEmail.AttachmentFiles'] != null &&\ndata['Trigger.MonitoredEmail.AttachmentFiles'].exists(s,\n  s != null && s != '' &&\n  cs.json.valid(s) &&\n  cs.json.decode(s)['Name'] != null &&\n  cs.json.decode(s)['Name'] != '' &&\n  cs.json.decode(s)['Name'].endsWith('.csv')\n)"
+    display:
+      - "data[&#39;Trigger.MonitoredEmail.AttachmentFiles&#39;] != null &amp;&amp;\ndata[&#39;Trigger.MonitoredEmail.AttachmentFiles&#39;].exists(s,\n  s != null &amp;&amp; s != &#39;&#39; &amp;&amp;\n  cs.json.valid(s) &amp;&amp;\n  cs.json.decode(s)[&#39;Name&#39;] != null &amp;&amp;\n  cs.json.decode(s)[&#39;Name&#39;] != &#39;&#39; &amp;&amp;\n  cs.json.decode(s)[&#39;Name&#39;].endsWith(&#39;.csv&#39;)\n)"
+  default_gateway_decision_ae829b82_ef89_45bf_85e8_8340bd76251:
+    next:
+      - PrintData
+    default: true

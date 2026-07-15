@@ -1,0 +1,57 @@
+# Example: PAN NGFW - Blocklist to EDL and Force Refresh
+# Category: response-actions
+# Source: CrowdStrike Content Library
+
+name: PAN NGFW - Blocklist to EDL and Force Refresh
+description: Forces an immediate refresh of a specified External Dynamic List (EDL) on a PAN NGFW firewall. Use this after updating the source blocklist to ensure the firewall fetches the latest entries without waiting for the scheduled refresh interval.
+trigger:
+  next:
+    - RefreshEDL
+  name: On demand
+  type: On demand
+  parameters:
+    properties:
+      EDLName:
+        type: string
+        description: Exact name of the EDL object on the firewall to refresh
+      EDLType:
+        enum:
+          - ip
+          - domain
+          - url
+        type: string
+        description: Type of EDL — must match the EDL object configuration on the firewall
+      FirewallIP:
+        type: string
+        description: IP address or hostname of the PAN NGFW management interface
+    required:
+      - EDLName
+      - EDLType
+      - FirewallIP
+    type: object
+actions:
+  RefreshEDL:
+    id: 50b8a7cc77ea4ebb9d0bbe96d8def095
+    class: Inline.HTTPRequest
+    name: Refresh EDL
+    version_constraint: ~1
+    properties:
+      authentication_option: UseExisting
+      definition_id: 31fd9a5893df4127b93f9d27e80a1ea9
+      deployment_model: on_prem
+      host_group_id: 4775ad67cafd4edb90aa9d250678c871
+      http_transaction:
+        request_content_type: NONE
+        request_headers: {}
+        request_http_method: GET
+        request_query:
+          1e79e667-45ce-4bb6-90c0-3d8082954b35:
+            name: type
+            value: op
+          893e0c8b-a8bb-42c2-bd60-2413e99ef28d:
+            name: cmd
+            value: <request><system><external-list><refresh><type><${data['EDLType']}><name>${data['EDLName']}</name></${data['EDLType']}></type></refresh></external-list></system></request>
+        request_url: https://${data['FirewallIP']}/api
+        response_body: ''
+        response_status_code: 200
+      insecure_skip_verify: true

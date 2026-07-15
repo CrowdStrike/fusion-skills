@@ -1,0 +1,422 @@
+# Example: Domain Enrichment with Pulsedive
+# Category: threat-intel
+# Source: CrowdStrike Content Library playbook "Domain Enrichment Pulsedive"
+#   (https://falcon.crowdstrike.com/login/?unilogin=true&next=/content-library/details/global:fusion_playbook:8746f79b2514435db58f433fa062a4ee),
+#   installed and exported unmodified from the Falcon console. Passes validate.py
+#   at all tiers, including server-side API validation.
+#
+# Fan-out -> converge reference: parallel Pulsedive lookups (Explore Indicators,
+# Get Indicator Details) each stash their REAL response object into a
+# WorkflowCustomVariable via UpdateVariable, and downstream comment/tag actions
+# read those stored fields. See references/http-actions.md.
+# This is an exported workflow. Editing this file is not recommended.
+
+name: Domain Enrichment Pulsedive
+description: Enriches domain indicators with threat intelligence from Pulsedive, gathering risk assessments, submission details, geographic information, and technology attributes to provide comprehensive context for security investigations. This playbook can be triggered on-demand from an Next-Gen SIEM Case or integrated into other automated playbooks to perform enrichment when provided a detection ID and the relevant entity (such as IP addresses, domains, URLs, or file hashes).
+trigger:
+    next:
+        - domain_exists
+    name: On demand
+    parameters:
+        properties:
+            case_id:
+                type: string
+                title: Case ID
+                format: ngsiemCaseID
+            detection_id:
+                type: string
+                title: Detection ID
+                format: investigatableID
+            domain:
+                type: string
+                title: Domain
+                format: domain
+            entity_id:
+                type: string
+                format: ngsiemComponentID
+        required:
+            - domain
+        type: object
+    type: On demand
+actions:
+    AddCommentToCaseEnrichmentComments:
+        id: a16f4fdd1b244b0bfeecd47e25dbe0e0
+        default_name: Add Comment to Case
+        name: Add Comment to Case - Enrichment comments
+        properties:
+            case_id: ${case_id}
+            comment: ${data['WorkflowCustomVariable.comment_header'] + "\n" + data['WorkflowCustomVariable.comment'].replace('|~|', '')}
+        version_constraint: ~1
+    AddCommentToDetectionFinalEnrichmentComments:
+        id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+        default_name: Add comment to detection
+        name: Add comment to detection - Final enrichment comments
+        properties:
+            comment: ${data['WorkflowCustomVariable.current_comment']}
+            investigatable_id: ${detection_id}
+        version_constraint: ~0
+    AddTagsToCase:
+        id: 696f57b7cdcd475e5c56e6196836ee39
+        default_name: Add tags to case
+        name: Add tags to case - Enrichment tags
+        properties:
+            case_id: ${case_id}
+            tags:
+                - ${data['WorkflowCustomVariable.tags']}
+        version_constraint: ~1
+    CreateVariableDomainAndResultsStorage:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Domain and results storage
+        next:
+            - UpdateVariableCleanDomainInput
+        properties:
+            variable_schema:
+                properties:
+                    cleaned_domain:
+                        type: string
+                    explore_indicators_result:
+                        items:
+                            properties: {}
+                            type: object
+                        type: array
+                    indicator_details_result:
+                        properties: {}
+                        type: object
+                type: object
+        version_constraint: ~1
+    CreateVariableInitializeCommentAndTagsStorage:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize comment and tags storage
+        next:
+            - UpdateVariableSetEnrichmentCommentHeader
+        properties:
+            variable_schema:
+                properties:
+                    comment:
+                        type: string
+                    comment_header:
+                        type: string
+                    tags:
+                        items:
+                            type: string
+                        type: array
+                type: object
+        version_constraint: ~1
+    CreateVariableInitializeCommentChunkingVars:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize comment chunking vars
+        next:
+            - UpdateVariableParseCommentChunkingVars
+        properties:
+            variable_schema:
+                properties:
+                    current_comment:
+                        type: string
+                    current_index:
+                        type: integer
+                    field_and_value_array:
+                        items:
+                            type: string
+                        type: array
+                type: object
+        version_constraint: ~1
+    PulsediveExploreIndicators:
+        id: 087d2584952545cfa43535a0f79cab94
+        default_name: Pulsedive - Explore Indicators
+        continue_on_error: true
+        name: Pulsedive - Explore Indicators
+        next:
+            - UpdateVariableStoreExploreResults
+        properties:
+            params:
+                query:
+                    format: json
+                    limit: 10
+                    pretty: 1
+                    q: ${"type=domain ioc="+ data['WorkflowCustomVariable.cleaned_domain']}
+        version_constraint: ~0
+    PulsediveGetIndicatorDetails:
+        id: 70a7aba2e977494996e16d277f8c0e83
+        default_name: Pulsedive - Get Indicator Details
+        continue_on_error: true
+        name: Pulsedive - Get Indicator Details
+        next:
+            - UpdateVariableStoreIndicatorDetails
+        properties:
+            params:
+                query:
+                    historical: "0"
+                    iid: ""
+                    indicator: ${data['WorkflowCustomVariable.cleaned_domain']}
+                    pretty: "1"
+                    schema: "1"
+        version_constraint: ~0
+    UpdateVariableBuildDetailCommentAndTags:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Build detail comment and tags
+        next:
+            - UpdateVariableBuildExploreCommentAndTags
+        properties:
+            WorkflowCustomVariable:
+                comment: "${data['WorkflowCustomVariable.comment'] + (data['WorkflowCustomVariable.indicator_details_result'] != null && has(data['WorkflowCustomVariable.indicator_details_result'].indicator) ? ('## Primary Domain|~|\\n' +\n    '- ' + data['WorkflowCustomVariable.indicator_details_result'].indicator + ': ' + \n    (has(data['WorkflowCustomVariable.indicator_details_result'].risk) && data['WorkflowCustomVariable.indicator_details_result'].risk != null ? \n      (data['WorkflowCustomVariable.indicator_details_result'].risk == 'none' ? 'Legitimate service (Risk: None)' : 'Risk: ' + data['WorkflowCustomVariable.indicator_details_result'].risk) : 'Risk: Unknown') + '|~|\\n' +\n    (has(data['WorkflowCustomVariable.indicator_details_result'].stamp_seen) && data['WorkflowCustomVariable.indicator_details_result'].stamp_seen != null && data['WorkflowCustomVariable.indicator_details_result'].stamp_seen != \"\" ? \n      '  - Last seen: ' + cs.timestamp.format(cs.timestamp.parse(data['WorkflowCustomVariable.indicator_details_result'].stamp_seen, '2006-01-02 15:04:05'), 'DateOnly') + \n      ' (' + string(int((cs.timestamp.now() - cs.timestamp.parse(data['WorkflowCustomVariable.indicator_details_result'].stamp_seen, '2006-01-02 15:04:05')).getSeconds() / duration('24h').getSeconds())) + ' days ago)|~|\\n' : '') +\n    (has(data['WorkflowCustomVariable.indicator_details_result'].stamp_added) && data['WorkflowCustomVariable.indicator_details_result'].stamp_added != null && data['WorkflowCustomVariable.indicator_details_result'].stamp_added != \"\" ? \n      '  - First added: ' + cs.timestamp.format(cs.timestamp.parse(data['WorkflowCustomVariable.indicator_details_result'].stamp_added, '2006-01-02 15:04:05'), 'DateOnly') + \n      ' (' + string(int(((cs.timestamp.now() - cs.timestamp.parse(data['WorkflowCustomVariable.indicator_details_result'].stamp_added, '2006-01-02 15:04:05')).getSeconds() / duration('24h').getSeconds()) / 365)) + '+ years history)|~|\\n' : '') +\n    \n    // COUNTRY INFORMATION\n    (has(data['WorkflowCustomVariable.indicator_details_result'].properties) && \n     has(data['WorkflowCustomVariable.indicator_details_result'].properties.geo) && \n     has(data['WorkflowCustomVariable.indicator_details_result'].properties.geo.country) && \n     data['WorkflowCustomVariable.indicator_details_result'].properties.geo.country != null && \n     data['WorkflowCustomVariable.indicator_details_result'].properties.geo.country != \"\" ? \n      '  - Location: ' + data['WorkflowCustomVariable.indicator_details_result'].properties.geo.country + '|~|\\n' : '') +\n    \n    // SUBMISSIONS COUNT\n    (has(data['WorkflowCustomVariable.indicator_details_result'].submissions) ? \n      '  - Submissions: ' + string(data['WorkflowCustomVariable.indicator_details_result'].submissions) + '|~|\\n' : '') +\n    \n    // TECHNOLOGIES\n    (has(data['WorkflowCustomVariable.indicator_details_result'].attributes) && \n     has(data['WorkflowCustomVariable.indicator_details_result'].attributes.technology) && \n     data['WorkflowCustomVariable.indicator_details_result'].attributes.technology != null && \n     data['WorkflowCustomVariable.indicator_details_result'].attributes.technology.size() > 0 ? \n      '  - Technologies: ' + data['WorkflowCustomVariable.indicator_details_result'].attributes.technology.join(', ') + '|~|\\n' : '') +\n    \n    '  - Status: ' + (data['WorkflowCustomVariable.indicator_details_result'].risk == 'none' ? 'Active, legitimate threat intelligence platform' : 'Potentially malicious') + '|~|\\n') : \"\")}"
+                tags: |-
+                    ${data['WorkflowCustomVariable.tags'] + [(has(data['WorkflowCustomVariable.indicator_details_result'].indicator)&&data['WorkflowCustomVariable.indicator_details_result'].indicator != null&&data['WorkflowCustomVariable.indicator_details_result'].indicator != "")?
+                    'Pulsedive:'+data['WorkflowCustomVariable.cleaned_domain']+':hasData:true':'',
+                    (has(data['WorkflowCustomVariable.indicator_details_result'].risk)&&
+                    data['WorkflowCustomVariable.indicator_details_result'].risk != null&&
+                    data['WorkflowCustomVariable.indicator_details_result'].risk != "")?
+                    'Pulsedive:'+data['WorkflowCustomVariable.cleaned_domain']+':primaryRisk:'+data['WorkflowCustomVariable.indicator_details_result'].risk:'',
+                    (has(data['WorkflowCustomVariable.indicator_details_result'].risk_recommended)&&
+                    data['WorkflowCustomVariable.indicator_details_result'].risk_recommended != null&&
+                    data['WorkflowCustomVariable.indicator_details_result'].risk_recommended != "")?
+                    'Pulsedive:'+data['WorkflowCustomVariable.cleaned_domain']+':recommendedRisk:'+
+                    data['WorkflowCustomVariable.indicator_details_result'].risk_recommended:'',
+                    (has(data['WorkflowCustomVariable.indicator_details_result'].submissions)&&
+                    data['WorkflowCustomVariable.indicator_details_result'].submissions != null&&data['WorkflowCustomVariable.indicator_details_result'].submissions != "")?
+                    'Pulsedive:'+data['WorkflowCustomVariable.cleaned_domain']+':submissions:'+string(data['WorkflowCustomVariable.indicator_details_result'].submissions):'',
+                    (has(data['WorkflowCustomVariable.indicator_details_result'].type)&&
+                    data['WorkflowCustomVariable.indicator_details_result'].type != null&&data['WorkflowCustomVariable.indicator_details_result'].type != "")?
+                    'Pulsedive:'+data['WorkflowCustomVariable.cleaned_domain']+':type:'+data['WorkflowCustomVariable.indicator_details_result'].type:''
+                    ].filter(tag,tag != '')}
+        version_constraint: ~1
+    UpdateVariableBuildExploreCommentAndTags:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Build explore comment and tags
+        next:
+            - case_id_exists
+            - detection_id_exists
+            - data39workflow_execution_errors39__null_ampamp_data39workflow_execution_errors39_size_gt_0
+        properties:
+            WorkflowCustomVariable:
+                comment: "${data['WorkflowCustomVariable.comment'] + (data['WorkflowCustomVariable.explore_indicators_result'] != null && data['WorkflowCustomVariable.explore_indicators_result'].size() > 1 ? \n'\\n## Associated Domains of Concern (Count: ' + string(data['WorkflowCustomVariable.explore_indicators_result'].size() - 1) + ')|~|\\n' +\n(data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n item.indicator != data['WorkflowCustomVariable.indicator_details_result'].indicator && \n has(item.risk) && item.risk == 'high'\n).size() > 0 ? \n '\\n### High Risk|~|\\n' +\n data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n item.indicator != data['WorkflowCustomVariable.indicator_details_result'].indicator && \n has(item.risk) && item.risk == 'high'\n ).transformList(idx, e, \n '- ' + e.indicator + ' (Risk: High)|~|\\n' + \n (has(e.stamp_seen) && e.stamp_seen != null && e.stamp_seen != \"\" ? \n '- Last seen: ' + cs.timestamp.format(cs.timestamp.parse(e.stamp_seen, '2006-01-02 15:04:05'), 'DateOnly') + \n ' (' + string(int((cs.timestamp.now() - cs.timestamp.parse(e.stamp_seen, '2006-01-02 15:04:05')).getSeconds() / (30 * duration('24h').getSeconds()))) + ' months ago)|~|\\n' : '') + \n (has(e.summary) && has(e.summary.properties) && has(e.summary.properties.geo) && \nhas(e.summary.properties.geo.country) && e.summary.properties.geo.country != null && e.summary.properties.geo.country != \"\" ? \n '- Location: ' + e.summary.properties.geo.country + '|~|\\n' : '') +\n '- Likely impersonating Microsoft updates|~|\\n'\n ).join('\\n') : '') + \n(data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n item.indicator != data['WorkflowCustomVariable.indicator_details_result'].indicator && \n has(item.risk) && item.risk == 'medium'\n).size() > 0 ? \n '\\n### Medium Risk|~|\\n' +\n data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n item.indicator != data['WorkflowCustomVariable.indicator_details_result'].indicator && \n has(item.risk) && item.risk == 'medium'\n ).transformList(idx, e, \n '- ' + e.indicator + ' (Risk: Medium)|~|\\n' + \n (has(e.stamp_seen) && e.stamp_seen != null && e.stamp_seen != \"\" ? \n '- Last seen: ' + cs.timestamp.format(cs.timestamp.parse(e.stamp_seen, '2006-01-02 15:04:05'), 'DateOnly') + \n ' (' + string(int((cs.timestamp.now() - cs.timestamp.parse(e.stamp_seen, '2006-01-02 15:04:05')).getSeconds() / (30 * duration('24h').getSeconds()))) + ' months ago)|~|\\n' : '') + \n (has(e.summary) && has(e.summary.properties) && has(e.summary.properties.geo) && \nhas(e.summary.properties.geo.country) && e.summary.properties.geo.country != null && e.summary.properties.geo.country != \"\" ? \n '- Location: ' + e.summary.properties.geo.country + '|~|\\n' : '') +\n (e.indicator.contains('target') ? '- Possible brand impersonation|~|\\n' : \ne.indicator.contains('web-analysis') ? '- Generic name suggesting analysis/monitoring|~|\\n' : '')\n ).join('\\n') : '') + \n(data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n item.indicator != data['WorkflowCustomVariable.indicator_details_result'].indicator && \n has(item.risk) && item.risk == 'low'\n).size() > 0 ? \n '\\n### Low Risk|~|\\n' +\n data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n item.indicator != data['WorkflowCustomVariable.indicator_details_result'].indicator && \n has(item.risk) && item.risk == 'low'\n ).transformList(idx, e, \n '- ' + e.indicator + ' (Risk: Low)|~|\\n' + \n (has(e.stamp_seen) && e.stamp_seen != null && e.stamp_seen != \"\" ? \n '- Last seen: ' + cs.timestamp.format(cs.timestamp.parse(e.stamp_seen, '2006-01-02 15:04:05'), 'DateOnly') + \n ' (' + string(int((cs.timestamp.now() - cs.timestamp.parse(e.stamp_seen, '2006-01-02 15:04:05')).getSeconds() / (30 * duration('24h').getSeconds()))) + ' months ago)|~|\\n' : '') + \n (has(e.summary) && has(e.summary.properties) && has(e.summary.properties.geo) && \nhas(e.summary.properties.geo.country) && e.summary.properties.geo.country != null && e.summary.properties.geo.country != \"\" ? \n '- Location: ' + e.summary.properties.geo.country + '|~|\\n' : '')\n ).join('\\n') : '') : '')}"
+                tags: "${data['WorkflowCustomVariable.tags'] + ((data['WorkflowCustomVariable.explore_indicators_result'] != null && data['WorkflowCustomVariable.explore_indicators_result'].size() > 0) ? [\n  (data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n     has(item.risk) && item.risk == 'high'\n   ).size() > 0) ? 'Pulsedive:' + data['WorkflowCustomVariable.cleaned_domain'] + ':highRiskCount:' + \n    string(data['WorkflowCustomVariable.explore_indicators_result'].filter(item,\n      has(item.risk) && item.risk == 'high'\n    ).size()) : \"\",\n    (data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n     has(item.risk) && item.risk == 'medium'\n   ).size() > 0) ? 'Pulsedive:' + data['WorkflowCustomVariable.cleaned_domain'] + ':mediumRiskCount:' + \n    string(data['WorkflowCustomVariable.explore_indicators_result'].filter(item,\n      has(item.risk) && item.risk == 'medium'\n    ).size()) : \"\",\n      (data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n     has(item.risk) && item.risk == 'low'\n   ).size() > 0) ? 'Pulsedive:' + data['WorkflowCustomVariable.cleaned_domain'] + ':lowRiskCount:' + \n    string(data['WorkflowCustomVariable.explore_indicators_result'].filter(item,\n      has(item.risk) && item.risk == 'low'\n    ).size()) : \"\",\n\ndata['WorkflowCustomVariable.explore_indicators_result'].filter(item,\n  item.stamp_seen != null &&\n  item.stamp_seen != \"\" &&\n  (cs.timestamp.now() - cs.timestamp.parse(item.stamp_seen, \"2006-01-02 15:04:05\")) < duration(\"2160h\")\n).size() > 0 ? 'Pulsedive:' + data['WorkflowCustomVariable.cleaned_domain'] + ':recentActivein90days:true' : '',\n      data['WorkflowCustomVariable.explore_indicators_result']\n      .filter(item, has(item.summary) && has(item.summary.properties) && has(item.summary.properties.geo) && has(item.summary.properties.geo.country) && item.summary.properties.geo.country != null && item.summary.properties.geo.country != \"\")\n      .transformList(idx, e, e.summary.properties.geo.country)\n      .distinct().size() > 0 ? 'Pulsedive:' + data['WorkflowCustomVariable.cleaned_domain'] + ':country:' + string(data['WorkflowCustomVariable.explore_indicators_result']\n      .filter(item, has(item.summary) && has(item.summary.properties) && has(item.summary.properties.geo) && has(item.summary.properties.geo.country) && item.summary.properties.geo.country != null && item.summary.properties.geo.country != \"\")\n      .transformList(idx, e, e.summary.properties.geo.country)\n      .distinct().size()) : \"\",\n  'Pulsedive:' + data['WorkflowCustomVariable.cleaned_domain'] + ':maxRisk:' + \n    (data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n       has(item.risk) && item.risk == 'high'\n     ).size() > 0 ? 'high' :\n     data['WorkflowCustomVariable.explore_indicators_result'].filter(item, \n       has(item.risk) && item.risk == 'medium'\n     ).size() > 0 ? 'medium' :\n     data['WorkflowCustomVariable.explore_indicators_result'].filter(item,\n       has(item.risk) && item.risk == 'low'\n     ).size() > 0 ? 'low' : 'none')\n].filter(tag,tag != '') : [])}"
+        version_constraint: ~1
+    UpdateVariableCleanDomainInput:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        continue_on_error: true
+        name: Update variable - Clean domain input
+        next:
+            - CreateVariableInitializeCommentAndTagsStorage
+        properties:
+            WorkflowCustomVariable:
+                cleaned_domain: ${data['domain'].contains('://')?data['domain'].split('://')[1].split('/')[0]:data['domain'].split('/')[0]}
+        version_constraint: ~1
+    UpdateVariableParseCommentChunkingVars:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Parse comment chunking vars
+        next:
+            - Loop1
+        properties:
+            WorkflowCustomVariable:
+                current_comment: '${data[''WorkflowCustomVariable.comment''].trim().split("|~|").size() > 0 ? data[''WorkflowCustomVariable.comment_header''] + "\n" : ""}'
+                current_index: "0"
+                field_and_value_array: '${data[''WorkflowCustomVariable.comment''].split("|~|").size() > 1 ? data[''WorkflowCustomVariable.comment''].split("|~|").map(pair, pair.trim()) : []}'
+        version_constraint: ~1
+    UpdateVariableSetEnrichmentCommentHeader:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Set enrichment comment header
+        next:
+            - PulsediveExploreIndicators
+        properties:
+            WorkflowCustomVariable:
+                comment_header: ${"Pulsedive Enrichment Result for " + data['WorkflowCustomVariable.cleaned_domain'] +" :"}
+        version_constraint: ~1
+    UpdateVariableStoreExploreResults:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Store explore results
+        next:
+            - PulsediveGetIndicatorDetails
+        properties:
+            WorkflowCustomVariable:
+                explore_indicators_result: ${data['PulsediveExploreIndicators.API_Integration.Custom_Pulsedive.Pulsedive_-_Explore_Indicators.body.results']}
+        version_constraint: ~1
+    UpdateVariableStoreIndicatorDetails:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Store indicator details
+        next:
+            - UpdateVariableBuildDetailCommentAndTags
+        properties:
+            WorkflowCustomVariable:
+                indicator_details_result: ${data['PulsediveGetIndicatorDetails.API_Integration.Custom_Pulsedive.Pulsedive_-_Get_Indicator_Details.body']}
+        version_constraint: ~1
+    WriteToLogRepoLogWorkflowErrors:
+        id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+        default_name: Write to log repo
+        name: Write to log repo - Log Workflow Errors
+        properties:
+            _fields:
+                - ${Workflow.Definition.Name}
+            custom_json:
+                WorkflowErrors: ${data['Workflow.Execution.Errors']}
+        version_constraint: ~1
+conditions:
+    case_id_exists:
+        next:
+            - data39workflowcustomvariable_tags39_size_gt_0
+            - data39workflowcustomvariable_comment39_size_gt_0_ampamp_data39workflowcustomvariable_comment39_trim_
+        expression: case_id:!null
+        display:
+            - Case ID exists
+    data39workflow_execution_errors39__null_ampamp_data39workflow_execution_errors39_size_gt_0:
+        next:
+            - WriteToLogRepoLogWorkflowErrors
+        cel_expression: data['Workflow.Execution.Errors'] != null && data['Workflow.Execution.Errors'].size() > 0
+        display:
+            - data[&#39;Workflow.Execution.Errors&#39;] != null &amp;&amp; data[&#39;Workflow.Execution.Errors&#39;].size() &gt; 0
+    data39workflowcustomvariable_comment39_size_gt_0:
+        next:
+            - CreateVariableInitializeCommentChunkingVars
+        cel_expression: data['WorkflowCustomVariable.comment'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.comment&#39;].size() &gt; 0
+    data39workflowcustomvariable_comment39_size_gt_0_ampamp_data39workflowcustomvariable_comment39_trim_:
+        next:
+            - AddCommentToCaseEnrichmentComments
+        cel_expression: data['WorkflowCustomVariable.comment'].size() > 0 && data['WorkflowCustomVariable.comment'].trim().size() != data['WorkflowCustomVariable.comment_header'].trim().size()
+        display:
+            - data[&#39;WorkflowCustomVariable.comment&#39;].size() &gt; 0 &amp;&amp; data[&#39;WorkflowCustomVariable.comment&#39;].trim().size() != data[&#39;WorkflowCustomVariable.comment_header&#39;].trim().size()
+    data39workflowcustomvariable_current_comment39_size_gt_0_ampamp_data39workflowcustomvariable_current:
+        next:
+            - AddCommentToDetectionFinalEnrichmentComments
+        cel_expression: data['WorkflowCustomVariable.current_comment'].size() > 0 && data['WorkflowCustomVariable.current_comment'].trim().size() != (data['WorkflowCustomVariable.comment_header'] + "\n").trim().size()
+        display:
+            - data[&#39;WorkflowCustomVariable.current_comment&#39;].size() &gt; 0 &amp;&amp; data[&#39;WorkflowCustomVariable.current_comment&#39;].trim().size() != (data[&#39;WorkflowCustomVariable.comment_header&#39;] + &#34;\n&#34;).trim().size()
+    data39workflowcustomvariable_tags39_size_gt_0:
+        next:
+            - AddTagsToCase
+        cel_expression: data['WorkflowCustomVariable.tags'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.tags&#39;].size() &gt; 0
+    data39workflowcustomvariable_tags39_size_gt_1:
+        next:
+            - Loop
+        cel_expression: data['WorkflowCustomVariable.tags'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.tags&#39;].size() &gt; 0
+    detection_id_exists:
+        next:
+            - data39workflowcustomvariable_tags39_size_gt_1
+            - data39workflowcustomvariable_comment39_size_gt_0
+        expression: detection_id:!null
+        display:
+            - Detection ID exists
+    domain_exists:
+        next:
+            - CreateVariableDomainAndResultsStorage
+        expression: domain:!null
+        display:
+            - Domain exists
+loops:
+    Loop:
+        display: For each tags; Sequentially
+        name: For each tags; Sequentially
+        for:
+            input: WorkflowCustomVariable.tags
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - data39workflowcustomvariable_tags_39_size_lt_75
+        actions:
+            AddCommentToDetectionTagExceedsLimit:
+                id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+                default_name: Add comment to detection
+                name: Add comment to detection - Tag Exceeds Limit
+                properties:
+                    comment: |-
+                        Tag exceeded the character limit and was added as a comment instead.
+
+                        ${data['WorkflowCustomVariable.tags.#']}
+                    investigatable_id: ${detection_id}
+                version_constraint: ~0
+            AddTagToDetectionSingleEnrichmentTag:
+                id: 6de8a462880ad419680ed5c291b9413f
+                default_name: Add tag to alert
+                name: Add tag to detection - Single enrichment tag
+                properties:
+                    investigatable_id: ${detection_id}
+                    tag: ${data['WorkflowCustomVariable.tags.#']}
+                version_constraint: ~0
+        conditions:
+            data39workflowcustomvariable_tags_39_size_lt_75:
+                next:
+                    - AddTagToDetectionSingleEnrichmentTag
+                cel_expression: data['WorkflowCustomVariable.tags.#'].size() < 75
+                display:
+                    - data[&#39;WorkflowCustomVariable.tags.#&#39;].size() &lt; 75
+                else:
+                    - AddCommentToDetectionTagExceedsLimit
+    Loop1:
+        display: While data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+        name: While data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+        next:
+            - data39workflowcustomvariable_current_comment39_size_gt_0_ampamp_data39workflowcustomvariable_current
+        for:
+            input: ""
+            cel_condition: data['WorkflowCustomVariable.current_index'] < data['WorkflowCustomVariable.field_and_value_array'].size()
+            condition_display:
+                - data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - data39workflowcustomvariable_current_comment39_size__data39workflowcustomvariable_field_and_value_ar
+        actions:
+            AddCommentToDetectionContinuedCommentChunk:
+                id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+                default_name: Add comment to detection
+                name: Add comment to detection - Continued comment chunk
+                next:
+                    - UpdateVariableResetCommentForContinuation
+                properties:
+                    comment: ${data['WorkflowCustomVariable.current_comment'] + "\n[Continued in next comment...]"}
+                    investigatable_id: ${detection_id}
+                version_constraint: ~0
+            UpdateVariable3:
+                id: 6c6eab39063fa3b72d98c82af60deb8a
+                default_name: Update variable
+                class: UpdateVariable
+                name: Update variable - Append field to current comment
+                properties:
+                    WorkflowCustomVariable:
+                        current_comment: ${data['WorkflowCustomVariable.current_comment'] + data['WorkflowCustomVariable.field_and_value_array'][data['WorkflowCustomVariable.current_index']] + "\n"}
+                        current_index: ${data['WorkflowCustomVariable.current_index'] + 1}
+                version_constraint: ~1
+            UpdateVariableResetCommentForContinuation:
+                id: 6c6eab39063fa3b72d98c82af60deb8a
+                default_name: Update variable
+                class: UpdateVariable
+                name: Update variable - Reset comment for continuation
+                properties:
+                    WorkflowCustomVariable:
+                        current_comment: ${data['WorkflowCustomVariable.comment_header'] + "\n"}
+                version_constraint: ~1
+        conditions:
+            data39workflowcustomvariable_current_comment39_size__data39workflowcustomvariable_field_and_value_ar:
+                next:
+                    - UpdateVariable3
+                cel_expression: data['WorkflowCustomVariable.current_comment'].size() + data['WorkflowCustomVariable.field_and_value_array'][data['WorkflowCustomVariable.current_index']].size() + string("\n").size() < (500 - string("\n[Continued in next comment...]").size())
+                display:
+                    - data[&#39;WorkflowCustomVariable.current_comment&#39;].size() + data[&#39;WorkflowCustomVariable.field_and_value_array&#39;][data[&#39;WorkflowCustomVariable.current_index&#39;]].size() + string(&#34;\n&#34;).size() &lt; (500 - string(&#34;\n[Continued in next comment...]&#34;).size())
+                else:
+                    - AddCommentToDetectionContinuedCommentChunk

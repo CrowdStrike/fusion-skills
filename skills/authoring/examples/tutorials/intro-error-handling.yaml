@@ -1,0 +1,229 @@
+# Example: Introduction to Error Handling
+# Category: tutorials
+# Source: CrowdStrike Content Library
+
+name: Introduction to error handling
+description: This playbook demonstrates how users can enable 'continue on failure' from the action execution settings in Fusion, allowing workflows to maintain continuity when an action fails. Instead of the entire workflow failing, the workflow continues to the next node based on your defined error handling configuration, enabling you to add conditional branches to handle errors and implement resilient workflows that gracefully adapt to failures rather than stopping completely.
+trigger:
+  next:
+    - ExampleForErrorHandling
+  name: On demand
+  type: On demand
+actions:
+  ActionFailed:
+    id: aadbf530e35fc452a032f5f8acaaac2a
+    name: Action failed
+    version_constraint: ~1
+    properties:
+      text_data: ${data['Workflow.Execution.Errors']}
+  ExampleForErrorHandling:
+    id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+    class: Inline.QueryEvent
+    name: example for error handling
+    version_constraint: ~1
+    next:
+      - data_workflow_execution_errors_size_0
+      - data_workflow_execution_errors_size_0_2
+    properties:
+      output_files_only: false
+      workflow_csv_header_fields: []
+      workflow_export_event_query_results_to_csv: false
+    inline_configuration:
+      config:
+        description: ''
+        end: now
+        last_modified_by: 4a090c6f-0917-4a75-8617-7c6d514770b9
+        last_modified_by_user:
+          email: tim.kuhlman@crowdstrike.com
+        repo_or_view: search-all
+        search_name: example for error handling
+        search_query: '#repo = "fusion"'
+        search_query_args: {}
+        start: 5m
+        tags: []
+      output_schema:
+        $schema: https://json-schema.org/draft-07/schema
+        properties:
+          action:
+            properties:
+              id:
+                type: string
+                title: Action Id
+              input:
+                properties:
+                  device_status:
+                    type: string
+                    title: Action Input Device status
+                  group:
+                    type: string
+                    title: Action Input Group
+                  last_seen:
+                    type: string
+                    title: Action Input Last seen
+                type: object
+              name:
+                type: string
+                title: Action Name
+              node_id:
+                type: string
+                title: Action Node id
+              output:
+                properties:
+                  devices:
+                    items: {}
+                    type: array
+                    title: Action Output Devices
+                type: object
+              use_cases:
+                items:
+                  type: string
+                type: array
+                title: Action Use cases
+              vendor:
+                type: string
+                title: Action Vendor
+              version:
+                type: integer
+                title: Action Version
+            type: object
+          cid:
+            type: string
+            title: Cid
+          customer_visible:
+            type: boolean
+            title: Customer visible
+          definition_id:
+            type: string
+            title: Definition id
+          definition_name:
+            type: string
+            title: Definition name
+          definition_version:
+            type: integer
+            title: Definition version
+          end_timestamp:
+            type: string
+            title: End timestamp
+          event_type:
+            type: string
+            title: Event type
+          execution_id:
+            type: string
+            title: Execution id
+          execution_log_subtype:
+            type: string
+            title: Execution log subtype
+          execution_log_type:
+            type: string
+            title: Execution log type
+          execution_log_version:
+            type: string
+            title: Execution log version
+          parent_execution_id:
+            type: string
+            title: Parent execution id
+          root_execution_id:
+            type: string
+            title: Root execution id
+          start_timestamp:
+            type: string
+            title: Start timestamp
+          status:
+            type: string
+            title: Status
+          trigger:
+            properties:
+              data:
+                properties:
+                  Trigger.CID:
+                    type: string
+                    title: Trigger Data Trigger CID
+                  Trigger.Category:
+                    type: string
+                    title: Trigger Data Trigger Category
+                  Trigger.ID:
+                    type: string
+                    title: Trigger Data Trigger ID
+                  Trigger.Name:
+                    type: string
+                    title: Trigger Data Trigger Name
+                  Trigger.ObservedTime:
+                    type: string
+                    title: Trigger Data Trigger ObservedTime
+                  Trigger.ObservedTime.Date:
+                    type: string
+                    title: Trigger Data Trigger ObservedTime Date
+                  Trigger.ObservedTime.DayOfWeek:
+                    type: string
+                    title: Trigger Data Trigger ObservedTime DayOfWeek
+                  Trigger.ObservedTime.Hour:
+                    type: integer
+                    title: Trigger Data Trigger ObservedTime Hour
+                  Trigger.ObservedTime.Minute:
+                    type: integer
+                    title: Trigger Data Trigger ObservedTime Minute
+                  Trigger.ObservedTime.Timezone:
+                    type: string
+                    title: Trigger Data Trigger ObservedTime Timezone
+                  Trigger.SourceEventID:
+                    type: 'null'
+                    title: Trigger Data Trigger SourceEventID
+                  Trigger.SourceEventURL:
+                    type: string
+                    title: Trigger Data Trigger SourceEventURL
+                  Trigger.SpecVersion:
+                    type: 'null'
+                    title: Trigger Data Trigger SpecVersion
+                  Workflow.Definition.Description:
+                    type: string
+                    title: Trigger Data Workflow Definition Description
+                  Workflow.Definition.Name:
+                    type: string
+                    title: Trigger Data Workflow Definition Name
+                  Workflow.Execution.Errors:
+                    type: 'null'
+                    title: Trigger Data Workflow Execution Errors
+                  Workflow.Execution.ID:
+                    type: string
+                    title: Trigger Data Workflow Execution ID
+                  Workflow.Execution.Time:
+                    type: string
+                    title: Trigger Data Workflow Execution Time
+                  Workflow.Execution.Time.Date:
+                    type: string
+                    title: Trigger Data Workflow Execution Time Date
+                  Workflow.Execution.Time.DayOfWeek:
+                    type: string
+                    title: Trigger Data Workflow Execution Time DayOfWeek
+                  Workflow.Execution.Time.Hour:
+                    type: integer
+                    title: Trigger Data Workflow Execution Time Hour
+                  Workflow.Execution.Time.Minute:
+                    type: integer
+                    title: Trigger Data Workflow Execution Time Minute
+                  Workflow.Execution.Time.Timezone:
+                    type: string
+                    title: Trigger Data Workflow Execution Time Timezone
+                type: object
+            type: object
+        type: object
+        description: Generated response schema
+  PrintIfActionSuccessfullyReturnsData:
+    id: aadbf530e35fc452a032f5f8acaaac2a
+    name: Print if action successfully returns data
+    version_constraint: ~1
+    properties:
+      text_data: ${data['ExampleForErrorHandling.results'][0]}
+conditions:
+  data_workflow_execution_errors_size_0:
+    next:
+      - PrintIfActionSuccessfullyReturnsData
+    cel_expression: data['Workflow.Execution.Errors'].size() == 0
+    display:
+      - data[&#39;Workflow.Execution.Errors&#39;].size() == 0
+  data_workflow_execution_errors_size_0_2:
+    next:
+      - ActionFailed
+    cel_expression: data['Workflow.Execution.Errors'].size() > 0
+    display:
+      - data[&#39;Workflow.Execution.Errors&#39;].size() &gt; 0

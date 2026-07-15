@@ -1,0 +1,329 @@
+# Example: Email phishing playbook with Identity Threat Protection actions
+# Category: identity-response
+# Source: CrowdStrike Content Library playbook "Email phishing playbook with
+#   Identity Threat Protection actions"
+#   (https://falcon.crowdstrike.com/login/?unilogin=true&next=/content-library/details/global:fusion_playbook:f13637f057cb4a1aa1496469d0c37e2e),
+#   installed and exported unmodified from the Falcon console. Passes validate.py
+#   at all tiers, including server-side API validation.
+# This is an exported workflow. Editing this file is not recommended.
+
+name: Email phishing playbook with Identity Threat Protection actions
+description: 'Quickly enrich, investigate, and remediate user-reported phishing emails by enriching indicators observed in the email and detonating attachments with first and third party enrichment sources such as APIVoid, VirusTotal, and Falcon sandbox. This playbook includes actions exclusive to Identity Threat Protection allowing users to enrich the email addresses and check for user risk before taking an identity-based remediation action. Note: Customize per your phishing requirements prior to enabling.'
+trigger:
+    next:
+        - activity_find_phishing_emails_processed_by_workflows_711fa954
+    event: PhishingEmail/MicrosoftO365
+    name: Phishing email > Microsoft O365
+    type: Signal
+actions:
+    activity_6adbd02c-da4c-415e-bf84-b7f9d9190492:
+        id: 180cccafdc5993b665ca0da37fb4b85e
+        default_name: Send Microsoft Teams message (deprecated)
+        name: Send Microsoft Teams message
+        properties:
+            _fields:
+                - ${Workflow.Definition.Name}
+                - ${Workflow.Execution.Time}
+            msg: Email Phishing playbook triggered. Attachment quarantined, sender blocked, URLs analyzed, and user marked as risky
+    activity_6e702455-00c9-4b2d-a417-0eb15b7fe2e7:
+        id: 68819ad0d42d40d2bc41d8bf500aaa5f
+        default_name: Entra ID - Mark User as Risky
+        name: Entra ID - Mark User as Risky - 2
+        properties:
+            json:
+                userIds:
+                    - ${activity_a805fe6d-88e4-423d-83cd-3e516bd8960b.Enrich.User.UserEntraObjectID}
+            params:
+                header:
+                    Content-Type: application/json
+    activity_a805fe6d-88e4-423d-83cd-3e516bd8960b:
+        id: 19c7e2af0a24f468be7797fe180c8329
+        default_name: Get user identity context
+        name: Get user identity context - 2
+        next:
+            - user_risk_severity_is_equal_to_high1
+        properties:
+            email: ${Trigger.Category.PhishingEmail.FromEmail}
+    activity_c63a920e-8064-410b-849c-380c045a3215:
+        id: 5aaf2c9c6acb4c94a417669c8d481669
+        default_name: Add Sender to Org Block List with Proofpoint
+        name: Add Sender to Org Block List with Proofpoint
+        properties:
+            json:
+                attribute: $host
+                operator: equal
+                value: ${Trigger.Category.PhishingEmail.FromDomain}
+    activity_create_custom_domain_ioc_245e3203:
+        id: ecdace64ddcdc78030544a75fa766b0e
+        default_name: Create Custom Domain IOC
+        name: Create Custom Domain IOC
+        properties:
+            action_type: detect
+            domain: ${Trigger.Category.PhishingEmail.FromDomain}
+            expiration_ttl: 168h
+            mobile_action: detect
+            platforms:
+                - windows
+                - linux
+            severity: medium
+    activity_enrich_domain_af30a054:
+        id: 18eb9bee7aa64071b2dd5f9829db681f
+        default_name: APIVoid - Enrich Domain
+        name: Enrich Domain
+        next:
+            - body_data_report_risk_score_result_is_greater_than_or_equal_to_80
+        properties:
+            params:
+                query:
+                    host: ${Trigger.Category.PhishingEmail.FromDomain}
+    activity_find_phishing_emails_processed_by_workflows_711fa954:
+        id: 69d872bffa2d42d7af42c21263922f16
+        default_name: Find phishing emails processed by workflows
+        name: Find phishing emails processed by workflows
+        next:
+            - unformatted_results_is_equal_to_
+        properties:
+            email_sha256_hash: ${Trigger.Category.PhishingEmail.EmailHash}
+            latest: ${Workflow.Execution.Time}
+            search_timeframe_minutes: 10080
+    activity_write_to_log_repo_c969b889:
+        id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+        default_name: Write to log repo
+        name: Write to log repo
+        next:
+            - sub_model_category_phishingemail_weburlsinemailbody_e0b78203
+            - sub_model_category_phishingemail_attachmentfilesha256_6d4a4d00
+            - sub_model_category_phishingemail_emailprovider_microsofto365_receivedfromipv4_bc57f1df
+            - activity_enrich_domain_af30a054
+            - sub_model_cead5ea3-f689-4350-bee5-91eb20721220
+            - activity_a805fe6d-88e4-423d-83cd-3e516bd8960b
+        properties:
+            custom_json:
+                email:
+                    attachments:
+                        sha256: ${Trigger.Category.PhishingEmail.AttachmentFileSHA256}
+                    content_sha256_hash: ${Trigger.Category.PhishingEmail.EmailHash}
+                    from:
+                        address: ${Trigger.Category.PhishingEmail.FromEmail}
+                    local_id: ${Trigger.SourceEventID}
+                    subject: ${Trigger.Category.PhishingEmail.Subject}
+            remove_action_prefix: true
+conditions:
+    body_data_report_risk_score_result_is_greater_than_or_equal_to_80:
+        next:
+            - activity_create_custom_domain_ioc_245e3203
+            - activity_c63a920e-8064-410b-849c-380c045a3215
+        expression: activity_enrich_domain_af30a054.API_Integration.Custom_APIVoid.Enrich_Domain.body.data.report.risk_score.result:>=80
+        display:
+            - Body data report risk score result is greater than or equal to 80
+    unformatted_results_is_equal_to_:
+        next:
+            - activity_write_to_log_repo_c969b889
+        expression: activity_find_phishing_emails_processed_by_workflows_711fa954.EventSearch.phishing_emails.raw_results:'[]'
+        display:
+            - Unformatted results is equal to []
+    user_risk_severity_is_equal_to_high1:
+        next:
+            - activity_6e702455-00c9-4b2d-a417-0eb15b7fe2e7
+        expression: activity_a805fe6d-88e4-423d-83cd-3e516bd8960b.Enrich.User.RiskSeverity:'High'
+        display:
+            - User risk severity is equal to High
+loops:
+    sub_model_category_phishingemail_attachmentfilesha256_6d4a4d00:
+        display: For each Attachment file SHA256; Concurrently
+        name: For each Attachment file SHA256; Concurrently
+        next:
+            - activity_6adbd02c-da4c-415e-bf84-b7f9d9190492
+        for:
+            input: Trigger.Category.PhishingEmail.AttachmentFileSHA256
+            continue_on_partial_execution: false
+            sequential: false
+        trigger:
+            next:
+                - activity_virustotal_file_hash_lookup_ea8fd3e7
+        actions:
+            activity_create_custom_hash_ioc_e3a8a14c:
+                id: 557d9de82413677873ceb2e0d5480507
+                default_name: Create Custom Hash IOC
+                name: Create Custom Hash IOC
+                properties:
+                    action_type: prevent
+                    expiration_ttl: 168h
+                    hash: ${Trigger.Category.PhishingEmail.AttachmentFileSHA256.#}
+                    mobile_action: prevent
+                    platforms:
+                        - windows
+                        - linux
+                    severity: medium
+            activity_get_processes_associated_with_a_sha256_hash_71710816:
+                id: 39ebbf77fd1d680c5ecbc790659dd4b0
+                default_name: Get processes associated with a sha256 hash
+                name: Get processes associated with a sha256 hash
+                next:
+                    - sub_model_activity_71710816_a976_425f_96bc_9087ebb31eac_threatgraph_processesranonsha256_processes_d69ce9f5
+                    - activity_create_custom_hash_ioc_e3a8a14c
+                properties:
+                    indicator: ${Trigger.Category.PhishingEmail.AttachmentFileSHA256.#}
+            activity_virustotal_file_hash_lookup_ea8fd3e7:
+                id: 668bf0d0b832510e21d7c00386d277ea
+                default_name: VirusTotal File Hash Lookup
+                name: VirusTotal File Hash Lookup
+                next:
+                    - virustotal_malicious_percentage_is_greater_than_or_equal_to_75
+                properties:
+                    hash: ${Trigger.Category.PhishingEmail.AttachmentFileSHA256.#}
+        conditions:
+            virustotal_malicious_percentage_is_greater_than_or_equal_to_75:
+                next:
+                    - activity_get_processes_associated_with_a_sha256_hash_71710816
+                expression: activity_virustotal_file_hash_lookup_ea8fd3e7.VirusTotal.HashLookup.malicious_percentage:>=75
+                display:
+                    - VirusTotal Malicious Percentage is greater than or equal to 75
+        loops:
+            sub_model_activity_71710816_a976_425f_96bc_9087ebb31eac_threatgraph_processesranonsha256_processes_d69ce9f5:
+                display: For each Processes; Concurrently
+                name: For each Processes; Concurrently
+                for:
+                    input: activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes
+                    continue_on_partial_execution: false
+                    sequential: false
+                trigger:
+                    next:
+                        - process_terminated_instance_is_equal_to_no
+                actions:
+                    activity_1cc06141-d3e2-467d-b9d2-92db7cbabf93:
+                        id: 1bf5b9585917e51f84f5c9f2ea1aea54
+                        default_name: Remove file
+                        name: Remove file - 2
+                        properties:
+                            device_id: ${activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.HostID}
+                            file_path: ${activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.ImageFileName}
+                    activity_1f6df532-df9a-4534-9c43-bb533c36f2bc:
+                        id: 1bf5b9585917e51f84f5c9f2ea1aea54
+                        default_name: Remove file
+                        name: Remove file
+                        next:
+                            - activity_contain_device_ab3451d8
+                        properties:
+                            device_id: ${activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.HostID}
+                            file_path: ${activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.ImageFileName}
+                    activity_aa10ab8b-03cd-426f-8410-64658bdcbe31:
+                        id: 9ac54d8989c68dbf601acffe8444f7dc
+                        default_name: Kill process
+                        name: Kill process
+                        next:
+                            - activity_1f6df532-df9a-4534-9c43-bb533c36f2bc
+                        properties:
+                            device_id: ${activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.HostID}
+                            process_id: ${activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.RawProcessId}
+                    activity_contain_device_ab3451d8:
+                        id: bec9fbeb4999d207937854fd56088107
+                        default_name: Contain device
+                        name: Contain device
+                        properties:
+                            device_id: ${activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.HostID}
+                conditions:
+                    process_terminated_instance_is_equal_to_no:
+                        next:
+                            - activity_aa10ab8b-03cd-426f-8410-64658bdcbe31
+                        expression: activity_get_processes_associated_with_a_sha256_hash_71710816.ThreatGraph.ProcessesRanOnSha256.Processes.#.ProcessTerminated:false
+                        display:
+                            - Process terminated instance is equal to No
+                        else:
+                            - activity_1cc06141-d3e2-467d-b9d2-92db7cbabf93
+    sub_model_category_phishingemail_emailprovider_microsofto365_receivedfromipv4_bc57f1df:
+        display: For each Received from ip addresses(v4); Concurrently
+        name: For each Received from ip addresses(v4); Concurrently
+        for:
+            input: Trigger.Category.PhishingEmail.EmailProvider.MicrosoftO365.ReceivedFromIPV4
+            continue_on_partial_execution: false
+            sequential: false
+        trigger:
+            next:
+                - activity_enrich_ip_321aec38
+        actions:
+            activity_create_custom_ip_ioc_213f3081:
+                id: a3d7ed4a02bcfa221d485638860ee853
+                default_name: Create Custom IP IOC
+                name: Create Custom IP IOC
+                properties:
+                    action_type: detect
+                    address: ${activity_enrich_ip_321aec38.API_Integration.Custom_APIVoid.Enrich_IP.body.data.report.ip}
+                    platforms:
+                        - windows
+                        - linux
+                    severity: medium
+            activity_enrich_ip_321aec38:
+                id: d9688e57542d45d0b79093dad46c9f3f
+                default_name: APIVoid - Enrich IP
+                name: Enrich IP
+                next:
+                    - risk_score_is_greater_than_or_equal_to_80
+                properties:
+                    params:
+                        query:
+                            ip: ${Trigger.Category.PhishingEmail.EmailProvider.MicrosoftO365.ReceivedFromIPV4.#}
+        conditions:
+            risk_score_is_greater_than_or_equal_to_80:
+                next:
+                    - activity_create_custom_ip_ioc_213f3081
+                expression: activity_enrich_ip_321aec38.API_Integration.Custom_APIVoid.Enrich_IP.body.data.report.risk_score.result:>=80
+                display:
+                    - Risk Score is greater than or equal to 80
+    sub_model_category_phishingemail_weburlsinemailbody_e0b78203:
+        display: For each Web URLs in email; Concurrently
+        name: For each Web URLs in email; Concurrently
+        for:
+            input: Trigger.Category.PhishingEmail.WebURLsInEmailBody
+            continue_on_partial_execution: false
+            sequential: false
+        trigger:
+            next:
+                - activity_submit_url_to_sandbox_66c5d5bc
+        actions:
+            activity_submit_url_to_sandbox_66c5d5bc:
+                id: 04dabe92e4aba77982c51af9e58edbfd
+                default_name: Submit URL to sandbox
+                name: Submit URL to sandbox
+                properties:
+                    action_script: default
+                    environment_id: 160
+                    network_settings: default
+                    url: ${Trigger.Category.PhishingEmail.WebURLsInEmailBody.#}
+    sub_model_cead5ea3-f689-4350-bee5-91eb20721220:
+        display: For each To email addresses; Concurrently
+        name: For each To email addresses; Concurrently
+        for:
+            input: Trigger.Category.PhishingEmail.ToEmails
+            continue_on_partial_execution: false
+            sequential: false
+        trigger:
+            next:
+                - activity_4c78b784-f897-4a43-b8f6-374eee15121a
+        actions:
+            activity_4c78b784-f897-4a43-b8f6-374eee15121a:
+                id: 19c7e2af0a24f468be7797fe180c8329
+                default_name: Get user identity context
+                name: Get user identity context
+                next:
+                    - user_risk_severity_is_equal_to_high
+                properties:
+                    email: ${Trigger.Category.PhishingEmail.ToEmails.#}
+            activity_62882d03-0f89-47d0-b59c-729a837f276f:
+                id: 68819ad0d42d40d2bc41d8bf500aaa5f
+                default_name: Entra ID - Mark User as Risky
+                name: Entra ID - Mark User as Risky
+                properties:
+                    json:
+                        userIds:
+                            - ${activity_4c78b784-f897-4a43-b8f6-374eee15121a.Enrich.User.UserEntraObjectID}
+                    params:
+                        header:
+                            Content-Type: application/json
+        conditions:
+            user_risk_severity_is_equal_to_high:
+                next:
+                    - activity_62882d03-0f89-47d0-b59c-729a837f276f
+                expression: activity_4c78b784-f897-4a43-b8f6-374eee15121a.Enrich.User.RiskSeverity:'High'
+                display:
+                    - User risk severity is equal to High

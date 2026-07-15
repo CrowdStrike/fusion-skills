@@ -1,0 +1,9 @@
+{
+  "workflow_name": "contain-host-on-detection-run-1",
+  "deploy_status": "SUCCESS",
+  "workflow_id": "wf_6b0f9a6c6ec841b8bcaffefc2b5a25aa",
+  "validation_status": "PASS",
+  "actions": ["contain-host", "send-notification"],
+  "trigger_type": "detection",
+  "errors": "NONE"
+}

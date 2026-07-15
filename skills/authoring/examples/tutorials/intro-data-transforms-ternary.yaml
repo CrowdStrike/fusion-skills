@@ -1,0 +1,23 @@
+# Example: Introduction to Data Transforms: How to Use a Ternary Operator
+# Category: tutorials
+# Source: CrowdStrike Content Library
+
+name: 'Introduction to data transforms: How to use a ternary operator'
+description: Learn how to use a ternary operator
+trigger:
+  next:
+    - IfAgeIsGreaterThanOrEqualTo18PrintAdultElseMinor
+  name: On demand
+  type: On demand
+  parameters:
+    properties:
+      age:
+        type: integer
+    type: object
+actions:
+  IfAgeIsGreaterThanOrEqualTo18PrintAdultElseMinor:
+    id: aadbf530e35fc452a032f5f8acaaac2a
+    name: If age is greater than or equal to 18 print adult else minor
+    version_constraint: ~1
+    properties:
+      text_data: '${data[''age''] >= 18 ? ''adult'' : ''minor''}'
