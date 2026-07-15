@@ -416,7 +416,3 @@ The two plugins detect each other and advise the right path. Use `fusion-skills`
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">WE STOP BREACHES</p>
