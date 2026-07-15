@@ -1,0 +1,66 @@
+# Example: Introduction to Variables: How to Append to an Array
+# Category: tutorials
+# Source: CrowdStrike Content Library
+
+name: 'Introduction to variables: How to append to an array'
+description: Learn how to create a workflow which appends data to an array using the 'Create variable' and 'Update variable' actions as it iterates through a list. This workflow demonstrates how to query for 'Contained' devices, extract sensor IDs, enrich each sensor to retrieve hostnames, and append these hostnames to a 'combined' array
+trigger:
+  next:
+    - activity_25d3e2fe-d168-4b87-aa35-d14e194054b3
+  name: On demand
+  type: On demand
+actions:
+  activity_25d3e2fe-d168-4b87-aa35-d14e194054b3:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    version_constraint: ~1
+    name: Create variable
+    next:
+      - activity_baf5e0ec-0571-48c8-8017-3152fb7756d2
+    properties:
+      variable_schema:
+        properties:
+          combined:
+            items:
+              type: string
+            type: array
+        type: object
+  activity_baf5e0ec-0571-48c8-8017-3152fb7756d2:
+    id: 68ffa99af40c84b36462daa076f535d0
+    name: Device Query
+    next:
+      - sub_model_a9f89b48-be8a-41a7-b093-c982d8168961
+    properties:
+      connection_status: online
+loops:
+  sub_model_a9f89b48-be8a-41a7-b093-c982d8168961:
+    display: For each Sensor IDs; Sequentially
+    name: For each Sensor IDs; Sequentially
+    next: []
+    for:
+      input: activity_baf5e0ec-0571-48c8-8017-3152fb7756d2.Device.query.devices
+      continue_on_partial_execution: false
+      sequential: true
+    trigger:
+      next:
+        - activity_f96af37a-6c17-40a0-af44-068518e282fa
+    actions:
+      UpdateVariable:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable
+        version_constraint: ~1
+        properties:
+          WorkflowCustomVariable:
+            combined: '${//this is how to append multiple values to an array
+
+              //to append only one value, remove the brackets
+
+              [data[''activity_f96af37a-6c17-40a0-af44-068518e282fa.Device.GetDetails.Domain''], data[''activity_f96af37a-6c17-40a0-af44-068518e282fa.Device.GetDetails.AgentVersion'']]}'
+      activity_f96af37a-6c17-40a0-af44-068518e282fa:
+        id: 6265dc947cc2252f74a5f25261ac36a9
+        name: Get device details
+        next:
+          - UpdateVariable
+        properties:
+          device_id: ${activity_baf5e0ec-0571-48c8-8017-3152fb7756d2.Device.query.devices.#}

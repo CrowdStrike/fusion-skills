@@ -1,0 +1,6 @@
+# Test dependencies for the fusion-skills scripts.
+# Runtime deps (crowdstrike-falconpy, pyyaml) live in requirements.txt.
+# Python 3.13+ is required, so stdlib tomllib covers TOML parsing — no tomli needed.
+-r requirements.txt
+pytest
+pytest-cov

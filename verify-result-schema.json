@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Fusion Workflow Verification Report",
+  "description": "Schema for script-based (API-only) verification results after testing Falcon Fusion workflow YAML files",
+  "properties": {
+    "workflows": {
+      "type": "array",
+      "description": "Verification results for each workflow tested",
+      "items": {
+        "type": "object",
+        "properties": {
+          "workflow_name": {
+            "type": "string",
+            "description": "Name of the Fusion workflow verified (from the YAML 'name:' field or filename)"
+          },
+          "run": {
+            "type": "integer",
+            "description": "Run number (1-based) when verifying multiple workflows"
+          },
+          "validate": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "SKIP", "N/A"],
+            "description": "Whether validate.py preflight + structural validation passed"
+          },
+          "deploy": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "SKIP", "N/A"],
+            "description": "Whether import_workflows.py deployed the workflow successfully"
+          },
+          "execute": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "SKIP", "N/A"],
+            "description": "Whether trigger_workflow.py executed the workflow to a terminal state"
+          },
+          "results": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "SKIP", "N/A"],
+            "description": "Whether get_execution_results.py reported a successful execution status"
+          },
+          "cleanup": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "SKIP", "N/A"],
+            "description": "Whether the deployed test workflow was deleted during cleanup"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Any issues, warnings, timings, or observations during verification"
+          }
+        },
+        "required": ["workflow_name", "run", "validate", "deploy", "execute", "results", "cleanup"],
+        "additionalProperties": false
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Overall summary of verification results"
+    }
+  },
+  "required": ["workflows", "summary"],
+  "additionalProperties": false
+}

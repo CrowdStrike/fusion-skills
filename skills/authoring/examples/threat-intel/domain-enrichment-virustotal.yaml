@@ -1,0 +1,440 @@
+# Example: Domain Enrichment with VirusTotal
+# Category: threat-intel
+# Source: CrowdStrike Content Library playbook "Domain Enrichment VirusTotal"
+#   (https://falcon.crowdstrike.com/login/?unilogin=true&next=/content-library/details/global:fusion_playbook:3452ba7ac9334fef873e029cd77f3a5d),
+#   installed and exported unmodified from the Falcon console. Passes validate.py
+#   at all tiers, including server-side API validation.
+# This is an exported workflow. Editing this file is not recommended.
+
+name: Domain Enrichment VirusTotal
+description: Enriches domains with threat intelligence data from VirusTotal, including malicious/harmless voting statistics, registrar information, creation dates, and DNS resolution history with associated IP addresses. This playbook can be triggered on-demand from a Next-Gen SIEM Case or integrated into other automated playbooks to perform enrichment when provided a detection ID and the relevant entity (such as IP addresses, domains, URLs, or file hashes).
+trigger:
+    next:
+        - domain_exists
+    name: On demand
+    parameters:
+        properties:
+            case_id:
+                type: string
+                title: Case ID
+                format: ngsiemCaseID
+            detection_id:
+                type: string
+                title: Detection ID
+                format: investigatableID
+            domain:
+                type: string
+                title: Domain
+                format: domain
+        type: object
+    type: On demand
+actions:
+    AddCommentToAlertFinalEnrichmentComments:
+        id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+        default_name: Add comment to detection
+        name: Add comment to alert - Final enrichment comments
+        properties:
+            comment: ${data['WorkflowCustomVariable.current_comment']}
+            investigatable_id: ${detection_id}
+        version_constraint: ~0
+    AddCommentToCaseEnrichmentComments:
+        id: a16f4fdd1b244b0bfeecd47e25dbe0e0
+        default_name: Add Comment to Case
+        name: Add Comment to Case - Enrichment comments
+        properties:
+            case_id: ${case_id}
+            comment: ${data['WorkflowCustomVariable.comment'].replace('|~|', '')}
+        version_constraint: ~1
+    AddTagsToCaseEnrichmentTags:
+        id: 696f57b7cdcd475e5c56e6196836ee39
+        default_name: Add tags to case
+        name: Add tags to case - Enrichment tags
+        properties:
+            case_id: ${case_id}
+            tags:
+                - ${data['WorkflowCustomVariable.tags']}
+        version_constraint: ~1
+    CreateVariable:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize comment and tags storage
+        next:
+            - CreateVariable3
+        properties:
+            variable_schema:
+                properties:
+                    comment:
+                        type: string
+                    tags:
+                        items:
+                            type: string
+                        type: array
+                type: object
+        version_constraint: ~1
+    CreateVariable3:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize DNS resolution data structure
+        next:
+            - UpdateVariable5
+        properties:
+            variable_schema:
+                properties:
+                    cleaned_domain:
+                        type: string
+                    dns_res:
+                        items:
+                            properties: {}
+                            type: object
+                        type: array
+                    loop_output:
+                        items:
+                            properties: {}
+                            type: object
+                        type: array
+                    resolution_ids:
+                        items:
+                            type: string
+                        type: array
+                type: object
+        version_constraint: ~1
+    CreateVariableInitializeCommentChunkingVars:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        default_name: Create variable
+        class: CreateVariable
+        name: Create variable - Initialize comment chunking vars
+        next:
+            - UpdateVariableParseCommentChunkingVars
+        properties:
+            variable_schema:
+                properties:
+                    common_line:
+                        type: string
+                    current_comment:
+                        type: string
+                    current_index:
+                        type: integer
+                    field_and_value_array:
+                        items:
+                            type: string
+                        type: array
+                type: object
+        version_constraint: ~1
+    UpdateVariable5:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Clean and normalize domain input
+        next:
+            - VirusTotalDomainLookup
+        properties:
+            WorkflowCustomVariable:
+                cleaned_domain: ${data['domain'].contains('://')?data['domain'].split('://')[1].split('/')[0]:data['domain'].split('/')[0]}
+        version_constraint: ~1
+    UpdateVariable6:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Build VirusTotal analysis comment
+        next:
+            - UpdateVariable7
+        properties:
+            WorkflowCustomVariable:
+                comment: '${data[''WorkflowCustomVariable.comment''] + "\n" + ((data[''VirusTotalDomainLookup.body.data.attributes''] != null) ? (''VirusTotal Enrichment for '' + data[''WorkflowCustomVariable.cleaned_domain''] + '': |~|\n'' +   (data[''VirusTotalDomainLookup.body.data.attributes.total_votes.malicious''] != null && data[''VirusTotalDomainLookup.body.data.attributes.total_votes.malicious''] >= 0 ? ''- Malicious Votes: '' + string(data[''VirusTotalDomainLookup.body.data.attributes.total_votes.malicious'']) + '' |~|\n'' : '''') +   (data[''VirusTotalDomainLookup.body.data.attributes.total_votes.harmless''] != null && data[''VirusTotalDomainLookup.body.data.attributes.total_votes.harmless''] >= 0 ? ''- Harmless Votes: '' + string(data[''VirusTotalDomainLookup.body.data.attributes.total_votes.harmless'']) + '' |~|\n'' : '''') +   (data[''VirusTotalDomainLookup.body.data.attributes.registrar''] != null && data[''VirusTotalDomainLookup.body.data.attributes.registrar''] != '''' ? ''- Registrar: '' + data[''VirusTotalDomainLookup.body.data.attributes.registrar''] + '' |~|\n'' : '''') +   (data[''VirusTotalDomainLookup.body.data.attributes.creation_date''] != null && data[''VirusTotalDomainLookup.body.data.attributes.creation_date''] >= 0 ? ''- Creation Date: '' + cs.timestamp.format(timestamp(int(data[''VirusTotalDomainLookup.body.data.attributes.creation_date''])), ''RFC822'') + '' |~|\n'' : '''') +   (data[''VirusTotalDomainLookup.body.data.attributes.last_modification_date''] != null && data[''VirusTotalDomainLookup.body.data.attributes.last_modification_date''] >= 0 ? ''- Last Modified: '' + cs.timestamp.format(timestamp(int(data[''VirusTotalDomainLookup.body.data.attributes.last_modification_date''])), ''RFC822'') + '' |~|\n'' : '''') +   (data[''VirusTotalDomainLookup.body.data.attributes.last_update_date''] != null && data[''VirusTotalDomainLookup.body.data.attributes.last_update_date''] >= 0 ? ''- Last Updated: '' + cs.timestamp.format(timestamp(int(data[''VirusTotalDomainLookup.body.data.attributes.last_update_date''])), ''RFC822'') + " |~|\n": '''')) : '''')}'
+                tags: |-
+                    ${data['WorkflowCustomVariable.tags']+((data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats'] != null) ? [
+                      (data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.malicious'] != null && data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.malicious'] >= 0) ? ("VirusTotal:" + data['WorkflowCustomVariable.cleaned_domain'] + ":malicious:" + string(data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.malicious'])) : "",
+                      (data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.suspicious'] != null && data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.suspicious'] >= 0) ? ("VirusTotal:" + data['WorkflowCustomVariable.cleaned_domain'] + ":suspicious:" + string(data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.suspicious'])) : "",
+                      (data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.harmless'] != null && data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.harmless'] >= 0) ? ("VirusTotal:" + data['WorkflowCustomVariable.cleaned_domain'] + ":harmless:" + string(data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.harmless'])) : "",
+                      (data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.undetected'] != null && data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.undetected'] >= 0) ? ("VirusTotal:" + data['WorkflowCustomVariable.cleaned_domain'] + ":undetected:" + string(data['VirusTotalDomainLookup.body.data.attributes.last_analysis_stats.undetected'])) : "",
+                      (data['VirusTotalDomainLookup.body.data.attributes.reputation'] != null && data['VirusTotalDomainLookup.body.data.attributes.reputation'] != "") ? ("VirusTotal:" + data['WorkflowCustomVariable.cleaned_domain'] + ":reputation:" + string(data['VirusTotalDomainLookup.body.data.attributes.reputation'])) : ""
+                    ].filter(tag, tag != "") : [])}
+        version_constraint: ~1
+    UpdateVariable7:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Extract A record resolution IDs
+        next:
+            - Loop2
+        properties:
+            WorkflowCustomVariable:
+                resolution_ids: ${data['VirusTotalDomainLookup.body.data.attributes.last_dns_records'].filter(r, r.type == 'A').map(record, record.value + data['WorkflowCustomVariable.cleaned_domain'])}
+        version_constraint: ~1
+    UpdateVariable8:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Transform DNS resolution loop output
+        next:
+            - UpdateVariable9
+        properties:
+            WorkflowCustomVariable:
+                loop_output: |-
+                    ${data['Loop2.output'].map(e, {
+                          "date": e["VirusTotalGetDNSResolution.body.data.attributes.date"],
+                        "host_name": e["VirusTotalGetDNSResolution.body.data.attributes.host_name"],
+                        "host_name_last_analysis_stats": {
+                          "harmless": e["VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.harmless"],
+                          "malicious": e["VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.malicious"],
+                          "suspicious": e["VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.suspicious"],
+                          "timeout": e["VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.timeout"],
+                          "undetected": e["VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.undetected"]
+                        },
+                        "id":  e["VirusTotalGetDNSResolution.body.data.id"],
+                        "ip_address": e["VirusTotalGetDNSResolution.body.data.attributes.ip_address"],
+                        "ip_address_last_analysis_stats": {
+                          "harmless": e["VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.harmless"],
+                          "malicious": e["VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.malicious"],
+                          "suspicious": e["VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.suspicious"],
+                          "timeout": e["VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.timeout"],
+                          "undetected": e["VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.undetected"]
+                        },
+                        "resolver": e["VirusTotalGetDNSResolution.body.data.attributes.resolver"]
+                    })}
+        version_constraint: ~1
+    UpdateVariable9:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Build DNS resolution comments and tags
+        next:
+            - UpdateVariableSetEnrichmentCommentAndTags
+        properties:
+            WorkflowCustomVariable:
+                dns_res: |-
+                    ${data['WorkflowCustomVariable.loop_output'].map(e, {
+                      "comment": "",
+                      "tags": (e["host_name"] != "null" && e["host_name"] != "") ? [
+                        (e['host_name_last_analysis_stats'].malicious != null && e['host_name_last_analysis_stats'].malicious > 0) ? ("VirusTotal:" + e["host_name"] + ":host_malicious:" + string(e['host_name_last_analysis_stats'].malicious)) : ""
+                      ].filter(tag, tag != "") : []
+                    })}
+        version_constraint: ~1
+    UpdateVariableParseCommentChunkingVars:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Parse comment chunking vars
+        next:
+            - Loop1
+        properties:
+            WorkflowCustomVariable:
+                common_line: '${data[''WorkflowCustomVariable.comment''].trim().split("|~|").size() > 0 ? data[''WorkflowCustomVariable.comment''].trim().split("|~|")[0] : ""}'
+                current_comment: '${data[''WorkflowCustomVariable.comment''].trim().split("|~|").size() > 0 ? data[''WorkflowCustomVariable.comment''].trim().split("|~|")[0] + "\n" : ""}'
+                current_index: "0"
+                field_and_value_array: '${data[''WorkflowCustomVariable.comment''].split("|~|").size() > 1 ? data[''WorkflowCustomVariable.comment''].split("|~|").slice(1, data[''WorkflowCustomVariable.comment''].split("|~|").size()).map(pair, pair.trim()) : []}'
+        version_constraint: ~1
+    UpdateVariableSetEnrichmentCommentAndTags:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        default_name: Update variable
+        class: UpdateVariable
+        name: Update variable - Set enrichment comment and tags
+        next:
+            - case_id_exists
+            - detection_id_exists
+        properties:
+            WorkflowCustomVariable:
+                comment: ${data['WorkflowCustomVariable.comment']+"\n"+data['WorkflowCustomVariable.dns_res'].map(e, e.comment).join(", |~|\n")}
+                tags: ${data['WorkflowCustomVariable.tags'] + data['WorkflowCustomVariable.dns_res'].map(e, e.tags).flatten(1)}
+        version_constraint: ~1
+    VirusTotalDomainLookup:
+        id: 4e173250822e4806b11d8b91fe57b16f~bc2df090c5f5e74635ee1e00aa9b7322
+        default_name: VirusTotal - Domain Lookup
+        name: VirusTotal - Domain Lookup - Get domain analysis data
+        next:
+            - status_code_is_equal_to_200___ok
+        properties:
+            params:
+                path:
+                    domain: ${domain}
+        version_constraint: ~0
+    WriteToLogRepo:
+        id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+        default_name: Write to log repo
+        name: Write to log repo - VirusTotal API failure
+        properties:
+            custom_json:
+                error: VirusTotal - Domain Lookup API Failed.
+        version_constraint: ~1
+conditions:
+    case_id_exists:
+        next:
+            - data39workflowcustomvariable_tags39_size_gt_0
+            - data39workflowcustomvariable_comment39_size_gt_0
+        expression: case_id:!null
+        display:
+            - Case ID exists
+    data39workflowcustomvariable_comment39_size_gt_0:
+        next:
+            - AddCommentToCaseEnrichmentComments
+        cel_expression: data['WorkflowCustomVariable.comment'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.comment&#39;].size() &gt; 0
+    data39workflowcustomvariable_comment39_size_gt_1:
+        next:
+            - CreateVariableInitializeCommentChunkingVars
+        cel_expression: data['WorkflowCustomVariable.comment'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.comment&#39;].size() &gt; 0
+    data39workflowcustomvariable_current_comment39_size_gt_0_ampamp_data39workflowcustomvariable_current:
+        next:
+            - AddCommentToAlertFinalEnrichmentComments
+        cel_expression: data['WorkflowCustomVariable.current_comment'].size() > 0 && data['WorkflowCustomVariable.current_comment'].trim().size() != data['WorkflowCustomVariable.common_line'].trim().size()
+        display:
+            - data[&#39;WorkflowCustomVariable.current_comment&#39;].size() &gt; 0 &amp;&amp; data[&#39;WorkflowCustomVariable.current_comment&#39;].trim().size() != data[&#39;WorkflowCustomVariable.common_line&#39;].trim().size()
+    data39workflowcustomvariable_tags39_size_gt_0:
+        next:
+            - AddTagsToCaseEnrichmentTags
+        cel_expression: data['WorkflowCustomVariable.tags'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.tags&#39;].size() &gt; 0
+    data39workflowcustomvariable_tags39_size_gt_1:
+        next:
+            - Loop
+        cel_expression: data['WorkflowCustomVariable.tags'].size() > 0
+        display:
+            - data[&#39;WorkflowCustomVariable.tags&#39;].size() &gt; 0
+    detection_id_exists:
+        next:
+            - data39workflowcustomvariable_tags39_size_gt_1
+            - data39workflowcustomvariable_comment39_size_gt_1
+        expression: detection_id:!null
+        display:
+            - Detection ID exists
+    domain_exists:
+        next:
+            - CreateVariable
+        expression: domain:!null
+        display:
+            - Domain exists
+    status_code_is_equal_to_200___ok:
+        next:
+            - UpdateVariable6
+        expression: VirusTotalDomainLookup.status_code:200
+        display:
+            - Status code is equal to 200 - OK
+        else:
+            - WriteToLogRepo
+loops:
+    Loop:
+        display: For each tags; Sequentially
+        name: For each tags; Sequentially
+        for:
+            input: WorkflowCustomVariable.tags
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - data39workflowcustomvariable_tags_39_size_lt_75
+        actions:
+            AddTagToAlertSingleEnrichmentTag:
+                id: 6de8a462880ad419680ed5c291b9413f
+                default_name: Add tag to alert
+                name: Add tag to alert - Single enrichment tag
+                properties:
+                    investigatable_id: ${detection_id}
+                    tag: ${data['WorkflowCustomVariable.tags.#']}
+                version_constraint: ~0
+        conditions:
+            data39workflowcustomvariable_tags_39_size_lt_75:
+                next:
+                    - AddTagToAlertSingleEnrichmentTag
+                cel_expression: data['WorkflowCustomVariable.tags.#'].size() < 75
+                display:
+                    - data[&#39;WorkflowCustomVariable.tags.#&#39;].size() &lt; 75
+    Loop1:
+        display: While data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+        name: While data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+        next:
+            - data39workflowcustomvariable_current_comment39_size_gt_0_ampamp_data39workflowcustomvariable_current
+        for:
+            input: ""
+            cel_condition: data['WorkflowCustomVariable.current_index'] < data['WorkflowCustomVariable.field_and_value_array'].size()
+            condition_display:
+                - data[&#39;WorkflowCustomVariable.current_index&#39;] &lt; data[&#39;WorkflowCustomVariable.field_and_value_array&#39;].size()
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - data39workflowcustomvariable_current_comment39_size__data39workflowcustomvariable_field_and_value_ar
+        actions:
+            AddCommentToAlertContinuedCommentChunk:
+                id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+                default_name: Add comment to detection
+                name: Add comment to alert - Continued comment chunk
+                next:
+                    - UpdateVariableResetCommentForContinuation
+                properties:
+                    comment: ${data['WorkflowCustomVariable.current_comment'] + "\n[Continued in next comment...]"}
+                    investigatable_id: ${detection_id}
+                version_constraint: ~0
+            UpdateVariableAppendFieldToCurrentComment:
+                id: 6c6eab39063fa3b72d98c82af60deb8a
+                default_name: Update variable
+                class: UpdateVariable
+                name: Update variable - Append field to current comment
+                properties:
+                    WorkflowCustomVariable:
+                        current_comment: ${data['WorkflowCustomVariable.current_comment'] + data['WorkflowCustomVariable.field_and_value_array'][data['WorkflowCustomVariable.current_index']] + "\n"}
+                        current_index: ${data['WorkflowCustomVariable.current_index'] + 1}
+                version_constraint: ~1
+            UpdateVariableResetCommentForContinuation:
+                id: 6c6eab39063fa3b72d98c82af60deb8a
+                default_name: Update variable
+                class: UpdateVariable
+                name: Update variable - Reset comment for continuation
+                properties:
+                    WorkflowCustomVariable:
+                        current_comment: ${data['WorkflowCustomVariable.common_line'] + ":" + "\n"}
+                version_constraint: ~1
+        conditions:
+            data39workflowcustomvariable_current_comment39_size__data39workflowcustomvariable_field_and_value_ar:
+                next:
+                    - UpdateVariableAppendFieldToCurrentComment
+                cel_expression: data['WorkflowCustomVariable.current_comment'].size() + data['WorkflowCustomVariable.field_and_value_array'][data['WorkflowCustomVariable.current_index']].size() + string("\n").size() < (500 - string("\n[Continued in next comment...]").size())
+                display:
+                    - data[&#39;WorkflowCustomVariable.current_comment&#39;].size() + data[&#39;WorkflowCustomVariable.field_and_value_array&#39;][data[&#39;WorkflowCustomVariable.current_index&#39;]].size() + string(&#34;\n&#34;).size() &lt; (500 - string(&#34;\n[Continued in next comment...]&#34;).size())
+                else:
+                    - AddCommentToAlertContinuedCommentChunk
+    Loop2:
+        display: For each resolution_ids; Sequentially
+        name: For each resolution_ids; Sequentially
+        next:
+            - UpdateVariable8
+        for:
+            input: WorkflowCustomVariable.resolution_ids
+            continue_on_partial_execution: false
+            sequential: true
+        trigger:
+            next:
+                - VirusTotalGetDNSResolution
+        actions:
+            VirusTotalGetDNSResolution:
+                id: 4e173250822e4806b11d8b91fe57b16f~61b2803acb3cf068ce8412ddd47d530e
+                default_name: VirusTotal - Get DNS Resolution
+                name: VirusTotal - Get DNS Resolution - Historical DNS records
+                properties:
+                    params:
+                        path:
+                            resolution_id: ${data['WorkflowCustomVariable.resolution_ids.#']}
+                version_constraint: ~0
+        output_fields:
+            - VirusTotalGetDNSResolution.body.data.attributes.date
+            - VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.harmless
+            - VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.harmless
+            - VirusTotalGetDNSResolution.body.data.attributes.host_name
+            - VirusTotalGetDNSResolution.body.data.id
+            - VirusTotalGetDNSResolution.body.data.attributes.ip_address
+            - VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.malicious
+            - VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.malicious
+            - VirusTotalGetDNSResolution.body.data.attributes.resolver
+            - VirusTotalGetDNSResolution.body.data.links.self
+            - VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.suspicious
+            - VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.suspicious
+            - VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.timeout
+            - VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.timeout
+            - VirusTotalGetDNSResolution.body.data.type
+            - VirusTotalGetDNSResolution.body.data.attributes.host_name_last_analysis_stats.undetected
+            - VirusTotalGetDNSResolution.body.data.attributes.ip_address_last_analysis_stats.undetected

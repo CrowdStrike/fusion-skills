@@ -1,0 +1,418 @@
+# Example: Network Contain Endpoint on Detection
+# Category: notifications
+# Source: CrowdStrike Content Library
+
+name: Network Contain Endpoint on Detection
+description: 'Automatically contains endpoints when Critical severity detections are triggered from Endpoint Protection (EPP), Next-Gen SIEM, Data Protection, or QuickScanPro products, requiring human approval via email before executing containment actions. Note: This playbook operates in dry run mode by default. Organizations are strongly encouraged to run the playbook in dry run mode initially to evaluate potential operational impact before enabling preventive mode, as actions performed by this playbook may impact production systems and end users. To enable preventive actions, the enable_preventive_actions variable must be set to true.'
+trigger:
+  next:
+    - severity_is_greater_than_or_equal_to_critical
+  name: Detection
+  event: Investigatable
+  type: Signal
+  version_constraint: ~1
+actions:
+  AddCommentToDetection:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 10
+    version_constraint: ~0
+    next:
+      - WriteToLogRepo
+    properties:
+      _fields: []
+      comment: Workflow ${data['Workflow.Definition.Name']} is currently running with enable_preventive_actions set to ${data['WorkflowCustomVariable.enable_preventive_actions']}. The hosts associated with this detection would have been contained if enable_preventive_actions were set to True.
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection11:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 11
+    version_constraint: ~0
+    next:
+      - WriteToLogRepo3
+    properties:
+      _fields:
+        - ${Trigger.Detection.Name}
+        - ${Trigger.Detection.Product}
+      comment: The ${data['Workflow.Definition.Name']} workflow did not contain the device(s) because no associated host(s) were found in the UI.
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection12:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 12
+    version_constraint: ~0
+    properties:
+      comment: '${data[''Workflow.Definition.Name'']} executed successfully. Host(s) associated with this detection were contained following approval by ${data[''RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.responder'']}.
+
+        '
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection13:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 13
+    version_constraint: ~0
+    properties:
+      comment: '${data[''Workflow.Definition.Name'']} executed successfully. Host(s) associated with this detection were contained following approval by ${data[''RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.responder'']}.
+
+        '
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection14:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 14
+    version_constraint: ~0
+    properties:
+      comment: ${data['Workflow.Definition.Name']} executed successfully. Host(s) associated with this detection were contained following approval by ${data['RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.responder']}.
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection15:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 15
+    version_constraint: ~0
+    properties:
+      comment: '${data[''Workflow.Definition.Name'']} executed successfully. Host(s) associated with this detection were contained following approval by ${data[''RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.responder'']}.
+
+        '
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection2:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 9
+    version_constraint: ~0
+    next:
+      - WriteToLogRepo2
+    properties:
+      _fields:
+        - ${Trigger.Detection.Name}
+        - ${Trigger.Detection.Product}
+      comment: The ${data['Workflow.Definition.Name']} workflow did not contain the device(s) because no associated host(s) were found in the UI.
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection4:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 4
+    version_constraint: ~0
+    properties:
+      _fields:
+        - ${RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.responder}
+        - ${RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.user_response}
+        - ${RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.note}
+      comment: 'Host with Hostname: ${data[''Trigger.Detection.EPP.Sensor.Hostname'']} was not contained as no approval for containment was obtained from ${data[''RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.responder'']}'
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection5:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 8
+    version_constraint: ~0
+    properties:
+      _fields:
+        - ${RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.responder}
+        - ${RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.user_response}
+        - ${RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.note}
+      comment: 'Host with ID: ${data[''Trigger.Detection.QUICKSCANPRO.AgentID'']} was not contained as no approval for containment was obtained from ${data[''RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.responder'']}'
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection6:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 6
+    version_constraint: ~0
+    properties:
+      _fields:
+        - ${RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.responder}
+        - ${RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.user_response}
+        - ${RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.note}
+      comment: 'Host with ID: ${data[''Trigger.Detection.DataProtection.AgentID'']} was not contained as no approval for containment was obtained from ${data[''RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.responder'']}'
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddCommentToDetection7:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 7
+    version_constraint: ~0
+    properties:
+      _fields:
+        - ${RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.responder}
+        - ${RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.user_response}
+        - ${RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.note}
+      comment: Host(s) associated with ${data['Trigger.Detection.Product']} detection ${data['Trigger.Detection.Name']} were not contained as no approval for containment was obtained from ${data['RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.responder']}
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  ContainDevice:
+    id: bec9fbeb4999d207937854fd56088107
+    name: Contain device - 5
+    next:
+      - AddCommentToDetection12
+    properties:
+      device_id: ${Trigger.Detection.EPP.Sensor.SensorID}
+      note: ${data['Workflow.Definition.Name']} was executed successfully and this host was contained following approval by ${data['RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.responder']}.
+  ContainDevice3:
+    id: bec9fbeb4999d207937854fd56088107
+    name: Contain device - 6
+    next:
+      - AddCommentToDetection14
+    properties:
+      device_id: ${Trigger.Detection.DataProtection.AgentID}
+      note: ${data['Workflow.Definition.Name']} was executed successfully and this host was contained following approval by ${data['RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.responder']}.
+  ContainDevice4:
+    id: bec9fbeb4999d207937854fd56088107
+    name: Contain device - 7
+    next:
+      - AddCommentToDetection13
+    properties:
+      device_id: ${Trigger.Detection.QUICKSCANPRO.AgentID}
+      note: ${data['Workflow.Definition.Name']} was executed successfully and this host was contained following approval by ${data['RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.responder']}.
+  CreateVariable:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - UpdateVariable
+    properties:
+      variable_schema:
+        properties:
+          enable_preventive_actions:
+            type: boolean
+        type: object
+  DeviceQuery:
+    id: 68ffa99af40c84b36462daa076f535d0
+    name: Device Query
+    next:
+      - data_devicequery_device_query_devices_null_data_devicequery_
+      - default_gateway_decision_63c53687_1b30_4b66_ba86_f4692d189b2
+    properties:
+      hostnames:
+        - ${Trigger.Detection.NGSIEM.HostNames}
+  RequestHumanInputSendEmail:
+    id: d6731c10b24834e2e0f4bd9d390a29c8
+    name: Request human input - Send email - 6
+    next:
+      - human_response_is_equal_to_approve_2
+      - human_response_is_equal_to_decline_human_response_is_equal_t_2
+    properties:
+      _fields:
+        - ${WorkflowCustomVariable.enable_preventive_actions}
+      allowed_responses:
+        - Approve
+        - Decline
+      msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow. </p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n  <li><strong>Host:</strong> ${data['Trigger.Detection.EPP.Sensor.Hostname']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.Detection.EPP.URL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Tactic:</strong> ${data['Trigger.Detection.EPP.Behavior.TacticName']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
+      msg_type: html
+      responders: []
+      subject: Approve Containment for ${data['Trigger.Detection.SeverityDisplayName']} on ${data['Trigger.Detection.EPP.Sensor.Hostname']}
+      user_input_timeout: 90m
+  RequestHumanInputSendEmail2:
+    id: d6731c10b24834e2e0f4bd9d390a29c8
+    name: Request human input - Send email - 4
+    next:
+      - human_response_is_equal_to_approve_3
+      - human_response_is_equal_to_decline_human_response_is_equal_t_3
+    properties:
+      allowed_responses:
+        - Approve
+        - Decline
+      msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n  <li><strong>HostID:</strong> ${data['Trigger.Detection.QUICKSCANPRO.AgentID']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
+      msg_type: html
+      responders: []
+      subject: 'Approve Containment for ${data[''Trigger.Detection.SeverityDisplayName'']} ${data[''Trigger.Detection.Product'']} Detection on HostID: ${data[''Trigger.Detection.QUICKSCANPRO.AgentID'']}'
+      user_input_timeout: 90m
+  RequestHumanInputSendEmail3:
+    id: d6731c10b24834e2e0f4bd9d390a29c8
+    name: Request human input - Send email - 3
+    next:
+      - human_response_is_equal_to_approve
+      - human_response_is_equal_to_decline_human_response_is_equal_t
+    properties:
+      _fields:
+        - ${WorkflowCustomVariable.enable_preventive_actions}
+      allowed_responses:
+        - Approve
+        - Decline
+      msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n  <li><strong>HostID:</strong> ${data['Trigger.Detection.DataProtection.AgentID']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>"
+      msg_type: html
+      responders: []
+      subject: 'Approve Containment for ${data[''Trigger.Detection.SeverityDisplayName'']} on HostID: ${data[''Trigger.Detection.DataProtection.AgentID'']}'
+      user_input_timeout: 90m
+  RequestHumanInputSendEmail5:
+    id: d6731c10b24834e2e0f4bd9d390a29c8
+    name: Request human input - Send email - 5
+    next:
+      - human_response_is_equal_to_approve_4
+      - human_response_is_equal_to_decline_human_response_is_equal_t_4
+    properties:
+      allowed_responses:
+        - Approve
+        - Decline
+      msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n<li><strong>Hostnames:</strong><br><pre style=\"font-family: inherit; margin: 5px 0; white-space: pre-wrap;\">${data['Trigger.Detection.NGSIEM.HostNames']}</pre></li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
+      msg_type: html
+      responders: []
+      subject: Approve Containment for ${data['Trigger.Detection.SeverityDisplayName']} ${data['Trigger.Detection.Product']} Detection on host(s)
+      user_input_timeout: 90m
+  UpdateVariable:
+    id: 6c6eab39063fa3b72d98c82af60deb8a
+    class: UpdateVariable
+    name: Update variable
+    version_constraint: ~1
+    next:
+      - enable_preventive_actions_is_equal_to_true
+      - default_gateway_decision_0471ba1a_f139_4b22_b615_dd2263acf59
+    properties:
+      WorkflowCustomVariable:
+        enable_preventive_actions: false
+  WriteToLogRepo:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    version_constraint: ~1
+    properties:
+      _fields:
+        - ${Trigger.Detection.Name}
+        - ${Workflow.Definition.Name}
+        - ${Trigger.Detection.DataProtection.AgentID}
+        - ${Trigger.Detection.NGSIEM.HostNames}
+        - ${Trigger.Detection.EPP.Sensor.SensorID}
+        - ${Trigger.Detection.EPP.Sensor.Hostname}
+        - ${Trigger.Detection.Intercept.AgentID}
+        - ${Trigger.Detection.QUICKSCANPRO.AgentID}
+        - ${WorkflowCustomVariable.enable_preventive_actions}
+      custom_json: null
+  WriteToLogRepo2:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo - 2
+    version_constraint: ~1
+    properties:
+      _fields:
+        - ${Trigger.Detection.Name}
+        - ${Trigger.Detection.Product}
+        - ${Trigger.Detection.Description}
+        - ${Workflow.Definition.Name}
+        - ${Workflow.Execution.ID}
+  WriteToLogRepo3:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo - 3
+    version_constraint: ~1
+    properties:
+      _fields:
+        - ${Trigger.Detection.Name}
+        - ${Trigger.Detection.Product}
+        - ${Trigger.Detection.Description}
+        - ${Workflow.Definition.Name}
+        - ${Workflow.Execution.ID}
+conditions:
+  enable_preventive_actions_is_equal_to_true:
+    next:
+      - data_trigger_detection_product_epp_data_trigger_detection_ep
+      - data_trigger_detection_product_quickscanpro_data_trigger_det
+      - data_trigger_detection_product_data_protection_data_trigger_
+      - data_trigger_detection_product_ngsiem_data_trigger_detection
+      - default_product_is_equal_to_epp_detection
+    expression: WorkflowCustomVariable.enable_preventive_actions:true
+    display:
+      - enable_preventive_actions is equal to True
+  default_gateway_decision_0471ba1a_f139_4b22_b615_dd2263acf59:
+    next:
+      - AddCommentToDetection
+    default: true
+  product_is_equal_to_epp_detection_product_is_equal_to_quicks:
+    next:
+      - CreateVariable
+    expression: (Trigger.Detection.Product:'EPP'),(Trigger.Detection.Product:'QUICKSCANPRO'),(Trigger.Detection.Product:'DATA-PROTECTION'),(Trigger.Detection.Product:'NGSIEM')
+    display:
+      - '[[&#34;Product is equal to EPP Detection&#34;],[&#34;Product is equal to QuickScanPro Detection&#34;],[&#34;Product is equal to Data Protection Detection&#34;],[&#34;Product is equal to NG-SIEM Detection&#34;]]'
+  severity_is_greater_than_or_equal_to_critical:
+    next:
+      - product_is_equal_to_epp_detection_product_is_equal_to_quicks
+    expression: Trigger.Detection.Severity:>=5
+    display:
+      - Severity is greater than or equal to Critical
+  data_devicequery_device_query_devices_null_data_devicequery_:
+    next:
+      - RequestHumanInputSendEmail5
+    cel_expression: data['DeviceQuery.Device.query.devices'] != null && data['DeviceQuery.Device.query.devices'].size() > 0
+    display:
+      - data[&#39;DeviceQuery.Device.query.devices&#39;] != null &amp;&amp; data[&#39;DeviceQuery.Device.query.devices&#39;].size() &gt; 0
+  default_gateway_decision_63c53687_1b30_4b66_ba86_f4692d189b2:
+    next:
+      - AddCommentToDetection11
+    default: true
+  human_response_is_equal_to_approve:
+    next:
+      - ContainDevice3
+    expression: RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.user_response:'Approve'
+    display:
+      - Human response is equal to Approve
+  human_response_is_equal_to_decline_human_response_is_equal_t:
+    next:
+      - AddCommentToDetection6
+    expression: (RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.user_response:'Decline'),(RequestHumanInputSendEmail3.RequestHumanInput.SendEmail.result.user_response:'Timed out')
+    display:
+      - '[[&#34;Human response is equal to Decline&#34;],[&#34;Human response is equal to Timed out&#34;]]'
+  human_response_is_equal_to_approve_2:
+    next:
+      - ContainDevice
+    expression: RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.user_response:'Approve'
+    display:
+      - Human response is equal to Approve
+  human_response_is_equal_to_decline_human_response_is_equal_t_2:
+    next:
+      - AddCommentToDetection4
+    expression: (RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.user_response:'Decline'),(RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.user_response:'Timed out')
+    display:
+      - '[[&#34;Human response is equal to Decline&#34;],[&#34;Human response is equal to Timed out&#34;]]'
+  human_response_is_equal_to_approve_3:
+    next:
+      - ContainDevice4
+    expression: RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.user_response:'Approve'
+    display:
+      - Human response is equal to Approve
+  human_response_is_equal_to_decline_human_response_is_equal_t_3:
+    next:
+      - AddCommentToDetection5
+    expression: (RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.user_response:'Decline'),(RequestHumanInputSendEmail2.RequestHumanInput.SendEmail.result.user_response:'Timed out')
+    display:
+      - '[[&#34;Human response is equal to Decline&#34;],[&#34;Human response is equal to Timed out&#34;]]'
+  human_response_is_equal_to_approve_4:
+    next:
+      - Loop
+    expression: RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.user_response:'Approve'
+    display:
+      - Human response is equal to Approve
+  human_response_is_equal_to_decline_human_response_is_equal_t_4:
+    next:
+      - AddCommentToDetection7
+    expression: (RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.user_response:'Decline'),(RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.user_response:'Timed out')
+    display:
+      - '[[&#34;Human response is equal to Decline&#34;],[&#34;Human response is equal to Timed out&#34;]]'
+  data_trigger_detection_product_epp_data_trigger_detection_ep:
+    next:
+      - RequestHumanInputSendEmail
+    cel_expression: data['Trigger.Detection.Product'] == 'EPP' && data['Trigger.Detection.EPP.Sensor.SensorID'].size()>0
+    display:
+      - data[&#39;Trigger.Detection.Product&#39;] == &#39;EPP&#39; &amp;&amp; data[&#39;Trigger.Detection.EPP.Sensor.SensorID&#39;].size()&gt;0
+  data_trigger_detection_product_quickscanpro_data_trigger_det:
+    next:
+      - RequestHumanInputSendEmail2
+    cel_expression: data['Trigger.Detection.Product'] == 'QUICKSCANPRO' && data['Trigger.Detection.QUICKSCANPRO.AgentID'].size()>0
+    display:
+      - data[&#39;Trigger.Detection.Product&#39;] == &#39;QUICKSCANPRO&#39; &amp;&amp; data[&#39;Trigger.Detection.QUICKSCANPRO.AgentID&#39;].size()&gt;0
+  data_trigger_detection_product_data_protection_data_trigger_:
+    next:
+      - RequestHumanInputSendEmail3
+    cel_expression: data['Trigger.Detection.Product'] == 'DATA-PROTECTION' && data['Trigger.Detection.DataProtection.AgentID'].size()>0
+    display:
+      - data[&#39;Trigger.Detection.Product&#39;] == &#39;DATA-PROTECTION&#39; &amp;&amp; data[&#39;Trigger.Detection.DataProtection.AgentID&#39;].size()&gt;0
+  data_trigger_detection_product_ngsiem_data_trigger_detection:
+    next:
+      - DeviceQuery
+    cel_expression: data['Trigger.Detection.Product'] == 'NGSIEM' && data['Trigger.Detection.NGSIEM.HostNames'].size() > 0
+    display:
+      - data[&#39;Trigger.Detection.Product&#39;] == &#39;NGSIEM&#39; &amp;&amp; data[&#39;Trigger.Detection.NGSIEM.HostNames&#39;].size() &gt; 0
+  default_product_is_equal_to_epp_detection:
+    next:
+      - AddCommentToDetection2
+    default: true
+loops:
+  Loop:
+    display: For each Sensor IDs; Concurrently
+    name: For each Sensor IDs; Concurrently
+    next:
+      - AddCommentToDetection15
+    for:
+      input: DeviceQuery.Device.query.devices
+      continue_on_partial_execution: false
+      sequential: true
+    trigger:
+      next:
+        - ContainDevice2
+    actions:
+      ContainDevice2:
+        id: bec9fbeb4999d207937854fd56088107
+        name: Contain device - 4
+        properties:
+          device_id: ${DeviceQuery.Device.query.devices.#}
+          note: ${data['Workflow.Definition.Name']} was executed successfully and this host was contained following approval by ${data['RequestHumanInputSendEmail5.RequestHumanInput.SendEmail.result.responder']}.

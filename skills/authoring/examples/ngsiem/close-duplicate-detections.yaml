@@ -1,0 +1,226 @@
+# Example: Close Duplicate Next-Gen SIEM Detections Automatically
+# Category: ngsiem
+# Source: CrowdStrike Content Library
+
+name: Close Duplicate Next-Gen SIEM Detections Automatically
+description: 'Automatically identifies and closes duplicate Next-Gen SIEM detections by querying for previous alerts with the same event data, then tags, comments, and closes the duplicate detection while notifying the original detection of the duplicate closure. Note for Falcon Complete Customers: This playbook contains Fusions SOAR actions that have potential to limit the visibility of detections investigated by the Falcon Complete Team. Consult with your Falcon Complete Security Advisor before enabling this playbook.'
+trigger:
+  next:
+    - CreateVariable
+  name: Detection > NG-SIEM Detection
+  event: Investigatable/NGSIEM
+  type: Signal
+  version_constraint: ~1
+actions:
+  AddCommentToDetection2:
+    id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+    name: Add comment to detection - 2
+    version_constraint: ~0
+    next:
+      - SetDetectionStatus
+    properties:
+      comment: 'Auto-Closed : Duplicate Detection
+
+
+        This detection has been closed as it is a duplicate of detection
+
+        ${data[''Trigger.SourceEventURL''].replace(data[''Trigger.Detection.DetectionID''], data[''WorkflowCustomVariable.original_detection_id''])}'
+      investigatable_id: ${Trigger.Detection.DetectionID}
+  AddTagToAlert:
+    id: 6de8a462880ad419680ed5c291b9413f
+    name: Add tag to alert
+    next:
+      - AddCommentToDetection2
+    properties:
+      investigatable_id: ${Trigger.Detection.DetectionID}
+      tag: Duplicate Detection
+  CreateVariable:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - DuplicateNGSIEMDetectionsQuery
+    properties:
+      variable_schema:
+        properties:
+          alerted_before_detections:
+            items:
+              type: string
+            type: array
+          is_duplicate_detection:
+            type: boolean
+          original_detection_id:
+            type: string
+        type: object
+  DuplicateNGSIEMDetectionsQuery:
+    id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+    class: Inline.QueryEvent
+    name: Duplicate NG-SIEM Detections Query
+    version_constraint: ~1
+    next:
+      - data_duplicatengsiemdetectionsquery_results_size_0_data_dupl
+    properties:
+      detection_id: ${data['Trigger.Detection.DetectionID']}
+      detection_name: ${data['Trigger.Detection.Name']}
+      logscale_search_start_time: 1 day
+      output_files_only: false
+      workflow_csv_header_fields: []
+      workflow_export_event_query_results_to_csv: false
+    inline_configuration:
+      config:
+        description: ''
+        end: now
+        repo_or_view: search-all
+        search_name: Duplicate NG-SIEM Detections Query
+        search_query: "//Events for previous detections that do not include the current detection\n| defineTable(\n    query={\n        #repo=xdr_indicatorsrepo \n        | report_name=?detection_name Ngsiem.alert.id!=?detection_id\n        | Vendor.EventName = ScheduledReportNotificationEventIndicator\n        | split(Ngsiem.child.event.id)\n        | alerted_before := true\n        | previous_alert_id := Ngsiem.alert.id\n        | groupBy(\n            [Ngsiem.child.event.id], \n            function=collect([\n                alerted_before, previous_alert_id\n            ]), limit=max\n        )\n    }, \n    include=[Ngsiem.child.event.id, alerted_before, previous_alert_id], \n    name=\"previous_detection_event_ids\"\n)\n//Events from current detection\n| #repo=xdr_indicatorsrepo \n| Ngsiem.alert.id=?detection_id\n| Vendor.EventName = ScheduledReportNotificationEventIndicator\n| split(Ngsiem.child.event.id)\n| current_alert_id:=Ngsiem.alert.id\n| groupBy([Ngsiem.child.event.id], function=collect([current_alert_id]),\
+          \ limit=max)\n//show me any events that we have already alerted on\n| default(value=\"false\", field=[alerted_before])\n| match(file=\"previous_detection_event_ids\", field=[Ngsiem.child.event.id], include=[alerted_before,previous_alert_id], strict=false)\n| groupBy([alerted_before], function=collect([current_alert_id,previous_alert_id])) "
+        search_query_args:
+          detection_id: '*'
+          detection_name: '*'
+        start: 6h
+        tags: []
+      input_schema:
+        $schema: https://json-schema.org/draft-07/schema
+        properties:
+          detection_id:
+            type: string
+            title: Detection id
+            default: '*'
+          detection_name:
+            type: string
+            title: Detection name
+            default: '*'
+        required:
+          - detection_id
+          - detection_name
+        type: object
+        description: Generated request schema
+      output_schema:
+        $schema: https://json-schema.org/draft-07/schema
+        type: object
+        description: Generated response schema
+  SetDetectionStatus:
+    id: beb56cc40d334583671ca91e6e390056
+    name: Set detection status
+    version_constraint: ~0
+    properties:
+      investigatable_id: ${Trigger.Detection.DetectionID}
+      status: closed
+  UpdateVariable:
+    id: 6c6eab39063fa3b72d98c82af60deb8a
+    class: UpdateVariable
+    name: Update variable - 3
+    version_constraint: ~1
+    next:
+      - Loop
+    properties:
+      WorkflowCustomVariable:
+        alerted_before_detections: ${data['DuplicateNGSIEMDetectionsQuery.results'].filter(e, e.alerted_before == true)[0].previous_alert_id.split("\n").distinct()}
+conditions:
+  is_duplicate_detection_is_equal_to_true:
+    next:
+      - AddTagToAlert
+    expression: WorkflowCustomVariable.is_duplicate_detection:true
+    display:
+      - is_duplicate_detection is equal to True
+  data_duplicatengsiemdetectionsquery_results_size_0_data_dupl:
+    next:
+      - UpdateVariable
+    cel_expression: data['DuplicateNGSIEMDetectionsQuery.results'].size() > 0 && data['DuplicateNGSIEMDetectionsQuery.results'].filter(e, e.alerted_before == true).size() > 0
+    display:
+      - data[&#39;DuplicateNGSIEMDetectionsQuery.results&#39;].size() &gt; 0 &amp;&amp; data[&#39;DuplicateNGSIEMDetectionsQuery.results&#39;].filter(e, e.alerted_before == true).size() &gt; 0
+loops:
+  Loop:
+    display: For each alerted_before_detections; Sequentially
+    name: For each alerted_before_detections; Sequentially
+    next:
+      - is_duplicate_detection_is_equal_to_true
+    for:
+      input: WorkflowCustomVariable.alerted_before_detections
+      continue_on_partial_execution: false
+      sequential: true
+    trigger:
+      next:
+        - GetDetectionStatus
+    actions:
+      AddCommentToDetection:
+        id: 7b77cb5d5ff2651cc51c7c4c610d54d1
+        name: Add comment to detection - 3
+        version_constraint: ~0
+        properties:
+          comment: 'Duplicate Detected & Closed
+
+
+            Detection Details:
+
+            Time: ${timestamp(data[''Workflow.Execution.Time''])}
+
+            Alert Link: ${data[''Trigger.SourceEventURL'']}
+
+
+            Action Taken:
+
+            A duplicate of this detection was identified and automatically closed.'
+          investigatable_id: ${data['WorkflowCustomVariable.alerted_before_detections.#']}
+      GetDetectionStatus:
+        id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+        class: Inline.QueryEvent
+        name: Get Detection Status
+        version_constraint: ~1
+        next:
+          - data_getdetectionstatus_results_size_0_data_getdetectionstat
+        properties:
+          detection_id: ${data['WorkflowCustomVariable.alerted_before_detections.#']}
+          logscale_search_start_time: 1 day
+          output_files_only: false
+          workflow_csv_header_fields: []
+          workflow_export_event_query_results_to_csv: false
+        inline_configuration:
+          config:
+            description: ''
+            end: now
+            repo_or_view: search-all
+            search_name: Get Detection Status
+            search_query: '#repo="detections" #event_simpleName="Event_UserActivityAuditEvent" Message="Alert updated" Attributes.update_status=* Attributes.resource_id=?detection_id
+
+              | last_status:=Attributes.update_status
+
+              | groupBy([Attributes.resource_id],function=[collect([Attributes.update_status,Message]),selectLast(last_status)])'
+            search_query_args:
+              detection_id: '*'
+            start: 24h
+            tags: []
+          input_schema:
+            $schema: https://json-schema.org/draft-07/schema
+            properties:
+              detection_id:
+                type: string
+                title: Detection id
+                default: '*'
+            required:
+              - detection_id
+            type: object
+            description: Generated request schema
+          output_schema:
+            $schema: https://json-schema.org/draft-07/schema
+            type: object
+            description: Generated response schema
+      UpdateVariable2:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - 2
+        version_constraint: ~1
+        next:
+          - AddCommentToDetection
+        properties:
+          WorkflowCustomVariable:
+            is_duplicate_detection: true
+            original_detection_id: ${data['WorkflowCustomVariable.alerted_before_detections.#']}
+    conditions:
+      data_getdetectionstatus_results_size_0_data_getdetectionstat:
+        next:
+          - UpdateVariable2
+        cel_expression: data['GetDetectionStatus.results'].size() == 0 || data['GetDetectionStatus.results'][0].last_status != "closed"
+        display:
+          - data[&#39;GetDetectionStatus.results&#39;].size() == 0 || data[&#39;GetDetectionStatus.results&#39;][0].last_status != &#34;closed&#34;

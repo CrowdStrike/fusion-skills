@@ -1,0 +1,71 @@
+# Example: Introduction to Cases: How to Add an Event to a Case
+# Category: tutorials
+# Source: CrowdStrike Content Library
+
+name: 'Introduction to Cases: How to add an event to a case'
+description: Learn how to add an event to a case
+trigger:
+  next:
+    - ExampleEventQuery
+  name: On demand
+  type: On demand
+actions:
+  AddEventsToCase:
+    id: 91e6224248076bdea0e79b51f8b8b13a
+    name: Add events to case
+    version_constraint: ~1
+    properties:
+      case_id: AAAAAAAAAAFGY2z2DOOaLGMkTGlrJtvbieKrODNtpJgkxoBu_O-enzSixGrCBiTMtYbsdwxTxrQhj95juejTTVdXpGFj5lSZTFWMUxiOdy1KprGaifRlZXPT9Uh0x0Fbj3hJLsPXnMcEoblTxPWpS7SEsfi9GckXqzOfZA
+      events:
+        - ${data['ExampleEventQuery.results'][0].eventID}
+  ExampleEventQuery:
+    id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+    class: Inline.QueryEvent
+    name: example event query
+    version_constraint: ~1
+    next:
+      - AddEventsToCase
+    properties:
+      output_files_only: false
+      workflow_export_event_query_results_to_csv: false
+    inline_configuration:
+      config:
+        description: ''
+        end: now
+        last_modified_by: mirza.baig@crowdstrike.com
+        last_modified_timestamp: '2026-03-05T00:06:33.337Z'
+        repo_or_view: search-all
+        search_name: example queries
+        search_query: '#repo = fusion
+
+          | select(["trigger.data.Workflow.Definition.Name", @id])
+
+          | rename(field=@id, as=eventID)
+
+          '
+        search_query_args: {}
+        start: 45m
+        tags: []
+      output_schema:
+        $schema: https://json-schema.org/draft-07/schema
+        properties:
+          eventID:
+            type: string
+            title: EventID
+          trigger:
+            properties:
+              data:
+                properties:
+                  Workflow:
+                    properties:
+                      Definition:
+                        properties:
+                          Name:
+                            type: string
+                            title: Trigger Data Workflow Definition Name
+                        type: object
+                    type: object
+                type: object
+            type: object
+        type: object
+        description: Generated response schema

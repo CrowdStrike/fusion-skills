@@ -1,0 +1,18 @@
+# Local action discovery cache (per-user, never shipped)
+.action_cache.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Credentials
+.env
+
+# IDE / local tools
+.idea/
+.playwright-mcp/
+
+# Coverage
+.coverage
+htmlcov/
+working/

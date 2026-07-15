@@ -1,0 +1,113 @@
+# Example: Query the Falcon Alerts API with a CrowdStrike HTTP Request, email the result
+# Category: tutorials
+# Source: Built in the Falcon console and verified live end-to-end against a CID
+#   (published + on-demand execution + email received). This is the canonical
+#   shape of a **CrowdStrike HTTP Request** — the action that calls Falcon
+#   platform APIs, as distinct from a Cloud HTTP Request (external APIs like
+#   VirusTotal). Use this to fetch a *population* of alerts/detections the
+#   workflow does not already hold (e.g. "all high-severity alerts from the last
+#   24h") — NOT an Event Query, whose NG-SIEM data is connector-dependent.
+#
+# Ground truth captured from the export (things that are easy to get wrong):
+#   - request_url is ABSOLUTE and region-specific:
+#       https://api.us-2.crowdstrike.com/...   (US-2)
+#       https://api.crowdstrike.com/...        (US-1)
+#       https://api.eu-1.crowdstrike.com/...   (EU-1)
+#     A relative path (/alerts/queries/...) is rejected with "Invalid URL format".
+#   - The URL must NOT contain a query string. Query params (filter, limit) go in
+#     the console Query tab, which serializes to the request_query UUID-map below.
+#     Putting ?filter=... in the URL is rejected with "URL should not contain
+#     query parameters".
+#   - Authentication is REQUIRED for a CrowdStrike HTTP Request (no credential-less
+#     option, unlike a Cloud HTTP Request). This example references a saved
+#     credential config: authentication_option: UseExisting + config_id (32-hex) +
+#     config_name. (When you create the config inline instead, the console writes
+#     authentication_option: CreateNew + definition_id + oauth_token_url.) The API
+#     client behind the config needs the **Alerts** scope (Read) for /alerts endpoints.
+#   - config_id below is CID-specific and will NOT work in another CID. Create your
+#     own OAuth credential on the action in the console (Authentication -> Create new
+#     -> Token URL https://api.<region>.crowdstrike.com/oauth2/token + Client ID +
+#     Client secret from an API client with the Alerts scope), or pick Use existing.
+#   - class is Inline.HTTPRequest — the same class as a Cloud HTTP Request; the
+#     "CrowdStrike" vs "Cloud" distinction is console-side, not in the class.
+#
+# This is an exported workflow. Editing this file is not recommended.
+
+name: CrowdStrike HTTP Actions Demo
+trigger:
+    next:
+        - CrowdStrikeHTTPRequest
+    name: On demand
+    type: On demand
+actions:
+    CrowdStrikeHTTPRequest:
+        id: ad9b77de3da84531b79740e5b4076571
+        default_name: CrowdStrike HTTP Request
+        inline_configuration:
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                properties:
+                    meta:
+                        properties:
+                            pagination:
+                                properties:
+                                    limit:
+                                        type: integer
+                                    offset:
+                                        type: integer
+                                    total:
+                                        type: integer
+                                type: object
+                            powered_by:
+                                type: string
+                            query_time:
+                                type: number
+                            trace_id:
+                                type: string
+                            writes:
+                                properties:
+                                    resources_affected:
+                                        type: integer
+                                type: object
+                        type: object
+                    resources:
+                        items: {}
+                        type: array
+                type: object
+                description: This generated schema may need tweaking. In particular format fields are attempts at matching workflow field types but may not be correct.
+        class: Inline.HTTPRequest
+        name: CrowdStrike HTTP Request
+        next:
+            - SendEmail
+        properties:
+            authentication_option: UseExisting
+            config_id: 56dc4d3ec3024dbbb3ff624a8c0bef61
+            config_name: Alerts Read
+            http_transaction:
+                _cs_inline_output_schema: '{"$schema":"https://json-schema.org/draft-07/schema","properties":{"meta":{"properties":{"pagination":{"properties":{"limit":{"type":"integer"},"offset":{"type":"integer"},"total":{"type":"integer"}},"type":"object"},"powered_by":{"type":"string"},"query_time":{"type":"number"},"trace_id":{"type":"string"},"writes":{"properties":{"resources_affected":{"type":"integer"}},"type":"object"}},"type":"object"},"resources":{"items":{},"type":"array"}},"type":"object","description":"This generated schema may need tweaking. In particular format fields are attempts at matching workflow field types but may not be correct."}'
+                request_content_type: NONE
+                request_headers: {}
+                request_http_method: GET
+                request_query:
+                    9795b73c-1ddd-479e-b915-b5ea10750367:
+                        name: limit
+                        value: "100"
+                    c95c8267-a249-4fe9-8040-2b4e629170ab:
+                        name: filter
+                        value: severity_name:'High'+created_timestamp:>'now-24h'
+                request_url: https://api.us-2.crowdstrike.com/alerts/queries/alerts/v2
+                response_as_raw_string: false
+                response_status_code: 200
+            oauth_token_url: https://api.us-2.crowdstrike.com/oauth2/token
+        version_constraint: ~1
+    SendEmail:
+        id: 07413ef9ba7c47bf5a242799f59902cc
+        default_name: Send email
+        name: Send email
+        properties:
+            msg: ${data['CrowdStrikeHTTPRequest.resources']}
+            msg_type: text
+            subject: Daily High-Severity Alerts
+            to:
+                - ${data['recipient']}   # supply a real Falcon user / CID-approved address (e.g. an On-demand 'recipient' input, or a literal)
+        version_constraint: ~1

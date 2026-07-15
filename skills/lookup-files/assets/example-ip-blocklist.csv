@@ -1,0 +1,6 @@
+ip,category,source,added_date
+10.0.0.1,c2,threat-intel,2026-01-15
+192.168.1.100,scanner,internal-scan,2026-02-01
+172.16.0.50,malware,external-feed,2026-03-10
+203.0.113.5,phishing,abuse-report,2026-03-22
+198.51.100.20,botnet,honeypot,2026-04-01

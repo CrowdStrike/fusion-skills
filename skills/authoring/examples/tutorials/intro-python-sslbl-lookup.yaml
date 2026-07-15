@@ -1,0 +1,98 @@
+# Example: Inline.Python — build a lookup file from an external feed
+# Category: tutorials
+# Source: authored by John Smith (packetjockey on LinkedIn), Partner Solutions
+#   Architect at ExtraHop, and shared in his public LinkedIn post:
+#   https://www.linkedin.com/posts/packetjockey_so-the-no-codelow-code-soar-solutions-have-share-7481323761124704257-iUZj
+#   Exported unmodified from the Falcon console. Verified live end-to-end
+#   (import + release); passes validate.py at all tiers including server-side
+#   API validation.
+#
+# Why Inline.Python here (the "CEL++" case): the script fetches the public
+# abuse.ch SSL blocklist over HTTP (requests is pre-installed, no credentials),
+# strips comment lines, promotes the header row, and prints clean CSV to stdout.
+# That fetch-and-reshape is exactly the transformation CEL cannot express. The
+# result is read downstream as ${data['CreatePythonScript.output_stdout']} — a
+# plain string, NOT wrapped in cs.json.decode() — and written to a lookup file
+# you can then match() against. On demand here; flip to an event: Schedule
+# trigger to refresh the list on a cadence.
+# This is an exported workflow. Editing this file is not recommended.
+
+name: Download SSL Blacklist
+trigger:
+    next:
+        - CreatePythonScript
+    name: On demand
+    type: On demand
+actions:
+    CreateLookupFile:
+        id: 51c4db34ab30465f796d7550f3e3e97b
+        default_name: Create lookup file
+        name: Create lookup file
+        properties:
+            lookup_file_content_text: ${data['CreatePythonScript.output_stdout']}
+            lookup_file_content_type: text
+            lookup_file_name: ssl_blacklist.csv
+            lookup_file_repo: search-all
+        version_constraint: ~1
+    CreatePythonScript:
+        id: 7fb9eb10b23943efaf1e6082b0ac0338
+        default_name: Create Python script
+        class: Inline.Python
+        name: Create Python script
+        next:
+            - GetLookupFileMetadata
+        properties:
+            runtime: py0313general
+            script: |-
+                import csv
+                import io
+                import requests
+                endpoint = 'https://sslbl.abuse.ch/blacklist/sslblacklist.csv'
+                r = requests.get(endpoint, verify=True)
+                clean_lines = []
+                for line in r.text.splitlines():
+                    if line.strip().startswith('# Listingdate'):
+                        clean_lines.append(line.lstrip('#').strip())
+                    elif line.strip().startswith('#'):
+                        continue
+                    else:
+                        clean_lines.append(line)
+                csv_file_object = io.StringIO("\n".join(clean_lines))
+                csv_reader = csv.reader(csv_file_object)
+                for row in csv_reader:
+                    print(",".join(row))
+        version_constraint: ~1
+    GetLookupFileMetadata:
+        id: ace50afa2ea8438162f098b621f790fb
+        default_name: Get lookup file metadata
+        name: Get lookup file metadata
+        next:
+            - lookup_file_name_does_not_exist
+            - lookup_file_name_exists
+        properties:
+            lookup_file_name: ssl_blacklist.csv
+            lookup_file_repo: search-all
+        version_constraint: ~1
+    OverwriteLookupFile:
+        id: 3fa82584a1c9103b21fb80477102a05b
+        default_name: Overwrite lookup file
+        name: Overwrite lookup file
+        properties:
+            lookup_file_content_text: ${data['CreatePythonScript.output_stdout']}
+            lookup_file_content_type: text
+            lookup_file_name: ssl_blacklist.csv
+            lookup_file_repo: search-all
+        version_constraint: ~1
+conditions:
+    lookup_file_name_does_not_exist:
+        next:
+            - CreateLookupFile
+        expression: GetLookupFileMetadata.lookup_file_name:null
+        display:
+            - Lookup file name does not exist
+    lookup_file_name_exists:
+        next:
+            - OverwriteLookupFile
+        expression: GetLookupFileMetadata.lookup_file_name:!null
+        display:
+            - Lookup file name exists

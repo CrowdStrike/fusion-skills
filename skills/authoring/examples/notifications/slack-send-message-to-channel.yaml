@@ -1,0 +1,43 @@
+# Example: Slack - Send Message to Channel
+# Category: notifications
+# Source: CrowdStrike Content Library
+
+name: Slack – Send Message to Channel
+description: Instantly send a message to a specific Slack channel to notify teams about a new alert, incident, or task update. Useful for real-time collaboration or escalation during active investigations.
+trigger:
+  next:
+    - SlackV2ChatPostMessage
+  name: On demand
+  type: On demand
+  parameters:
+    $schema: https://json-schema.org/draft-07/schema
+    properties:
+      json:
+        properties:
+          channel:
+            type: string
+            title: Channel
+            description: 'Slack channel ID or name (for example, #security-alerts).'
+          text:
+            type: string
+            title: Message Text
+            description: The message text to send to the channel.
+        required:
+          - channel
+          - text
+        type: object
+        title: Slack – Send Message Request
+        description: Post a basic message to a Slack channel.
+    required:
+      - json
+    type: object
+actions:
+  SlackV2ChatPostMessage:
+    id: 184239ceb8a046cfb159228abd7cc67e
+    name: Slack v2 - Chat PostMessage
+    version_constraint: ~0
+    properties:
+      json:
+        channel: ${data['json.channel']}
+        markdown_text: ''
+        text: ${data['json.text']}

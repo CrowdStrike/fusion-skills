@@ -1,0 +1,57 @@
+# Example: PAN NGFW - Register IP to Tag (DAG)
+# Category: response-actions
+# Source: CrowdStrike Content Library
+
+name: PAN NGFW - Register IP to Tag (DAG)
+description: Registers an IP address to a tag on a PAN NGFW firewall via the User-ID API, causing any Dynamic Address Group (DAG) policy matching that tag to immediately enforce on the IP. Supports an optional timeout for automatic expiry of the registration.
+trigger:
+  next:
+    - RegisterIPToTag
+  name: On demand
+  type: On demand
+  parameters:
+    properties:
+      FirewallIP:
+        type: string
+        description: IP address or hostname of the PAN NGFW management interface
+      TagName:
+        type: string
+        description: Tag to assign to the IP — any DAG policy matching this tag will include the IP immediately (e.g. malicious)
+      TargetIP:
+        type: string
+        description: IP address to register to the tag (e.g. 10.1.1.1)
+      Timeout:
+        type: string
+        description: 'Optional: tag expiry in seconds (e.g. 3600 = 1 hour). Leave empty to register permanently until explicitly unregistered'
+    required:
+      - FirewallIP
+      - TagName
+      - TargetIP
+    type: object
+actions:
+  RegisterIPToTag:
+    id: 50b8a7cc77ea4ebb9d0bbe96d8def095
+    class: Inline.HTTPRequest
+    name: Register IP To Tag
+    version_constraint: ~1
+    properties:
+      authentication_option: UseExisting
+      definition_id: 31fd9a5893df4127b93f9d27e80a1ea9
+      deployment_model: on_prem
+      host_group_id: 4775ad67cafd4edb90aa9d250678c871
+      http_transaction:
+        request_body: '{}'
+        request_content_type: JSON
+        request_headers: {}
+        request_http_method: POST
+        request_query:
+          1e79e667-45ce-4bb6-90c0-3d8082954b35:
+            name: type
+            value: user-id
+          893e0c8b-a8bb-42c2-bd60-2413e99ef28d:
+            name: cmd
+            value: <uid-message><version>1.0</version><type>update</type><payload><register><entry ip="${data['TargetIP']}"><tag><member timeout="${data['Timeout']}">${data['TagName']}</member></tag></entry></register></payload></uid-message>
+        request_url: https://${data['FirewallIP']}/api
+        response_body: ''
+        response_status_code: 200
+      insecure_skip_verify: true

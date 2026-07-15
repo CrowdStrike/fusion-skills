@@ -1,0 +1,135 @@
+# Example: Enrich an IP with VirusTotal, summarize with Charlotte AI, email the report
+# Category: threat-intel
+# Source: Authored with these skills and verified live end-to-end against a CID
+#   (import + release + on-demand execution). On-demand trigger takes an `ip`
+#   parameter; the Cloud HTTP Request enriches it with VirusTotal, an UpdateVariable
+#   stores the REAL response fields, Charlotte AI summarizes them, and Send email
+#   delivers the report.
+#
+# Two schema blocks matter here and are easy to confuse:
+#   - http_transaction._cs_inline_output_schema — lets downstream actions RESOLVE
+#     ${data['<Action>.data...']} references at RELEASE time.
+#   - inline_configuration.output_schema — the shape the response is VALIDATED
+#     against at RUNTIME. If it omits/mistypes a field the API returns, the action
+#     fails with a 406 ("script output does not validate against the output JSON
+#     schema") that no local check, import, or release catches. Capture the real
+#     shape in the console: attach the credential, click Test, then Schema builder.
+#
+# Credential-less by design: no definition_id. The action imports with
+# Authentication = "None"; attach the VirusTotal API key in the console after
+# deploy (open the action -> Authentication -> Create new -> API key -> secret key
+# -> location Header -> header name x-apikey -> Test -> Schema builder -> Save).
+name: 'Enrich IP with VirusTotal and email an AI summary'
+description: 'On demand: enrich a supplied IP with VirusTotal, store the real response fields in a variable, summarize with Charlotte AI, and email an HTML report.'
+trigger:
+    next:
+        - CreateVariable
+    name: On demand
+    parameters:
+        $schema: https://json-schema.org/draft-07/schema
+        properties:
+            ip:
+                type: string
+                title: IP address
+                description: IP address to enrich with VirusTotal
+            notify_email:
+                type: string
+                title: Notify email
+                description: Recipient for the enrichment report (a Falcon user or CID-approved domain)
+        required:
+            - ip
+            - notify_email
+        type: object
+    type: On demand
+actions:
+    CreateVariable:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        class: CreateVariable
+        name: Create variable - Initialize enrichment results
+        next:
+            - CloudHTTPRequestVirusTotalIPEnrichment
+        properties:
+            variable_schema:
+                properties:
+                    ip_enrichment:
+                        type: string
+                type: object
+        version_constraint: ~1
+    CloudHTTPRequestVirusTotalIPEnrichment:
+        id: 1ba474f407d9228fc8fa02cdce8ae8ef
+        class: Inline.HTTPRequest
+        name: Cloud HTTP Request - VirusTotal IP Enrichment
+        next:
+            - UpdateVariableIP
+        inline_configuration:
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                properties:
+                    data:
+                        properties:
+                            attributes:
+                                properties:
+                                    as_owner:
+                                        type: string
+                                    country:
+                                        type: string
+                                    last_analysis_stats:
+                                        properties:
+                                            harmless:
+                                                type: integer
+                                            malicious:
+                                                type: integer
+                                            suspicious:
+                                                type: integer
+                                            undetected:
+                                                type: integer
+                                        type: object
+                                    reputation:
+                                        type: integer
+                                type: object
+                            id:
+                                type: string
+                        type: object
+                type: object
+        properties:
+            http_transaction:
+                request_http_method: GET
+                request_url: "https://www.virustotal.com/api/v3/ip_addresses/${data['ip']}"
+                request_content_type: NONE
+                request_headers: {}
+                request_body: '{}'
+                _cs_inline_output_schema: '{"$schema":"https://json-schema.org/draft-07/schema","properties":{"data":{"properties":{"attributes":{"properties":{"last_analysis_stats":{"properties":{"malicious":{"type":"integer"},"suspicious":{"type":"integer"},"harmless":{"type":"integer"},"undetected":{"type":"integer"}},"type":"object"},"reputation":{"type":"integer"},"country":{"type":"string"},"as_owner":{"type":"string"}},"type":"object"},"id":{"type":"string"}},"type":"object"}},"type":"object"}'
+        version_constraint: ~1
+    UpdateVariableIP:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Store IP enrichment
+        next:
+            - SummarizeEnrichment
+        properties:
+            WorkflowCustomVariable:
+                ip_enrichment: "IP: ${data['ip']} | Malicious: ${data['CloudHTTPRequestVirusTotalIPEnrichment.data.attributes.last_analysis_stats.malicious']} | Suspicious: ${data['CloudHTTPRequestVirusTotalIPEnrichment.data.attributes.last_analysis_stats.suspicious']} | Reputation: ${data['CloudHTTPRequestVirusTotalIPEnrichment.data.attributes.reputation']} | Country: ${data['CloudHTTPRequestVirusTotalIPEnrichment.data.attributes.country']} | Owner: ${data['CloudHTTPRequestVirusTotalIPEnrichment.data.attributes.as_owner']}"
+        version_constraint: ~1
+    SummarizeEnrichment:
+        id: bdfecafafdb44919a458fcf51d6b93a7_98dec86072334d24b37dd798098cfd63
+        name: Charlotte AI - LLM Completion - Summarize TI enrichment
+        next:
+            - SendEmail
+        properties:
+            data_to_include:
+                - ${data['WorkflowCustomVariable.ip_enrichment']}
+            model_name: Claude Sonnet 4
+            temperature: 0
+            user_prompt: "You are a CrowdStrike threat analyst. Summarize the VirusTotal enrichment result for the IP below: reputation, malicious/suspicious verdict counts, country, and owner. Give an overall risk assessment and recommended next steps. Be concise and actionable. Respond with raw HTML only (headings, lists, bold) — do NOT wrap the response in markdown code fences such as ```html."
+        version_constraint: ~0
+    SendEmail:
+        id: 07413ef9ba7c47bf5a242799f59902cc
+        name: Send email - TI enrichment summary
+        properties:
+            to:
+                - ${data['notify_email']}
+            subject: "[Falcon Fusion] VirusTotal IP Enrichment Report - ${data['ip']}"
+            msg: "<html><body><h2>VirusTotal IP Enrichment Report</h2><p><strong>IP:</strong> ${data['ip']}</p><hr/><h3>Stored enrichment variable</h3><p>${data['WorkflowCustomVariable.ip_enrichment']}</p><hr/><h3>Charlotte AI Summary</h3><div>${data['SummarizeEnrichment.FaaS.nlpassistantapi.llminvocator_handler.completion']}</div></body></html>"
+            msg_type: html
+        version_constraint: ~1
+output_fields: []
