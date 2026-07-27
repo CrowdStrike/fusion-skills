@@ -32,8 +32,6 @@ actions:
       config:
         description: ''
         end: now
-        last_modified_by: mirza.baig@crowdstrike.com
-        last_modified_timestamp: '2026-03-05T00:06:33.337Z'
         repo_or_view: search-all
         search_name: example queries
         search_query: '#repo = fusion
