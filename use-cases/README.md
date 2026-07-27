@@ -33,6 +33,7 @@ to coordinate.
 | [lookup-file-management](lookup-file-management.md) | Create/overwrite/append/update a lookup file from inside a workflow |
 | [notifications](notifications.md) | Send a workflow notification to a chat channel (e.g. Slack) |
 | [charlotte-agent-invocation](charlotte-agent-invocation.md) | Automatically invoke a published Charlotte AI (AgentWorks) agent when a detection fires |
+| [ngsiem-detection-response](ngsiem-detection-response.md) | Respond to an NG-SIEM detection: filter, hydrate, extract, gate, summarize with Charlotte AI, and email |
 
 ## File Format
 
