@@ -1,7 +1,7 @@
 ---
 name: ngsiem-detection-response
 description: Automatically respond to a Next-Gen SIEM detection in a Falcon Fusion workflow - filter by source, hydrate the detection with an event query, extract fields, gate on a condition, then summarize with Charlotte AI and email the team
-source: CrowdStrike "Fusion SOAR Automated Response Quick Start Guide" (https://docs.crowdstrike.com/r/en-US/edd8jdz1/z8tzddxk)
+source: CrowdStrike "Fusion SOAR Automated Response Quick Start Guide" (https://docs.crowdstrike.com/access?ft:originId=z8tzddxk)
 skills: [authoring, deployment, execution]
 capabilities: [workflow, ngsiem-detection, event-query, charlotte-ai, notification]
 ---
