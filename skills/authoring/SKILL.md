@@ -283,6 +283,7 @@ the task actually calls for them:
 | Run a CQL/FQL event query in a step — inputs, outputs | `references/event-query-action.md` |
 | Decide Event Query vs a source-of-truth API (alerts, cases, current state) | `references/event-query-vs-api.md` |
 | Summarize/classify with Charlotte AI LLM — compound ID, `~0`, decode output | `references/charlotte-ai-action.md` |
+| Coordinate workflows with locks — try-lock semantics, scopes, TTL, quota | `references/locks.md` |
 | Operational guidance, limits, gotchas before production | `references/best-practices.md` |
 
 **Advanced (rarely needed):**
