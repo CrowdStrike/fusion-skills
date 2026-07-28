@@ -43,11 +43,11 @@ metadata:
 > fetch/summarize/list a *population* of Falcon alerts, detections, or incidents the workflow
 > does NOT already hold ("all high-severity alerts", "open detections", "alerts from the last
 > 24h"), you MUST use a **CrowdStrike HTTP Request** (`Inline.HTTPRequest`) to the Falcon
-> platform API (`/alerts/queries/alerts/v2`; FQL `severity_name:'High'`), NOT an Event Query
-> (`Inline.QueryEvent`) — its NG-SIEM data is connector-dependent and silently returns nothing
-> on many tenants. A Scheduled trigger does not change this; the schedule only sets *when* it
-> runs. (Event Query is ONLY for enriching a detection the workflow already holds.) See
-> `references/event-query-vs-api.md`.
+> platform API (`/alerts/queries/alerts/v2`; FQL on `severity_name:'High'` — the string field,
+> NOT numeric `severity`), NOT an Event Query (`Inline.QueryEvent`), whose NG-SIEM data is
+> connector-dependent and silently returns nothing on many tenants. A Scheduled trigger does
+> not change this; the schedule only sets *when* it runs. (Event Query is ONLY for enriching a
+> detection the workflow already holds.) See `references/event-query-vs-api.md`.
 > 2. Resolve a real 32-char hex ID for **every** action BEFORE writing any YAML:
 > check the Common Action IDs table first, then run `action_search.py --search`
 > only for actions the table does not cover.
