@@ -5,8 +5,6 @@ required. They cover the majority of API integrations: threat-intel enrichment,
 notifications, and data lookups. All three types share `class: Inline.HTTPRequest`
 and `version_constraint: ~1`.
 
-Source: [Build API Integrations with Falcon Fusion HTTP Actions](https://www.crowdstrike.com/tech-hub/ng-siem/build-api-integrations-with-falcon-fusion-soar-http-actions/).
-
 ## The three types
 
 | Type | Use for | Network | Auth |
@@ -76,8 +74,6 @@ attach a credential there. Then tell the user the console steps:
 > **API key** → API secret key: `<your key>` → API key location: **Header** →
 > Header name: `x-apikey` (per the API's docs) → **Test** → **Schema builder** →
 > Save. (If a matching credential already exists, pick **Use existing** instead.)
-
-Source: [Build API Integrations with Falcon Fusion SOAR HTTP Actions](https://www.crowdstrike.com/tech-hub/ng-siem/build-api-integrations-with-falcon-fusion-soar-http-actions/).
 
 **Never fabricate a `definition_id`.** A token like
 `VIRUSTOTAL_CREDENTIAL_CONFIG_ID` or any non-hex placeholder is a broken
