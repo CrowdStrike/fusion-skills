@@ -137,5 +137,4 @@ Foundry function when you need complex processing, pagination, or transformation
 logic — that path belongs to the `foundry-skills` plugin.
 
 See [use-cases/event-queries.md](../../use-cases/event-queries.md) for the full
-pattern, and the source blog: [Falcon Fusion Event Queries: When and How to
-Go Schemaless](https://www.crowdstrike.com/tech-hub/ng-siem/falcon-fusion-soar-event-queries-when-and-how-to-go-schemaless/).
+pattern.
