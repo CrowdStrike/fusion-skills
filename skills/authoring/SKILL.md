@@ -43,18 +43,17 @@ metadata:
 > fetch/summarize/list a *population* of Falcon alerts, detections, or incidents the workflow
 > does NOT already hold ("all high-severity alerts", "open detections", "alerts from the last
 > 24h"), you MUST use a **CrowdStrike HTTP Request** (`Inline.HTTPRequest`) to the Falcon
-> platform API (`/alerts/queries/alerts/v2` then `/alerts/entities/alerts/v2`; FQL
-> `severity_name:'High'+created_timestamp:>'now-24h'`). Do **NOT** use an Event Query
-> (`Inline.QueryEvent`) — its NG-SIEM/LogScale data is connector-dependent and silently returns
-> nothing on many tenants. (Event Query is ONLY for data that lives in NG-SIEM or for enriching
-> a detection the workflow already holds.) **A Scheduled trigger does not change this** — "runs
-> every morning and fetches all high-severity alerts" is still a population fetch (HTTP Request);
-> the schedule only sets *when* it runs. See `references/http-actions.md`.
+> platform API (`/alerts/queries/alerts/v2`; FQL `severity_name:'High'`), NOT an Event Query
+> (`Inline.QueryEvent`) — its NG-SIEM data is connector-dependent and silently returns nothing
+> on many tenants. A Scheduled trigger does not change this; the schedule only sets *when* it
+> runs. (Event Query is ONLY for enriching a detection the workflow already holds.) See
+> `references/event-query-vs-api.md`.
 > 2. Resolve a real 32-char hex ID for **every** action BEFORE writing any YAML:
 > check the Common Action IDs table first, then run `action_search.py --search`
 > only for actions the table does not cover.
 > 3. Run `trigger_search.py` to confirm the trigger type.
 > 4. Run `validate.py` on every YAML file before presenting it.
+> 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, you picked an Event Query for a population fetch — switch to a CrowdStrike HTTP Request, don't rationalize. Never hand off a file that fails validation.
 >
 > **MUST NOT:**
 > - Author a workflow for a Foundry-app-shaped request (see action 0) — redirect to foundry-skills.
