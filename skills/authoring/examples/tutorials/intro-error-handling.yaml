@@ -32,9 +32,6 @@ actions:
       config:
         description: ''
         end: now
-        last_modified_by: 4a090c6f-0917-4a75-8617-7c6d514770b9
-        last_modified_by_user:
-          email: tim.kuhlman@crowdstrike.com
         repo_or_view: search-all
         search_name: example for error handling
         search_query: '#repo = "fusion"'
