@@ -443,7 +443,7 @@ def _check_detection_hydration_join(label, config, issues):
 # queries against ordinary NG-SIEM telemetry (failed logins, custom parsers) that
 # name no alert repo.
 _ALERT_POPULATION_REPO_RE = re.compile(
-    r"xdr_indicatorsrepo|#repo\s*=\s*[\"']?detections|DetectionSummaryEvent",
+    r"xdr_indicatorsrepo|#repo\s*=\s*[\"']?(?:detections|alerts)|DetectionSummaryEvent",
     re.IGNORECASE,
 )
 _SEVERITY_FILTER_RE = re.compile(r"severity", re.IGNORECASE)
