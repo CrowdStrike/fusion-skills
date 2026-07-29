@@ -199,6 +199,23 @@ class TestMainCli:
         assert json.loads(out) == [{"name": "Case", "event": "Case"}]
         assert seen["q"] == "case"
 
+    def test_search_alias_passes_query_to_events(self, monkeypatch, capsys):
+        """--search is an alias for --events (mirrors action_search.py)."""
+        seen = {}
+
+        def fake(q=None):
+            seen["q"] = q
+            return [{"name": "Case", "event": "Case"}]
+
+        monkeypatch.setattr(trigger_search, "search_event_triggers", fake)
+        monkeypatch.setattr(
+            "sys.argv", ["trigger_search.py", "--search", "case", "--json"]
+        )
+        trigger_search.main()
+        out = capsys.readouterr().out
+        assert json.loads(out) == [{"name": "Case", "event": "Case"}]
+        assert seen["q"] == "case"
+
     def test_events_empty_shows_notice(self, monkeypatch, capsys):
         monkeypatch.setattr(trigger_search, "search_event_triggers", lambda q=None: [])
         monkeypatch.setattr("sys.argv", ["trigger_search.py", "--events"])
