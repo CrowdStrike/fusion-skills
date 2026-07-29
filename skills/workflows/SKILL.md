@@ -199,8 +199,10 @@ Available use cases:
 | `detection-deduplication` | Find and close duplicate Next-Gen SIEM detections with an Event Query dedup |
 | `case-management` | Query relevant events and attach them to a Next-Gen SIEM Case |
 | `identity-detection-response` | Respond to an Identity Protection detection: get user context, then resolve or notify |
+| `ngsiem-detection-response` | Respond to an NG-SIEM detection: hydrate it with an Event Query, extract fields, gate on a condition, summarize with an LLM, and email |
 | `lookup-file-management` | Create/overwrite/append/update a lookup file from inside a workflow |
 | `notifications` | Send a workflow notification to a chat channel (e.g. Slack) |
+| `charlotte-agent-invocation` | Automatically invoke a published Charlotte AI (AgentWorks) agent when a detection fires |
 
 A use case names the sub-skills it needs in its `skills:` frontmatter — use that to plan
 which phases to coordinate.
