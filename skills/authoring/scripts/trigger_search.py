@@ -340,11 +340,14 @@ def main():
     group.add_argument(
         "--events",
         "-e",
+        "--search",
+        "-s",
         nargs="?",
         const="",
         metavar="QUERY",
         help="List Signal event sources (name -> event value) from the API, "
-        "optionally filtered by QUERY (e.g. --events detection)",
+        "optionally filtered by QUERY (e.g. --events detection). --search/-s is "
+        "an alias, mirroring action_search.py.",
     )
     group.add_argument(
         "--fields",
