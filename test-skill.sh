@@ -116,7 +116,7 @@ else
   EXAMPLE_WF_ID="<the definition id returned by import_workflows.py>"
 fi
 
-PROMPT="Generate a Fusion workflow that will trigger from a NG-SIEM detection. The workflow should hydrate the detection using an event query to get the full details of the detection. If a user, host, domain, url, file indicator, or ip indicator is found, enrich each in parallel using HTTP calls to VirusTotal or DomainTools. Summarize the enrichment across all the TI providers using an LLM completion action and then send an email formatted in HTML. Use the fusion-skills plugin: discover real action IDs with action_search.py (never guess or use PLACEHOLDER values), choose an appropriate trigger, and write valid workflow YAML with a version_constraint on every action. ${DEPLOY_INSTRUCTION} Pick a reasonable workflow name and proceed without asking me any questions.
+PROMPT="Generate a Falcon Fusion workflow that will trigger from a Falcon Next-Gen SIEM detection. The workflow should hydrate the detection using an event query to get the full details of the detection. If a user, host, domain, url, file indicator, or ip indicator is found, enrich each in parallel using HTTP calls to VirusTotal or DomainTools. Summarize the enrichment across all the threat intelligence providers using an LLM completion action and then send an email formatted in HTML. Use the fusion-skills plugin: discover real action IDs with action_search.py (never guess or use PLACEHOLDER values), choose an appropriate trigger, and write valid workflow YAML with a version_constraint on every action. ${DEPLOY_INSTRUCTION} Pick a reasonable workflow name and proceed without asking me any questions.
 
 When done, respond with valid JSON matching this schema:
 ${RESULT_SCHEMA}

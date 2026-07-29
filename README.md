@@ -14,7 +14,7 @@ AI coding assistant skills for building [CrowdStrike Falcon Fusion](https://www.
 ### Prerequisites
 
 - **CrowdStrike Account** with the **Workflow** API scope (plus **NGSIEM Lookup Files** for the lookup-files skill)
-- **AI Coding Assistant**: Claude Code, Codex, Copilot CLI, Cursor, Gemini CLI, or any tool that can read local reference documentation
+- **AI Coding Assistant**: Claude Code, Codex, Copilot CLI, Cursor, Antigravity CLI, or any tool that can read local reference documentation
 
 ### Claude Code (Tested)
 
@@ -80,7 +80,7 @@ mkdir -p ~/.agents/skills
 ln -s /path/to/fusion-skills/skills ~/.agents/skills/fusion-skills
 ```
 
-Restart Codex to discover the skills. See the [Codex skills docs](https://developers.openai.com/codex/skills) for details.
+Restart Codex to discover the skills. See the [Codex skills docs](https://learn.chatgpt.com/docs/build-skills) for details.
 
 ### Copilot CLI (Experimental)
 
@@ -114,18 +114,18 @@ EOF
 
 Cursor activates the rule automatically when your prompt matches the description.
 
-### Gemini CLI (Experimental)
+### Antigravity CLI (Experimental)
 
-Link the skills so Gemini discovers them as native Agent Skills:
+Link the skills so Antigravity discovers them as native Agent Skills:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
-gemini skills link /path/to/fusion-skills/skills --scope user
+agy skills link /path/to/fusion-skills/skills --scope user
 ```
 
-This creates symlinks in `~/.gemini/skills/` so all skills are available in every workspace. Use `--scope workspace` to install into the current project's `.gemini/skills/` instead. Verify with `gemini skills list` or `/skills list` inside a session.
+This creates symlinks in `~/.gemini/antigravity-cli/skills/` so all skills are available in every workspace. Use `--scope workspace` to install into the current project's `.agents/skills/` instead. Verify with `agy skills list` or `/skills list` inside a session.
 
-Gemini activates the right skill on demand based on your prompt.
+Antigravity activates the right skill on demand based on your prompt.
 
 ### Other Tools
 
@@ -137,9 +137,7 @@ These skills are plain markdown files. Any AI coding assistant that can read loc
 
 This prompt exercises the full lifecycle: action discovery, event queries, parallel HTTP Action enrichment, an LLM completion action, and validation:
 
-```
-Generate a Fusion workflow that will trigger from a NG-SIEM detection. The workflow should hydrate the detection using an event query to get the full details of the detection. If a user, host, domain, url, file indicator, or ip indicator is found, enrich each in parallel using HTTP calls to VirusTotal or DomainTools. Summarize the enrichment across all the TI providers using an LLM completion action and then send an email formatted in HTML.
-```
+> Generate a Falcon Fusion workflow that will trigger from a Falcon Next-Gen SIEM detection. The workflow should hydrate the detection using an event query to get the full details of the detection. If a user, host, domain, url, file indicator, or ip indicator is found, enrich each in parallel using HTTP calls to VirusTotal or DomainTools. Summarize the enrichment across all the threat intelligence providers using an LLM completion action and then send an email formatted in HTML.
 
 Describe what you want in plain language. You don't need to name a skill. The orchestrator picks the right one.
 

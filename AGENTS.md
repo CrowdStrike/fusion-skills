@@ -1,6 +1,6 @@
 # AGENTS.md
 
-A tool-agnostic guide to the `fusion-skills` plugin for AI coding assistants that are **not** Claude Code (Codex, GitHub Copilot, Gemini, and others). Claude Code users get the same content via the plugin system and [CLAUDE.md](./CLAUDE.md); this file lets any agent use the skills directly.
+A tool-agnostic guide to the `fusion-skills` plugin for AI coding assistants that are **not** Claude Code (Codex, GitHub Copilot, Antigravity, and others). Claude Code users get the same content via the plugin system and [CLAUDE.md](./CLAUDE.md); this file lets any agent use the skills directly.
 
 ## What This Is
 
