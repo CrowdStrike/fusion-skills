@@ -76,7 +76,12 @@ renders as literal `##` and `**` in an HTML email. Three tiers, cleanest last:
    action to `msg_type: html`. The summary then renders with real headings and lists instead of raw
    Markdown. Note the explicit "no code fences" part: `Format the response in HTML` alone often makes
    the model wrap its output in a ` ```html ` fence, which then shows up literally in the email
-   (verified live). The shipped
+   (verified live). **Let the LLM completion BE the email body — don't rebuild a parallel template
+   in the Send email action.** Since the model already emits the formatted HTML report, the `msg`
+   should just wrap the completion: `msg: "<html><body>${data['<Node>.FaaS.nlpassistantapi.llminvocator_handler.completion']}</body></html>"`.
+   Re-templating the enrichment fields inline (a second `<h3>` table of the same variables the LLM
+   already summarized) is redundant and drifts from the model's output; forward the completion and
+   let it own the layout. The shipped
    `../skills/authoring/examples/threat-intel/enrich-ip-virustotal-llm-email.yaml` example uses this
    approach (the enrichment path — VT call → variable → summary → email — is verified live
    end-to-end).
