@@ -2423,6 +2423,39 @@ actions:
         issues = validate.structural_check(str(f))
         assert any("population" in i for i in issues)
 
+    def test_event_query_alerts_repo_population_flagged(self, tmp_path):
+        """An Event Query against the `alerts` repo + severity is a population fetch."""
+        f = tmp_path / "eq_alerts.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: Scheduled
+  event: Schedule
+  next:
+    - Q
+  schedule:
+    time_cycle: "0 8 * * *"
+    tz: Etc/UTC
+actions:
+  Q:
+    id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+    class: Inline.QueryEvent
+    version_constraint: ~1
+    name: Query
+    properties:
+      logscale_search_start_time: 24 hours
+    inline_configuration:
+      config:
+        search_query: "#repo=alerts severity=High OR severity=high | groupBy([alert_id, name, severity])"
+        repo_or_view: search-all
+        start: 24h
+        end: now
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any("population" in i and "/alerts/queries/alerts/v2" in i for i in issues)
+
     def test_event_query_held_detection_enrichment_not_flagged(self, tmp_path):
         """Enriching a held detection (alert.id=?arg) in an alert repo is NOT a population."""
         f = tmp_path / "eq_held.yaml"
