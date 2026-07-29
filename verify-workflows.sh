@@ -396,6 +396,14 @@ for wf_file in "${YAML_FILES[@]}"; do
   elif [ -z "$DEF_ID" ]; then
     C_STATUS="N/A"
     say "  cleanup:   ${YELLOW}N/A${RESET} (nothing deployed)"
+  elif [ "$E_STATUS" = "PENDING" ]; then
+    # Credential-gated On-demand workflow: its API execute is deferred until
+    # after Phase 2 configures the credential. Deleting it now — before that
+    # deferred run — would make the execute fail with "definition ... not
+    # found". Defer the delete to the post-Phase-2 cleanup, which runs after
+    # the deferred execute.
+    C_STATUS="PENDING"
+    say "  cleanup:   ${YELLOW}DEFERRED${RESET} (will delete after Phase 2 execute)"
   else
     # Delete by NAME via the Workflows delete API (delete_definitions).
     if DEL_OUT="$(delete_workflow "$WF_NAME" 2>&1)"; then
@@ -513,6 +521,15 @@ if [ "$BROWSER_VERIFY" = "1" ] && [ "$JSON_ONLY" != "1" ]; then
         read -rsp "  Enter VirusTotal API key (input hidden): " VIRUSTOTAL_API_KEY
         printf "\n" >&2
       fi
+      # The browser opens a FRESH context with no saved SSO session, so the
+      # login email field is EMPTY. Offer the agent the email to type so it can
+      # sign in on its own; otherwise it waits for the human. Set FALCON_LOGIN_EMAIL
+      # to skip this prompt.
+      LOGIN_EMAIL="${FALCON_LOGIN_EMAIL:-${GITLAB_USER_EMAIL:-}}"
+      if [ -z "$LOGIN_EMAIL" ]; then
+        printf "%bFalcon login email (the browser opens a fresh session and must sign in).%b\n" "$YELLOW" "$RESET" >&2
+        read -rp "  Enter Falcon login email (or leave blank to log in manually): " LOGIN_EMAIL
+      fi
       FALCON_URL="${FALCON_URL:-https://$( { [ "$CLEANUP_CLOUD" = us-1 ] && echo falcon.crowdstrike.com; } || { [ "$CLEANUP_CLOUD" = eu-1 ] && echo falcon.eu-1.crowdstrike.com; } || echo falcon.us-2.crowdstrike.com )}"
       BROWSER_LOG="$BASE_DIR/verify-browser.log"
 
@@ -524,23 +541,19 @@ if [ "$BROWSER_VERIFY" = "1" ] && [ "$JSON_ONLY" != "1" ]; then
       [ -n "$DEPLOYED_RENDER" ]   && say "  Render-test: $(printf '%s' "$DEPLOYED_RENDER" | tr '\n' ' ')"
       [ -n "$DEPLOYED_ONDEMAND" ] && say "  Execute:     $(printf '%s' "$DEPLOYED_ONDEMAND" | tr '\n' ' ')"
       say "  A browser opens at the Falcon console — log in if prompted."
+      [ -z "$LOGIN_EMAIL" ] && say "${YELLOW}  No login email given — sign in manually in the browser window when it opens (you have 5 minutes).${RESET}"
       say "  Log: $BROWSER_LOG"
 
       BROWSER_PROMPT="You are verifying Falcon Fusion workflows in the CrowdStrike Falcon console.
 
 ## Login
 - Navigate to ${FALCON_URL}/workflow/fusion
-- If a login/SSO page appears, it is passwordless: the email address is already
-  filled in and submitting the form signs you in — no typing and no manual step.
-  Do this: wait 1-2s for the page to settle, take a browser_snapshot, then submit
-  by PRESSING ENTER (the email textbox is already focused). Prefer Enter over
-  clicking the Continue/Log-In button: an Ember glow overlay often intercepts a
-  synthetic button click, whereas pressing Enter on the focused field submits
-  reliably. After Enter, wait 1-2s and snapshot again; SSO redirects through Okta
-  to the 'All workflows' page on its own. If still on a login page, press Enter
-  once more.
-- Only if pressing Enter genuinely does not advance, fall back to polling every
-  15s (up to 3 min) with browser_snapshot until 'All workflows' shows.
+- This is a FRESH browser with no saved session, so an Okta/SSO login page will
+  appear and the email field will be EMPTY (nothing is pre-filled). Do NOT press
+  Enter on an empty field — that does nothing and wastes attempts.
+$( [ -n "$LOGIN_EMAIL" ] && printf -- '- Sign in yourself: take a browser_snapshot, click the email textbox, TYPE\n  '\''%s'\'', then submit by pressing Enter (preferred) or clicking Continue/Log-In.\n  An Ember glow overlay can swallow a synthetic button click, so Enter on the\n  focused field is more reliable. After submitting, wait 2-3s and snapshot again;\n  SSO redirects through Okta to the '\''All workflows'\'' page on its own. If a second\n  email/confirm step appears, repeat.' "$LOGIN_EMAIL" || printf -- '- No email was provided, so a HUMAN will sign in manually in the browser window.\n  Do NOT type, click, or press Enter on the login page. Just WAIT and poll: take a\n  browser_snapshot every 15s for UP TO 5 MINUTES until the URL leaves the login/\n  Okta host and the '\''All workflows'\'' page is visible. The human needs time to type\n  their email and complete SSO — do not give up, do not close the browser, do not\n  report failure while still on a login page before the 5 minutes elapse.' )
+- Once you reach 'All workflows', proceed. If after login you are NOT on the
+  workflows page, navigate to ${FALCON_URL}/workflow/fusion again.
 
 ## Browser guidelines
 - Use browser_snapshot (not screenshots) for element discovery. Wait for page loads between steps.
@@ -636,6 +649,24 @@ if [ "${#DEFERRED_EXEC[@]}" -gt 0 ]; then
       D_NAME="${entry#*|}"; D_NAME="${D_NAME%|*}"
       WORKFLOWS_JSON="$(printf '%s' "$WORKFLOWS_JSON" | jq --arg w "$D_NAME" \
         'map(if .workflow_name == $w then . + {execute: "SKIP", results: "SKIP"} else . end)')"
+      # Step 5 deferred this workflow's cleanup so the (now-skipped) execute
+      # could have found it. The browser phase did not run, so nothing executed,
+      # but --cleanup still means delete it — otherwise it leaks.
+      if [ "$DO_CLEANUP" = "1" ]; then
+        if DEL_OUT="$(delete_workflow "$D_NAME" 2>&1)"; then
+          say "  cleanup:   ${GREEN}PASS${RESET} (deleted '$D_NAME' via API)"
+          WORKFLOWS_JSON="$(printf '%s' "$WORKFLOWS_JSON" | jq --arg w "$D_NAME" \
+            'map(if .workflow_name == $w then . + {cleanup: "PASS"} else . end)')"
+        else
+          DC_ERR="$(printf '%s\n' "$DEL_OUT" | grep -m1 -iE 'ERROR|FAIL' | sed 's/^[[:space:]]*//')"
+          say "  cleanup:   ${RED}FAIL${RESET} ($D_NAME — ${DC_ERR:-API delete failed})"
+          WORKFLOWS_JSON="$(printf '%s' "$WORKFLOWS_JSON" | jq --arg w "$D_NAME" --arg n "${DC_ERR:-}" \
+            'map(if .workflow_name == $w
+                 then . + {cleanup: "FAIL"}
+                      + (if $n == "" then {} else {notes: ((.notes // "") + (if (.notes // "") == "" then "" else "; " end) + "cleanup: " + $n)} end)
+                 else . end)')"
+        fi
+      fi
     done
   else
     say "${BLUE}  Executing ${#DEFERRED_EXEC[@]} credential-gated On-demand workflow(s) via API…${RESET}"
@@ -669,6 +700,27 @@ if [ "${#DEFERRED_EXEC[@]}" -gt 0 ]; then
              then . + {execute: $e, results: $r}
                   + (if $n == "" then {} else {notes: ((.notes // "") + (if (.notes // "") == "" then "" else "; " end) + $n)} end)
              else . end)')"
+
+      # Deferred cleanup: Step 5 left this workflow deployed (C_STATUS=PENDING)
+      # so the execute above could find its definition. Now that the run is done,
+      # honor --cleanup by deleting it via the delete API.
+      if [ "$DO_CLEANUP" = "1" ]; then
+        DC_ERR=""
+        if DEL_OUT="$(delete_workflow "$D_NAME" 2>&1)"; then
+          DC_STATUS="PASS"
+          say "  cleanup:   ${GREEN}PASS${RESET} (deleted '$D_NAME' via API)"
+        else
+          DC_STATUS="FAIL"
+          DC_ERR="$(printf '%s\n' "$DEL_OUT" | grep -m1 -iE 'ERROR|FAIL' | sed 's/^[[:space:]]*//')"
+          say "  cleanup:   ${RED}FAIL${RESET} ($D_NAME — ${DC_ERR:-API delete failed})"
+        fi
+        WORKFLOWS_JSON="$(printf '%s' "$WORKFLOWS_JSON" | jq \
+          --arg w "$D_NAME" --arg c "$DC_STATUS" --arg n "${DC_ERR:-}" \
+          'map(if .workflow_name == $w
+               then . + {cleanup: $c}
+                    + (if $n == "" then {} else {notes: ((.notes // "") + (if (.notes // "") == "" then "" else "; " end) + "cleanup: " + $n)} end)
+               else . end)')"
+      fi
     done
   fi
 fi
