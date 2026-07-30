@@ -674,7 +674,12 @@ if [ "${#DEFERRED_EXEC[@]}" -gt 0 ]; then
       D_NAME="${entry#*|}"; D_NAME="${D_NAME%|*}"
       D_ID="${entry##*|}"
       D_EXEC="FAIL"; D_RESULTS="FAIL"; D_NOTE=""
-      if EXEC_OUT="$("$PYTHON" "$TRIGGER_PY" --id "$D_ID" --params '{}' --wait --timeout "$TIMEOUT" 2>&1)"; then
+      # On-demand workflows can declare required trigger inputs (e.g. ip,
+      # notify_email). Executing with an empty payload would be rejected at
+      # input validation before any action runs, so --autofill fills every
+      # required param the workflow declares (email-type fields get LOGIN_EMAIL;
+      # ip/domain/hash/etc. get schema-valid indicator values).
+      if EXEC_OUT="$("$PYTHON" "$TRIGGER_PY" --id "$D_ID" --autofill ${LOGIN_EMAIL:+--email "$LOGIN_EMAIL"} --wait --timeout "$TIMEOUT" 2>&1)"; then
         EXEC_ID="$(printf '%s\n' "$EXEC_OUT" | grep -oE 'Execution ID: .+' | head -1 | sed 's/Execution ID: //' | tr -d '[:space:]')"
         D_EXEC="PASS"
         if [ -n "$EXEC_ID" ] && RESULT_OUT="$("$PYTHON" "$RESULTS_PY" --execution-id "$EXEC_ID" --json 2>&1)"; then
