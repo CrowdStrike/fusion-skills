@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] - 2026-07-29
+## [1.0.0] - 2026-07-30
 
 First public release of Falcon Fusion Skills — AI coding assistant skills for building CrowdStrike Falcon Fusion workflows. Describe the automation you want in plain language and your assistant discovers the real action IDs from your tenant, writes the YAML, validates it against the platform schema, imports it to your CID, and runs it.
 
