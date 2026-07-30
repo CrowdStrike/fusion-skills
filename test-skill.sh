@@ -228,22 +228,29 @@ count_deploy_churn() {
   local log_file="$1"
   local count=0
   [ -n "$log_file" ] && [ -f "$log_file" ] || { echo 0; return; }
-  # Scope failure/500 detection to actual TOOL OUTPUT, not the whole transcript.
-  # In stream-json, a tool's output comes back as a tool_result block inside a
-  # user-type event (message.content[].type == "tool_result"); the model's
-  # reasoning and its reads of the skill reference docs are assistant/user TEXT.
-  # Those docs quote the very phrases below ("release fails", "has no condition
-  # set", "status 500" while explaining error handling), so grepping the raw log
-  # counted every doc read as churn — a false positive on every clean run.
-  # Extract only tool_result text first, then match failure signals within it.
+  # Scope failure/500 detection to actual TOOL OUTPUT, not the whole transcript,
+  # and exclude Read/Skill results. In stream-json a tool's output is a
+  # tool_result block inside a user-type event; the model's reasoning is
+  # assistant TEXT. But a Read of a skill reference doc is ALSO a tool_result,
+  # and those docs quote the very phrases below ("release fails", "has no
+  # condition set", "status 500") to warn against them. So scoping to
+  # tool_result alone is not enough — a doc read still counts as churn. Join each
+  # tool_result to its originating tool_use by id and drop the ones produced by
+  # Read or Skill, leaving only script/command output (Bash) where a real
+  # failure would actually appear.
   local tool_output
-  tool_output=$(jq -r '
-    select(.type=="user")
-    | .message.content
-    | if type=="array" then .[] else . end
-    | select(type=="object" and .type=="tool_result")
-    | .content
-    | if type=="array" then (.[] | .text? // empty) else (. // empty) end
+  tool_output=$(jq -rs '
+    (map(select(.type=="assistant")
+         | .message.content[]?
+         | select(.type=="tool_use" and (.name=="Read" or .name=="Skill"))
+         | .id)) as $docids
+    | map(select(.type=="user")
+          | .message.content[]?
+          | select(type=="object" and .type=="tool_result"
+                   and ((.tool_use_id) as $t | ($docids | index($t)) | not))
+          | .content
+          | if type=="array" then (.[] | .text? // empty) else (. // empty) end)
+    | .[]
   ' "$log_file" 2>/dev/null || echo "")
   # Inline escape hatch: an actual method call `.update_definition(` /
   # `.delete_definition(` (dot before, paren after) — a hand-rolled FalconPy

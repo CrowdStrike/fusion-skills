@@ -143,13 +143,30 @@ assert_eq "nonexistent file scores 0" "0" "$(count_anti_patterns "$TMP_DIR/does-
 # One point per occurrence of: an inline-FalconPy escape hatch (python -c/heredoc
 # calling update_definition/delete_definition), a release-time gateway validation
 # failure, or an API 500. Reads a run's stream-json LOG, not a workflow file.
+# Failure signals are matched only within tool OUTPUT, and only within tool
+# output that did NOT come from a Read or Skill call — skill reference docs quote
+# these very phrases to warn against them, so a doc read must not count as churn.
 count_deploy_churn() {
   local log_file="$1"
   local count=0
   [ -n "$log_file" ] && [ -f "$log_file" ] || { echo 0; return; }
+  local tool_output
+  tool_output=$(jq -rs '
+    (map(select(.type=="assistant")
+         | .message.content[]?
+         | select(.type=="tool_use" and (.name=="Read" or .name=="Skill"))
+         | .id)) as $docids
+    | map(select(.type=="user")
+          | .message.content[]?
+          | select(type=="object" and .type=="tool_result"
+                   and ((.tool_use_id) as $t | ($docids | index($t)) | not))
+          | .content
+          | if type=="array" then (.[] | .text? // empty) else (. // empty) end)
+    | .[]
+  ' "$log_file" 2>/dev/null || echo "")
   count=$((count + $(grep -cE '\.(update_definition|delete_definition)\(' "$log_file" 2>/dev/null)))
-  count=$((count + $(grep -cE 'has no condition set|not marked as default|release.*fail|enable.*fail' "$log_file" 2>/dev/null)))
-  count=$((count + $(grep -cE '"status_code": *500|Internal Server Error|status 500' "$log_file" 2>/dev/null)))
+  count=$((count + $(printf '%s' "$tool_output" | grep -cE 'has no condition set|not marked as default|release.*fail|enable.*fail' 2>/dev/null)))
+  count=$((count + $(printf '%s' "$tool_output" | grep -cE '"status_code": *500|Internal Server Error|status 500' 2>/dev/null)))
   echo "$count"
 }
 
@@ -161,9 +178,27 @@ mklog() {
   echo "$path"
 }
 
+# Write a stream-json log fixture: one Bash tool_use + its tool_result carrying
+# `body`, so failure signals in `body` are seen as real command output. Optional
+# 3rd arg embeds a Read tool_use + tool_result whose content is `docbody`, to
+# model the model reading a skill doc that quotes a failure phrase.
+mkstreamlog() {
+  local name="$1" body="$2" docbody="${3:-}"
+  local path="$TMP_DIR/$name"
+  {
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"bash1","name":"Bash","input":{"command":"import_workflows.py"}}]}}'
+    jq -cn --arg t "$body" '{type:"user",message:{content:[{type:"tool_result",tool_use_id:"bash1",content:[{type:"text",text:$t}]}]}}'
+    if [ -n "$docbody" ]; then
+      printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"read1","name":"Read","input":{"file_path":"skills/workflows/references/yaml-schema.md"}}]}}'
+      jq -cn --arg t "$docbody" '{type:"user",message:{content:[{type:"tool_result",tool_use_id:"read1",content:[{type:"text",text:$t}]}]}}'
+    fi
+  } > "$path"
+  echo "$path"
+}
+
 printf "${BOLD}Deploy churn signals${RESET}\n"
 
-CLEAN_LOG=$(mklog clean.log 'Imported — ID: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+CLEAN_LOG=$(mkstreamlog clean.log 'Imported — ID: cdf5c3e0d69f156eaaf56c1f5d3f1b66
 Released — workflow is now enabled.')
 assert_eq "clean deploy log scores 0" "0" "$(count_deploy_churn "$CLEAN_LOG")"
 
@@ -175,10 +210,10 @@ assert_eq "inline update_definition escape hatch scores 1" "1" "$(count_deploy_c
 ESCAPE_C_LOG=$(mklog escapec.log 'python -c "client.delete_definition(id=x)"')
 assert_eq "inline -c delete_definition escape hatch scores 1" "1" "$(count_deploy_churn "$ESCAPE_C_LOG")"
 
-RELEASE_FAIL_LOG=$(mklog relfail.log 'exclusive gateway "gw" outgoing flow has no condition set and is not marked as default')
+RELEASE_FAIL_LOG=$(mkstreamlog relfail.log 'exclusive gateway "gw" outgoing flow has no condition set and is not marked as default')
 assert_eq "release-time gateway failure scores 1" "1" "$(count_deploy_churn "$RELEASE_FAIL_LOG")"
 
-FIVE_HUNDRED_LOG=$(mklog fivehundred.log 'API returned "status_code": 500 Internal Server Error')
+FIVE_HUNDRED_LOG=$(mkstreamlog fivehundred.log 'API returned "status_code": 500 Internal Server Error')
 assert_eq "500 response scores 1" "1" "$(count_deploy_churn "$FIVE_HUNDRED_LOG")"
 
 # The critical guard: a log that merely QUOTES the prohibition (e.g. the skill
@@ -186,14 +221,30 @@ assert_eq "500 response scores 1" "1" "$(count_deploy_churn "$FIVE_HUNDRED_LOG")
 # The regex requires the python invocation and the API call on the SAME line as
 # an actual command, so prose describing them across lines stays at 0.
 DOC_TEXT_LOG=$(mklog doctext.log 'The deployment skill says: never patch a deployed
-definition with a hand-rolled inline FalconPy call. Do not use update_definition
+definition with a hand-rolled inlineFalconPy call. Do not use update_definition
 or delete_definition to hand-edit a deployed copy. The supported update path is
 to fix the YAML and re-import.')
 assert_eq "prose quoting the prohibition scores 0 (no false positive)" "0" "$(count_deploy_churn "$DOC_TEXT_LOG")"
 
-STACKED_LOG=$(mklog stacked.log 'python -c "client.update_definition(id=x)"
+# The other critical guard (the one this fix adds): a Read of a skill reference
+# doc whose content QUOTES a release-failure phrase must NOT count as churn. The
+# gateway phrase lives in a Read tool_result, so it is excluded; the Bash output
+# for the same run is clean, so the run scores 0.
+GATEWAY_DOC_READ_LOG=$(mkstreamlog gatewaydoc.log 'Imported — ID: abc123
+Released — workflow is now enabled.' 'Release rejects it: exclusive gateway "<join>" outgoing flow has no condition set and is not marked as default. Do NOT insert a synthetic join node.')
+assert_eq "reading a doc that quotes the gateway failure scores 0 (no false positive)" "0" "$(count_deploy_churn "$GATEWAY_DOC_READ_LOG")"
+
+# And the converse: a real gateway failure in Bash output STILL counts, even when
+# a doc read in the same run also quotes the phrase. Real signal is not masked.
+REAL_PLUS_DOC_LOG=$(mkstreamlog realplusdoc.log 'exclusive gateway "gw" has no condition set and is not marked as default' 'Docs: a gateway with no condition set fails at release.')
+assert_eq "real gateway failure still counts despite a doc quote in the same run" "1" "$(count_deploy_churn "$REAL_PLUS_DOC_LOG")"
+
+STACKED_LOG=$(mkstreamlog stacked.log 'python -c "client.update_definition(id=x)"
 API returned status 500
 exclusive gateway has no condition set')
+# All three signals in one Bash tool_result: the escape-hatch call (matched
+# against the full log) + the 500 + the gateway failure (matched within tool
+# output). A genuinely churny run should sum them.
 assert_eq "stacked churn signals sum" "3" "$(count_deploy_churn "$STACKED_LOG")"
 
 assert_eq "empty churn arg scores 0"        "0" "$(count_deploy_churn "")"
