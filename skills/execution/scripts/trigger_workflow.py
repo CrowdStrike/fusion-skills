@@ -10,6 +10,7 @@ Usage:
     python trigger_workflow.py --id <def_id> --params '{"device_id":"abc123"}'
     python trigger_workflow.py --id <def_id>                     # Interactive parameter prompt
     python trigger_workflow.py --id <def_id> --params '{}' --wait --timeout 120
+    python trigger_workflow.py --id <def_id> --autofill --email me@example.com --wait
 """
 
 import argparse
@@ -52,6 +53,82 @@ def get_workflow_params_schema(definition_id):
         return trigger.get("parameters", {}).get("properties", {})
     except (ConnectionError, RuntimeError, OSError):
         return None
+
+
+def get_trigger_parameters(definition_id):
+    """
+    Fetch the full On-demand parameter schema (properties AND required list).
+
+    Returns a (properties, required) tuple. Unlike get_workflow_params_schema,
+    which returns only the properties for interactive prompting, this exposes the
+    JSON-schema `required` array so callers can autofill the mandatory inputs a
+    workflow will reject an execution for if omitted.
+    """
+    try:
+        client = get_client()
+        resp = client.search_definitions(filter=f"id:'{definition_id}'")
+        resources = resp["body"].get("resources", [])
+        if not resources:
+            return {}, []
+        params = resources[0].get("trigger", {}).get("parameters", {})
+        return params.get("properties", {}) or {}, params.get("required", []) or []
+    except (ConnectionError, RuntimeError, OSError):
+        return {}, []
+
+
+def heuristic_value(field_name, field_schema):
+    """
+    Derive a schema-valid placeholder value for a required parameter.
+
+    Used by autofill_params to satisfy a workflow's required On-demand inputs
+    when no explicit override is supplied. The goal is a value that (a) matches
+    the declared JSON-schema type so input validation passes, and (b) is
+    semantically plausible for common indicator field names so an enrichment
+    workflow has something real to act on. Explicit overrides always win over
+    these guesses — see autofill_params.
+    """
+    ftype = (field_schema or {}).get("type", "string")
+
+    # Non-string types get a minimal schema-valid value regardless of name.
+    non_string = {"integer": 1, "number": 1, "boolean": False, "array": [], "object": {}}
+    if ftype in non_string:
+        return non_string[ftype]
+
+    # String-typed: guess by field name so indicator enrichment gets real input.
+    name = field_name.lower()
+    # Ordered (substring, value) pairs; first match wins.
+    guesses = [
+        ("email", "verify@example.com"),
+        ("ip", "185.220.101.1"),   # a Tor exit node — returns a real VirusTotal verdict
+        ("domain", "example.com"),
+        ("url", "https://example.com"),
+        ("sha256", "44d88612fea8a8f36de82e1278abb02f"),  # EICAR test-file MD5
+        ("hash", "44d88612fea8a8f36de82e1278abb02f"),
+    ]
+    for needle, value in guesses:
+        if needle in name:
+            return value
+    return "test"
+
+
+def autofill_params(params, properties, required, overrides=None):
+    """
+    Fill any required parameters missing from `params`.
+
+    Precedence for each missing required field: an explicit override (from the
+    caller) first, then a name/type heuristic. Fields already present in `params`
+    are left untouched. Returns a new merged dict; does not mutate the input.
+    """
+    merged = dict(params or {})
+    overrides = overrides or {}
+    for name in required:
+        if name in merged:
+            continue
+        if name in overrides:
+            merged[name] = overrides[name]
+        else:
+            merged[name] = heuristic_value(name, (properties or {}).get(name, {}))
+    return merged
 
 
 def prompt_for_params(schema):
@@ -154,6 +231,11 @@ def main():
     parser = argparse.ArgumentParser(description="Trigger a Fusion workflow")
     parser.add_argument("--id", required=True, metavar="DEF_ID", help="Workflow definition ID")
     parser.add_argument("--params", metavar="JSON", help="Execution parameters as JSON string")
+    parser.add_argument("--autofill", action="store_true",
+                        help="Fill any required trigger params missing from --params "
+                             "using name/type heuristics (non-interactive verification)")
+    parser.add_argument("--email", metavar="ADDR",
+                        help="Override value for email-type required params when --autofill is set")
     parser.add_argument("--wait", action="store_true", help="Poll for execution results")
     parser.add_argument("--timeout", type=int, default=120, help="Poll timeout in seconds (default: 120)")
     parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
@@ -162,10 +244,25 @@ def main():
     # Get parameters
     if args.params:
         params = json.loads(args.params)
+    elif args.autofill:
+        # --autofill is non-interactive: start empty and let autofill (below)
+        # populate the required inputs. Do NOT drop into the interactive prompt.
+        params = {}
     else:
         # Interactive mode
         schema = get_workflow_params_schema(args.id)
         params = prompt_for_params(schema)
+
+    # Autofill required params the caller did not supply. Used by the verify
+    # harness so an On-demand workflow with required inputs (e.g. ip,
+    # notify_email) is not rejected at input validation before any action runs.
+    if args.autofill:
+        properties, required = get_trigger_parameters(args.id)
+        overrides = {}
+        if args.email:
+            overrides = {n: args.email for n in required
+                         if "email" in n.lower()}
+        params = autofill_params(params, properties, required, overrides)
 
     print(f"\n  Executing workflow {args.id}")
     print(f"  Parameters: {json.dumps(params, indent=2)}")

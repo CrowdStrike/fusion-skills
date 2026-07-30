@@ -173,6 +173,192 @@ class TestPromptForParams:
         assert trigger_workflow.prompt_for_params(schema) == {"cfg": {"k": 1}}
 
 
+class TestGetTriggerParameters:
+    """Test retrieval of the full On-demand parameter schema (properties + required)."""
+
+    def test_properties_and_required_extracted(self, monkeypatch):
+        """Both the properties map and the required list are returned."""
+        mock_client = MagicMock()
+        mock_client.search_definitions.return_value = {
+            "body": {
+                "resources": [
+                    {
+                        "trigger": {
+                            "parameters": {
+                                "properties": {
+                                    "ip": {"type": "string"},
+                                    "notify_email": {"type": "string"},
+                                },
+                                "required": ["ip", "notify_email"],
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        monkeypatch.setattr(trigger_workflow, "get_client", lambda: mock_client)
+        props, required = trigger_workflow.get_trigger_parameters("def_id")
+        assert props == {"ip": {"type": "string"}, "notify_email": {"type": "string"}}
+        assert required == ["ip", "notify_email"]
+
+    def test_empty_when_no_resources(self, monkeypatch):
+        """A definition ID with no matches returns empty containers, not None."""
+        mock_client = MagicMock()
+        mock_client.search_definitions.return_value = {"body": {"resources": []}}
+        monkeypatch.setattr(trigger_workflow, "get_client", lambda: mock_client)
+        assert trigger_workflow.get_trigger_parameters("def_id") == ({}, [])
+
+    def test_missing_required_defaults_to_empty_list(self, monkeypatch):
+        """A schema with properties but no required array yields an empty required list."""
+        mock_client = MagicMock()
+        mock_client.search_definitions.return_value = {
+            "body": {"resources": [{"trigger": {"parameters": {"properties": {"a": {}}}}}]}
+        }
+        monkeypatch.setattr(trigger_workflow, "get_client", lambda: mock_client)
+        props, required = trigger_workflow.get_trigger_parameters("def_id")
+        assert props == {"a": {}}
+        assert required == []
+
+    def test_empty_on_exception(self, monkeypatch):
+        """Errors while fetching degrade to empty containers."""
+        mock_client = MagicMock()
+        mock_client.search_definitions.side_effect = RuntimeError("boom")
+        monkeypatch.setattr(trigger_workflow, "get_client", lambda: mock_client)
+        assert trigger_workflow.get_trigger_parameters("def_id") == ({}, [])
+
+
+class TestHeuristicValue:
+    """Test schema-valid placeholder derivation for required params."""
+
+    def test_email_field_by_name(self):
+        assert "@" in trigger_workflow.heuristic_value("notify_email", {"type": "string"})
+
+    def test_ip_field_by_name(self):
+        assert trigger_workflow.heuristic_value("ip", {"type": "string"}) == "185.220.101.1"
+
+    def test_domain_field_by_name(self):
+        assert trigger_workflow.heuristic_value("domain", {"type": "string"}) == "example.com"
+
+    def test_url_field_by_name(self):
+        assert trigger_workflow.heuristic_value("url", {"type": "string"}).startswith("http")
+
+    def test_hash_field_by_name(self):
+        assert trigger_workflow.heuristic_value("file_hash", {"type": "string"})
+
+    def test_integer_type(self):
+        assert trigger_workflow.heuristic_value("count", {"type": "integer"}) == 1
+
+    def test_boolean_type(self):
+        assert trigger_workflow.heuristic_value("flag", {"type": "boolean"}) is False
+
+    def test_array_type(self):
+        assert trigger_workflow.heuristic_value("ids", {"type": "array"}) == []
+
+    def test_object_type(self):
+        assert trigger_workflow.heuristic_value("cfg", {"type": "object"}) == {}
+
+    def test_unknown_string_field(self):
+        assert trigger_workflow.heuristic_value("whatever", {"type": "string"}) == "test"
+
+    def test_missing_schema_defaults_to_string(self):
+        """A None field_schema is treated as a string type."""
+        assert trigger_workflow.heuristic_value("whatever", None) == "test"
+
+
+class TestAutofillParams:
+    """Test required-param autofill precedence and non-mutation."""
+
+    def test_fills_missing_required_via_heuristic(self):
+        props = {"ip": {"type": "string"}, "notify_email": {"type": "string"}}
+        result = trigger_workflow.autofill_params({}, props, ["ip", "notify_email"])
+        assert result["ip"] == "185.220.101.1"
+        assert "@" in result["notify_email"]
+
+    def test_override_wins_over_heuristic(self):
+        props = {"notify_email": {"type": "string"}}
+        result = trigger_workflow.autofill_params(
+            {}, props, ["notify_email"], overrides={"notify_email": "me@corp.com"}
+        )
+        assert result["notify_email"] == "me@corp.com"
+
+    def test_existing_param_not_overwritten(self):
+        """A value already supplied in params is left untouched."""
+        props = {"ip": {"type": "string"}}
+        result = trigger_workflow.autofill_params(
+            {"ip": "8.8.8.8"}, props, ["ip"], overrides={"ip": "1.1.1.1"}
+        )
+        assert result["ip"] == "8.8.8.8"
+
+    def test_optional_fields_not_filled(self):
+        """Only required fields are autofilled; optional properties are ignored."""
+        props = {"ip": {"type": "string"}, "note": {"type": "string"}}
+        result = trigger_workflow.autofill_params({}, props, ["ip"])
+        assert "ip" in result
+        assert "note" not in result
+
+    def test_does_not_mutate_input(self):
+        original = {"a": 1}
+        trigger_workflow.autofill_params(original, {"ip": {}}, ["ip"])
+        assert original == {"a": 1}
+
+    def test_empty_required_returns_copy_of_params(self):
+        result = trigger_workflow.autofill_params({"a": 1}, {}, [])
+        assert result == {"a": 1}
+
+
+class TestMainAutofill:
+    """Test that --autofill wires schema retrieval into the params passed to execute."""
+
+    def test_autofill_fills_required_and_applies_email_override(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_workflow.py", "--id", "def_id", "--autofill",
+             "--email", "me@corp.com"],
+        )
+        monkeypatch.setattr(
+            trigger_workflow, "get_trigger_parameters",
+            lambda *_a, **_k: (
+                {"ip": {"type": "string"}, "notify_email": {"type": "string"}},
+                ["ip", "notify_email"],
+            ),
+        )
+        captured = {}
+
+        def fake_execute(def_id, params, *_a, **_k):
+            captured["params"] = params
+            return True, "exec_1", {}
+
+        monkeypatch.setattr(trigger_workflow, "execute_workflow", fake_execute)
+        trigger_workflow.main()
+        assert captured["params"]["ip"] == "185.220.101.1"
+        assert captured["params"]["notify_email"] == "me@corp.com"
+
+    def test_autofill_merges_with_explicit_params(self, monkeypatch):
+        """--autofill only fills what --params did not already supply."""
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_workflow.py", "--id", "def_id", "--params",
+             '{"ip":"9.9.9.9"}', "--autofill"],
+        )
+        monkeypatch.setattr(
+            trigger_workflow, "get_trigger_parameters",
+            lambda *_a, **_k: (
+{"ip": {"type": "string"}, "notify_email": {"type": "string"}},
+                ["ip", "notify_email"],
+            ),
+        )
+        captured = {}
+
+        def fake_execute(def_id, params, *_a, **_k):
+            captured["params"] = params
+            return True, "exec_1", {}
+
+        monkeypatch.setattr(trigger_workflow, "execute_workflow", fake_execute)
+        trigger_workflow.main()
+        assert captured["params"]["ip"] == "9.9.9.9"
+        assert "notify_email" in captured["params"]
+
+
 class TestPollResults:
     """Test result polling logic (time.sleep mocked for speed)."""
 

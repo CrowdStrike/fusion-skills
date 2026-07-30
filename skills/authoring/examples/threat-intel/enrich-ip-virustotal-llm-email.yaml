@@ -129,7 +129,7 @@ actions:
             to:
                 - ${data['notify_email']}
             subject: "[Falcon Fusion] VirusTotal IP Enrichment Report - ${data['ip']}"
-            msg: "<html><body><h2>VirusTotal IP Enrichment Report</h2><p><strong>IP:</strong> ${data['ip']}</p><hr/><h3>Stored enrichment variable</h3><p>${data['WorkflowCustomVariable.ip_enrichment']}</p><hr/><h3>Charlotte AI Summary</h3><div>${data['SummarizeEnrichment.FaaS.nlpassistantapi.llminvocator_handler.completion']}</div></body></html>"
+            msg: "<html><body>${data['SummarizeEnrichment.FaaS.nlpassistantapi.llminvocator_handler.completion']}</body></html>"
             msg_type: html
         version_constraint: ~1
 output_fields: []
