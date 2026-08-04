@@ -1,5 +1,5 @@
 """
-Tests for bin/cleanup_workflows.py.
+Tests for scripts/cleanup_workflows.py.
 
 The script deletes Fusion workflows by name/pattern via the Workflows delete API
 (``delete_definitions``). No browser, no network: the FalconPy client is a

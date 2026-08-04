@@ -1,5 +1,5 @@
 """
-Tests for bin/convert_catalog_to_yaml.py.
+Tests for scripts/convert_catalog_to_yaml.py.
 
 The converter turns a Content Library catalog record (a BPMN-style `model`
 graph) into the flat import YAML the Falcon console consumes. These tests

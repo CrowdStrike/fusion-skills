@@ -93,7 +93,7 @@ find_workflow_file() {
 
 # Clean up deployed Fusion workflows from a phase directory.
 #
-# Deletes via the Workflows delete API (bin/cleanup_workflows.py, FalconPy
+# Deletes via the Workflows delete API (scripts/cleanup_workflows.py, FalconPy
 # delete_definitions) — no browser. Collects the workflow names deployed by each
 # run in the phase, then deletes them by name. Skipped entirely in --skip-deploy
 # mode, where nothing was imported.
@@ -117,9 +117,9 @@ cleanup_phase_workflows() {
     return 0
   fi
 
-  local cleanup_py="$REPO_ROOT/bin/cleanup_workflows.py"
+  local cleanup_py="$REPO_ROOT/scripts/cleanup_workflows.py"
   if [ ! -f "$cleanup_py" ]; then
-    echo "  NOTE: bin/cleanup_workflows.py not found — skipping cleanup."
+    echo "  NOTE: scripts/cleanup_workflows.py not found — skipping cleanup."
     echo "        Remove these manually in Falcon console → Fusion → Workflows:"
     printf '          - %s\n' "${names[@]}"
     return 0

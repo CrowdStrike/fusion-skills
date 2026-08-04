@@ -11,7 +11,7 @@
 #   2. deploy    — skills/deployment/scripts/import_workflows.py            (creds)
 #   3. execute   — skills/execution/scripts/trigger_workflow.py --wait      (creds)
 #   4. results   — skills/execution/scripts/get_execution_results.py        (creds)
-#   5. cleanup   — bin/cleanup_workflows.py --names (API delete, optional)  (creds)
+#   5. cleanup   — scripts/cleanup_workflows.py --names (API delete, optional)  (creds)
 #
 # Phase 2 (browser) runs by DEFAULT, like foundry-skills. It drives the Falcon
 # console via a nested `claude` + Playwright MCP and routes each workflow by
@@ -24,7 +24,7 @@
 # credential-free. The VirusTotal key is prompted for only when an On-demand
 # workflow will execute.
 #
-# Cleanup deletes through the Workflows delete API (bin/cleanup_workflows.py,
+# Cleanup deletes through the Workflows delete API (scripts/cleanup_workflows.py,
 # FalconPy delete_definitions) — no browser needed, just API credentials.
 #
 # A duplicate-name check (skills/deployment/scripts/query_workflows.py --check-yaml)
@@ -87,7 +87,7 @@ QUERY_PY="$SCRIPT_DIR/skills/deployment/scripts/query_workflows.py"
 IMPORT_PY="$SCRIPT_DIR/skills/deployment/scripts/import_workflows.py"
 TRIGGER_PY="$SCRIPT_DIR/skills/execution/scripts/trigger_workflow.py"
 RESULTS_PY="$SCRIPT_DIR/skills/execution/scripts/get_execution_results.py"
-CLEANUP_PY="$SCRIPT_DIR/bin/cleanup_workflows.py"
+CLEANUP_PY="$SCRIPT_DIR/scripts/cleanup_workflows.py"
 VERIFY_LOOKUP_PY="$SCRIPT_DIR/skills/lookup-files/scripts/verify_lookup.py"
 # Falcon cloud used to build the console URL for the Phase 2 browser step.
 CLEANUP_CLOUD="${FALCON_CLEANUP_CLOUD:-us-2}"
@@ -229,7 +229,7 @@ workflow_needs_credential() {
 # Delete a deployed workflow by NAME via the Workflows delete API.
 #
 # Fusion exposes a workflow-delete API (FalconPy delete_definitions);
-# bin/cleanup_workflows.py resolves the name to its definition ID and deletes it.
+# scripts/cleanup_workflows.py resolves the name to its definition ID and deletes it.
 # Returns 0 on success; output is the script's report/error.
 delete_workflow() {
   local wf_name="$1"

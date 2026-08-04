@@ -2,14 +2,14 @@
 
 The skill's Python scripts depend on `crowdstrike-falconpy` (and `pyyaml`). Those
 live in a managed virtualenv at ``~/.cache/claude-code-fusion/venv``, created by
-the plugin's SessionStart hook and used by ``bin/python.sh``. But a script may be
+the plugin's SessionStart hook and used by ``scripts/python.sh``. But a script may be
 launched with a bare ``python script.py`` — for example from a cloned repo in dev
 mode, where the plugin hook never fired — using an interpreter that has no
 falconpy installed. That produces a ``ModuleNotFoundError`` at the first API call.
 
 ``ensure_deps()`` makes the scripts resilient to how they are launched: if the
 marker dependency (``falconpy``) is missing from the current interpreter, it
-re-executes the script through ``bin/python.sh``, which runs (and, on demand,
+re-executes the script through ``scripts/python.sh``, which runs (and, on demand,
 builds) the managed venv. If falconpy is already importable — the normal case,
 including when already running inside the venv — it does nothing.
 
@@ -33,13 +33,13 @@ _MARKER_PACKAGE = "falconpy"
 
 
 def _python_sh_path():
-    """Absolute path to bin/python.sh, resolved relative to this file.
+    """Absolute path to scripts/python.sh, resolved relative to this file.
 
     This module lives at ``<repo>/common/scripts/_bootstrap.py``; the wrapper is
-    at ``<repo>/bin/python.sh``.
+    at ``<repo>/scripts/python.sh``.
     """
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(here, "..", "..", "bin", "python.sh")
+    return os.path.join(here, "..", "..", "scripts", "python.sh")
 
 
 def ensure_deps(script_path):
