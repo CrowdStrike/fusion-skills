@@ -53,7 +53,7 @@ metadata:
 > only for actions the table does not cover.
 > 3. Run `trigger_search.py` to confirm the trigger type.
 > 4. Run `validate.py` on every YAML file before presenting it.
-> 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, you picked an Event Query for a population fetch — switch to a CrowdStrike HTTP Request, don't rationalize. Never hand off a file that fails validation.
+> 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, switch the Event Query to a CrowdStrike HTTP Request. Never hand off a file that fails validation.
 >
 > **MUST NOT:**
 > - Author a workflow for a Foundry-app-shaped request (see action 0) — redirect to foundry-skills.
