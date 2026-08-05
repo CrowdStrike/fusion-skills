@@ -1,5 +1,5 @@
 ---
-name: deploy
+name: deployment
 description: >
   Import, release, and manage Falcon Fusion workflow definitions in a CID.
   TRIGGER when user asks to import a workflow, release a workflow version,

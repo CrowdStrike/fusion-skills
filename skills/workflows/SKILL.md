@@ -50,7 +50,7 @@ so route based on these criteria without loading sub-skills first.
 User wants to write/edit workflow YAML            → invoke authoring skill
 User wants to find/discover actions               → invoke authoring skill
 User wants to validate a workflow                 → invoke authoring skill
-User wants to deploy/import/release a workflow     → invoke deploy skill
+User wants to deploy/import/release a workflow     → invoke deployment skill
 User wants to run/monitor/debug a workflow         → invoke execution skill
 User wants full lifecycle (create + deploy + test) → coordinate all three in sequence
 User mentions a Foundry app / manifest.yml         → advise foundry-skills (see below)
@@ -62,7 +62,7 @@ User mentions lookup files / Next-Gen SIEM         → invoke lookup-files skill
 | Intent keyword | Sub-skill | What it owns |
 |----------------|-----------|--------------|
 | "write", "edit", "author", "discover actions", "validate" | **authoring** | Action discovery (`action_search.py`), YAML authoring, CEL, validation (`validate.py`) |
-| "deploy", "import", "release", "publish to CID" | **deploy** | Duplicate check, import, release, version management |
+| "deploy", "import", "release", "publish to CID" | **deployment** | Duplicate check, import, release, version management |
 | "run", "execute", "trigger", "monitor", "tail", "debug" | **execution** | Triggering with payloads, monitoring, logs, results |
 | "lookup file", "CSV/JSON lookup", "match() query" | **lookup-files** | Next-Gen SIEM lookup file management |
 | "Foundry app", "manifest", "UI + workflow", "functions" | **foundry-skills** (sibling plugin) | App lifecycle, manifest coordination |
@@ -77,7 +77,7 @@ coordinate the three sub-skills in sequence. Do not skip phases.
 2. Write the workflow YAML against the schema, with `version_constraint` on every action.
 3. Validate with `validate.py` (structural) and, if credentials exist, API validation.
 
-**Step 2 — Deployment** (invoke deploy skill)
+**Step 2 — Deployment** (invoke deployment skill)
 1. Check for an existing workflow of the same name (`query_workflows.py`) — avoid silent duplicate versions.
 2. Import the validated YAML to the CID (`import_workflows.py`).
 3. Release the workflow so it becomes executable (`release_workflow.py`).
@@ -114,8 +114,8 @@ User: "Create a Fusion workflow that contains a host on critical detection, then
 
 **After authoring + validating, offer to deploy — don't print a command.** When the user asked to
 build a workflow (not "just write the YAML"), and it validates, ASK "Deploy this to your CID now?"
-and, on yes, run the deploy yourself via the `deploy` skill. Never tell the user to paste
-`/crowdstrike-falcon-fusion:deploy` — invoke it for them. If the workflow contains a
+and, on yes, run the deploy yourself via the `deployment` skill. Never tell the user to paste
+`/crowdstrike-falcon-fusion:deployment` — invoke it for them. If the workflow contains a
 credential-less HTTP Action, after a successful import tell the user it imported (disabled until
 released) and give the console steps to attach the API key: open the Cloud HTTP Request action →
 Authentication → Create new → API key → secret key → location Header → header name (e.g.
