@@ -7,8 +7,8 @@ description: >
   workflows without specifying a sub-task.
   DO NOT TRIGGER when user is working in a Foundry app context, mentions manifest.yml,
   or asks to "build a Foundry app" — use foundry-skills instead.
-version: 1.0.0
-updated: 2026-06-26
+version: 1.0.1
+updated: 2026-08-07
 tags: [fusion, soar, workflows, orchestration, lifecycle]
 author: CrowdStrike
 license: MIT
