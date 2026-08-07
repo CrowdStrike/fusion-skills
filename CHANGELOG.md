@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - TBD
+
+### Fixed
+
+- Relocated helper scripts from `bin/` to `scripts/` so the plugin installs on claude.ai and Cowork. A top-level `bin/` directory is added to the CLI's PATH but isn't shown on the web admin approval surface, so those hosts rejected the plugin. The scripts are internal helpers, not entry points, and moving them out of `bin/` clears the block. Command-line installs were unaffected.
+
+### Changed
+
+- Renamed the deployment skill from `deploy` to `deployment` so it matches its sibling skills (`authoring`, `execution`) and the `foundry-skills` convention. The command is now `/crowdstrike-falcon-fusion:deployment`; the picker no longer rewrites `:deploy` to `:deployment` on submit.
+
 ## [1.0.0] - 2026-07-30
 
 First public release of Falcon Fusion Skills — AI coding assistant skills for building CrowdStrike Falcon Fusion workflows. Describe the automation you want in plain language and your assistant discovers the real action IDs from your tenant, writes the YAML, validates it against the platform schema, imports it to your CID, and runs it.
@@ -33,4 +43,5 @@ First public release of Falcon Fusion Skills — AI coding assistant skills for 
 
 - Tested with Claude Code. Experimental setup instructions for Codex, Copilot CLI, Cursor, and Antigravity CLI, written from each tool's own documentation but not yet verified end to end. The skills are plain markdown, so any assistant that reads local files can use them.
 
+[1.0.1]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.0.1
 [1.0.0]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.0.0

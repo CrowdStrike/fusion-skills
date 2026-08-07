@@ -34,7 +34,7 @@ that, and how to navigate the console reliably to do it.
    followed by a blank/partial canvas (0 nodes drawn, Test/Save/Publish locked).
    A clean render draws the full graph with **zero** console errors.
 4. Delete the test workflow afterward with `delete_workflow.py --id <hex>` (see
-   the deploy skill) so it doesn't linger in the CID.
+   the deployment skill) so it doesn't linger in the CID.
 
 The crash above is caused by referencing a node the canvas can't build — most
 often a synthetic gateway pass-through. See `workflows/references/yaml-schema.md`

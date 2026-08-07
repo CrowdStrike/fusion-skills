@@ -5,7 +5,7 @@ description: >
   TRIGGER when user asks to run a workflow, check execution status, tail logs,
   get execution results, or debug a workflow failure.
   DO NOT TRIGGER for writing YAML (use authoring) or importing/releasing
-  workflows (use deploy).
+  workflows (use deployment).
 version: 1.0.0
 updated: 2026-06-26
 tags: [fusion, soar, workflows, execution, monitoring, debugging]
@@ -49,7 +49,7 @@ An execution moves through states and ends in a **terminal** state. The terminal
 
   Run `/crowdstrike-falcon-fusion:setup` to configure credentials interactively (writes the TOML profile).
 - An API client with the **Workflow** API scope
-- The **definition ID** of the workflow to run (from the deploy skill's import output, or `query_workflows.py --search`)
+- The **definition ID** of the workflow to run (from the deployment skill's import output, or `query_workflows.py --search`)
 - Verify auth before running:
   ```bash
   ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh common/scripts/auth.py
@@ -65,7 +65,7 @@ A workflow must be enabled before it will execute. Confirm it exists and is enab
 ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --search "my workflow"
 ```
 
-Look for `Status: enabled` in the output. If it shows `disabled`, release it first with the deploy skill (`release_workflow.py --id <id>`).
+Look for `Status: enabled` in the output. If it shows `disabled`, release it first with the deployment skill (`release_workflow.py --id <id>`).
 
 ### 2. Trigger the workflow with a payload
 
@@ -155,7 +155,7 @@ Single fetch. Reads `resources[0]` from the API envelope for the execution's `st
 
 ## Common Pitfalls
 
-1. **Triggering an unreleased workflow.** A disabled definition will not execute. Confirm `Status: enabled` (step 1) before triggering, and release it via the deploy skill if needed.
+1. **Triggering an unreleased workflow.** A disabled definition will not execute. Confirm `Status: enabled` (step 1) before triggering, and release it via the deployment skill if needed.
 
 2. **Missing required parameters.** When triggered via API (not the console UI), parameters are not prompted by the platform. Pass every required field in `--params`. Empty params are the most common failure cause.
 
