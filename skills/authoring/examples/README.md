@@ -92,7 +92,7 @@ Examples come from one of two sources, noted in each file's header:
   examples (e.g. the VirusTotal, AbuseIPDB, phishing-ITP, and LLM-enrichment
   playbooks) use this path.
 - **Deterministic conversion.** Some examples were produced by running
-  `bin/convert_catalog_to_yaml.py` on a Content Library catalog record (JSON).
+  `scripts/convert_catalog_to_yaml.py` on a Content Library catalog record (JSON).
   The converter resolves the Signal `event:` from the trigger catalog
   automatically. Prefer a console export when one is available; the catalog record
   is not the import format and conversion is a best-effort reproduction of it.
@@ -102,6 +102,6 @@ hand-translate a catalog record: an early version of these examples dropped the
 Signal trigger's required `event:` field and invented a trigger `id`, which broke
 import. To add or fix an example, either export a working workflow from the console
 (`export_definition`) — the preferred path — or run
-`bin/convert_catalog_to_yaml.py` on a catalog record. A Signal trigger must carry
+`scripts/convert_catalog_to_yaml.py` on a catalog record. A Signal trigger must carry
 `event:` (the trigger category, e.g. `Investigatable/NGSIEM`); discover values with
 `trigger_search.py --events`.

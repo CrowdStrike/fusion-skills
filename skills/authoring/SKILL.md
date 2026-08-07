@@ -16,7 +16,7 @@ tags: [fusion, soar, workflows, authoring, yaml, validation]
 author: CrowdStrike
 license: MIT
 compatibility: Claude Code >=1.0
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/python.sh:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/python.sh:*)
 metadata:
   category: authoring
 ---
@@ -53,7 +53,7 @@ metadata:
 > only for actions the table does not cover.
 > 3. Run `trigger_search.py` to confirm the trigger type.
 > 4. Run `validate.py` on every YAML file before presenting it.
-> 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, you picked an Event Query for a population fetch — switch to a CrowdStrike HTTP Request, don't rationalize. Never hand off a file that fails validation.
+> 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, switch the Event Query to a CrowdStrike HTTP Request. Never hand off a file that fails validation.
 >
 > **MUST NOT:**
 > - Author a workflow for a Foundry-app-shaped request (see action 0) — redirect to foundry-skills.
@@ -92,7 +92,7 @@ NOT import, release, execute, or monitor workflows — hand those off to the
 
 Test credentials before authoring:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh ../../common/scripts/auth.py     # self-test from authoring/scripts/
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh ../../common/scripts/auth.py     # self-test from authoring/scripts/
 ```
 
 ---
@@ -143,13 +143,13 @@ biggest time sink.
 
 ```bash
 # Search by name across all vendors (note the --search flag; a bare term errors)
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/action_search.py --search "contain"
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --search "contain"
 
 # Search within a specific vendor
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/action_search.py --vendor "Okta" --search "revoke"
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --vendor "Okta" --search "revoke"
 
 # Full schema for one action (input fields, class, plugin info)
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/action_search.py --details <action_id>
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --details <action_id>
 ```
 
 For each action you discover, record: `id` (32-char hex), `name`, input
@@ -157,16 +157,16 @@ fields/types, whether it has a `class` (needs `version_constraint`), and whether
 it is a plugin action (needs a `config_id`).
 
 > If a long-lived local cache might be hiding newly shipped actions, refresh it:
-> `${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/action_search.py --clear-cache`. The cache also auto-refreshes
+> `${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --clear-cache`. The cache also auto-refreshes
 > once it is older than 1 hour.
 
 ### 2. Choose a trigger type
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/trigger_search.py --list
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/trigger_search.py --type "On demand"
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/trigger_search.py --events detection   # Signal event: values
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/trigger_search.py --fields Investigatable/EPP   # payload field paths
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --list
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --type "On demand"
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --events detection   # Signal event: values
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --fields Investigatable/EPP   # payload field paths
 ```
 
 Valid trigger types: **On demand**, **Signal**, **Scheduled**, **SubModel**.
@@ -213,10 +213,10 @@ See `references/cel-expressions.md` for operators, CrowdStrike extensions
 
 ```bash
 # Pre-flight + structural + API dry-run
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/validate.py workflow.yaml
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/validate.py workflow.yaml
 
 # Pre-flight + structural only (no API call)
-${CLAUDE_PLUGIN_ROOT}/bin/python.sh scripts/validate.py --preflight-only workflow.yaml
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/validate.py --preflight-only workflow.yaml
 ```
 
 Fix every error before handing the file to the `deployment` skill.

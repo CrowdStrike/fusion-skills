@@ -18,7 +18,7 @@ _SCRIPT_DIRS = [
     os.path.join(_ROOT, "skills", "deployment", "scripts"),
     os.path.join(_ROOT, "skills", "execution", "scripts"),
     os.path.join(_ROOT, "skills", "lookup-files", "scripts"),
-    os.path.join(_ROOT, "bin"),
+    os.path.join(_ROOT, "scripts"),
 ]
 for _d in _SCRIPT_DIRS:
     if _d not in sys.path:

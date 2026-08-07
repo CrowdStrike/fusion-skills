@@ -5,8 +5,8 @@
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-"$PLUGIN_ROOT/bin/setup-python-venv.sh" >&2 || {
-    echo "fusion-skills: venv bootstrap did not complete; scripts may need a manual venv setup (bin/setup-python-venv.sh)." >&2
+"$PLUGIN_ROOT/scripts/setup-python-venv.sh" >&2 || {
+    echo "fusion-skills: venv bootstrap did not complete; scripts may need a manual venv setup (scripts/setup-python-venv.sh)." >&2
 }
 
 exit 0

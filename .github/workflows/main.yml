@@ -18,7 +18,7 @@ jobs:
         run: command -v shellcheck || { sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck; }
       - name: Run ShellCheck
         run: |
-          shellcheck hooks/*.sh bin/*.sh
+          shellcheck hooks/*.sh scripts/*.sh
           shellcheck --severity=error *.sh
 
   test-hooks:
@@ -69,7 +69,7 @@ jobs:
             --cov=skills/deployment/scripts \
             --cov=skills/execution/scripts \
             --cov=skills/lookup-files/scripts \
-            --cov=bin \
+            --cov=scripts \
             --cov-report=term-missing \
             --cov-fail-under=90
 
@@ -95,7 +95,7 @@ jobs:
             skills/deployment/scripts/*.py \
             skills/execution/scripts/*.py \
             skills/lookup-files/scripts/*.py \
-            bin/*.py
+            scripts/*.py
 
   validate:
     runs-on: ubuntu-latest

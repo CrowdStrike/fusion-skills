@@ -34,7 +34,7 @@ def test_returns_without_reexec_when_dependency_present(monkeypatch):
 
 
 def test_reexecs_through_wrapper_when_dependency_missing(monkeypatch):
-    """Marker missing -> re-exec through bin/python.sh with the script + argv."""
+    """Marker missing -> re-exec through scripts/python.sh with the script + argv."""
     calls = _patch(monkeypatch, has_marker=False)
     monkeypatch.setattr(_bootstrap.sys, "argv", ["script.py", "--flag", "value"])
     _bootstrap.ensure_deps("/repo/skills/x/scripts/script.py")
@@ -42,7 +42,7 @@ def test_reexecs_through_wrapper_when_dependency_missing(monkeypatch):
     assert len(calls) == 1
     _path, args = calls[0]
     # Wrapper is invoked with: [wrapper, abs_script_path, *original_args]
-    assert args[0].endswith(os.path.join("bin", "python.sh"))
+    assert args[0].endswith(os.path.join("scripts", "python.sh"))
     assert args[1] == os.path.abspath("/repo/skills/x/scripts/script.py")
     assert args[2:] == ["--flag", "value"]
 
