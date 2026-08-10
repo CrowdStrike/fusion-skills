@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - US-3 cloud region to credential setup: a `[us-3]` profile example (`https://api.us-3.crowdstrike.com`) in the setup skill's multi-cloud block and in the README region notes, alongside a `[us-gov-1]` example that was also missing. The auth module already accepts any `base_url`, so this documents the host rather than changing behavior.
 - Throttling reference in the execution skill: explains that a workflow stuck "in progress" may be throttled (Fusion paces an action past a volume limit, auto-retrying up to 6 hours) rather than failed, how to recognize it on the execution detail view, and when sustained throttling signals a workflow-design issue.
+- Deduplicate and Rate Limit action reference plus a worked tutorial example. Covers all six Deduplicate activities and all four Rate Limit activities: the `definition`/`cid` scope values (which the console labels "Workflow" and "CID"), the atomic claim, metadata handoff, and the save-time validation the builder runs. The example deduplicates third-party NG-SIEM detections into a single case. Action IDs were confirmed against a live tenant; the example passes validation at all tiers.
 
 ## [1.0.1] - 2026-08-07
 
