@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - TBD
+
+### Added
+
+- US-3 cloud region to credential setup: a `[us-3]` profile example (`https://api.us-3.crowdstrike.com`) in the setup skill's multi-cloud block and in the README region notes, alongside a `[us-gov-1]` example that was also missing. The auth module already accepts any `base_url`, so this documents the host rather than changing behavior.
+
 ## [1.0.1] - 2026-08-07
 
 ### Fixed
@@ -43,5 +49,6 @@ First public release of Falcon Fusion Skills — AI coding assistant skills for 
 
 - Tested with Claude Code. Experimental setup instructions for Codex, Copilot CLI, Cursor, and Antigravity CLI, written from each tool's own documentation but not yet verified end to end. The skills are plain markdown, so any assistant that reads local files can use them.
 
+[1.1.0]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.1.0
 [1.0.1]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.0.1
 [1.0.0]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.0.0

@@ -62,6 +62,7 @@ For CI or a one-off override, set environment variables instead:
 export FALCON_CLIENT_ID=your_client_id_here
 export FALCON_CLIENT_SECRET=your_client_secret_here
 # export FALCON_BASE_URL=https://api.crowdstrike.com  # US-1 (default)
+# US-2: https://api.us-2.crowdstrike.com · US-3: https://api.us-3.crowdstrike.com · EU-1: https://api.eu-1.crowdstrike.com · US-GOV-1: https://api.laggar.gcw.crowdstrike.com
 ```
 
 Credentials come from environment variables (checked first) or the TOML profile, and are never hardcoded. Verify your setup:
@@ -269,7 +270,7 @@ python common/scripts/auth.py          # Verify credentials resolve and a token 
 /crowdstrike-falcon-fusion:setup        # Re-run interactive credential setup (Claude Code)
 ```
 
-Confirm `FALCON_CLIENT_ID` and `FALCON_CLIENT_SECRET` are set in your environment or TOML profile, and that `FALCON_BASE_URL` points at the correct cloud (US-1 is the default; set it for US-2, EU-1, or US-GOV).
+Confirm `FALCON_CLIENT_ID` and `FALCON_CLIENT_SECRET` are set in your environment or TOML profile, and that `FALCON_BASE_URL` points at the correct cloud (US-1 is the default; set it for US-2, US-3, EU-1, or US-GOV).
 
 ### Stale action cache
 
