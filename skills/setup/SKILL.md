@@ -93,10 +93,20 @@ base_url = "https://api.us-2.crowdstrike.com"
 # client_secret = ""
 # base_url = "https://api.crowdstrike.com"
 #
+# [us-3]
+# client_id = ""
+# client_secret = ""
+# base_url = "https://api.us-3.crowdstrike.com"
+#
 # [eu-1]
 # client_id = ""
 # client_secret = ""
 # base_url = "https://api.eu-1.crowdstrike.com"
+#
+# [us-gov-1]
+# client_id = ""
+# client_secret = ""
+# base_url = "https://api.laggar.gcw.crowdstrike.com"
 ```
 
 After creating the file, restrict its permissions (skip on Windows, where the user
