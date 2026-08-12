@@ -14,7 +14,7 @@ network containment, notifications, and more.
 | `notifications/` | 2 | Alert routing, Slack notifications, and human-approved endpoint containment. |
 | `ngsiem/` | 1 | Falcon Next-Gen SIEM duplicate-detection management. |
 | `response-actions/` | 6 | Palo Alto Networks NGFW integration for network-level response (DAG tags, EDLs). |
-| `tutorials/` | 8 | "Introduction to..." playbooks teaching specific Fusion concepts. |
+| `tutorials/` | 9 | "Introduction to..." playbooks teaching specific Fusion concepts. |
 
 ## Workflows
 
@@ -59,6 +59,7 @@ network containment, notifications, and more.
 - [Introduction to the Python script action: build a lookup file from an external feed](tutorials/intro-python-sslbl-lookup.yaml) — an `Inline.Python` action fetches and reshapes the abuse.ch SSL blocklist, and its `output_stdout` feeds a lookup file
 - [Introduction to Receive Email trigger: How to create a lookup file from an email attachment](tutorials/intro-receive-email-trigger.yaml)
 - [Introduction to variables: How to append to an array](tutorials/intro-variables-append-array.yaml)
+- [Introduction to deduplication: How to deduplicate third-party detections](tutorials/intro-deduplicate-third-party-detections.yaml) — the **Deduplicate** action family suppresses duplicate NG-SIEM third-party (Palo Alto) detections: a sha1 key over a 24h window creates one case and comments duplicates onto it. See `references/deduplicate-ratelimit.md`. **Pre-GA** — action IDs are from a console export, not yet live-verified in our tenant
 - [CrowdStrike HTTP Request: query the Falcon Alerts API and email the result](tutorials/crowdstrike-http-request-falcon-api.yaml) — the canonical **CrowdStrike HTTP Request** shape (Falcon platform API, distinct from a Cloud HTTP Request): absolute region host, query params in `request_query` (not the URL), required OAuth credential (`UseExisting` + `config_id`). Built and executed live end-to-end.
 
 ## How to use these examples

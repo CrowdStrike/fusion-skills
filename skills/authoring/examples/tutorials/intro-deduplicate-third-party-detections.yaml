@@ -1,0 +1,103 @@
+# Source: CrowdStrike-authored tutorial workflow "Introduction to
+# deduplication: How to Deduplicate Third Party Detections", exported from the
+# Falcon console. Demonstrates the Deduplicate action family suppressing
+# duplicate third-party (Palo Alto) NG-SIEM detections into a single case.
+#
+# Availability: The Deduplicate and Rate Limit actions are enabled in all
+# commercial CIDs, and are available in US-1, US-2, and EU-1 by default (other
+# environments by request). The action IDs and version_constraints below were
+# confirmed against a live tenant with action_search.py, and this file passes
+# validate.py at all tiers, including server-side API validation.
+#
+# Pattern: NG-SIEM third-party detection (Palo Alto) -> Deduplicate on a sha1 key
+# built from detection type + source/dest IPs, 24h window -> if new, create a
+# case and record its ID as the entry's metadata -> if duplicate, wait for that
+# metadata and comment on the original case. See
+# references/deduplicate-ratelimit.md.
+# This is an exported workflow. Editing this file is not recommended.
+
+name: 'Introduction to deduplication: How to Deduplicate Third Party Detections'
+description: Learn how to leverage the deduplication action to deduplicate third party detections from Palo Alto Networks
+disconnected_nodes:
+    - '{"id":"notes_b5eee5d5-1646-4562-9e25-f933d06a9ed0","position":{"x":304.24687139282736,"y":526.301954879066},"node_type":"notes","comment":"Dedups for a period of one day"}'
+trigger:
+    next:
+        - data39trigger_detection_thirdparty_sourcevendors39_existsone__v_v__34paloalto34
+    event: Investigatable/THIRDPARTY
+    name: Detection > NG-SIEM Third Party Detection
+    type: Signal
+    version_constraint: ~1
+actions:
+    AddCommentToCase:
+        id: a16f4fdd1b244b0bfeecd47e25dbe0e0
+        default_name: Add Comment to Case
+        name: Add Comment to Case
+        properties:
+            case_id: ${data['WaitForDeduplicateEntryMetadata.metadata']}
+            comment: 'Detection ID: ${data[''Trigger.Detection.DetectionID'']} is a duplicate.'
+        version_constraint: ~1
+    CreateANewCase:
+        id: 4918bf9d85ecc06388eca16543bdbbdc
+        default_name: Create a new Case
+        name: Create a new Case
+        next:
+            - SetDeduplicateEntryMetadata
+        properties:
+            description: |-
+                Name: ${data['Trigger.Detection.Name']}
+                Description: ${data['Trigger.Detection.Description']}
+            detections:
+                - ${Trigger.Detection.DetectionID}
+            name: Detection ${data['Trigger.Detection.Name']}
+            severity_level: 3
+            status: new
+        version_constraint: ~1
+    Deduplicate:
+        id: f6f68f316170550b2777aec3dc3c85e1
+        default_name: Deduplicate
+        name: Deduplicate
+        next:
+            - duplicate_is_equal_to_false
+        properties:
+            key: |-
+                ${cs.hash.sha1(data['Trigger.Detection.ThirdParty.DetectionType'] +
+                data['Trigger.Detection.ThirdParty.SourceIPs'].join(",") +
+                data['Trigger.Detection.ThirdParty.DestinationIPs'].join(","))}
+            period: 86400
+            scope: definition
+        version_constraint: ~2
+    SetDeduplicateEntryMetadata:
+        id: 7cd6f7bde9eef6a98d851d8270e4f1f4
+        default_name: Set Deduplicate Entry Metadata
+        name: Set Deduplicate Entry Metadata
+        properties:
+            key: ${data['Deduplicate.key']}
+            metadata: ${data['CreateANewCase.id']}
+            scope: definition
+        version_constraint: ~1
+    WaitForDeduplicateEntryMetadata:
+        id: 7bddab2fa0d5c5c90fdb49e0f3eef380
+        default_name: Wait for Deduplicate Entry Metadata
+        name: Wait for Deduplicate Entry Metadata
+        next:
+            - AddCommentToCase
+        properties:
+            key: ${data['Deduplicate.key']}
+            scope: definition
+        version_constraint: ~1
+conditions:
+    data39trigger_detection_thirdparty_sourcevendors39_existsone__v_v__34paloalto34:
+        next:
+            - Deduplicate
+        cel_expression: data['Trigger.Detection.ThirdParty.SourceVendors'].existsOne(_, v, v == "Paloalto")
+        display:
+            - data[&#39;Trigger.Detection.ThirdParty.SourceVendors&#39;].existsOne(_, v, v == &#34;Paloalto&#34;)
+        name: If Vendor is Palo Alto
+    duplicate_is_equal_to_false:
+        next:
+            - CreateANewCase
+        expression: Deduplicate.duplicate:false
+        display:
+            - Duplicate is equal to False
+        else:
+            - WaitForDeduplicateEntryMetadata

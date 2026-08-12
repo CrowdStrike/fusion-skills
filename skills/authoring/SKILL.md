@@ -53,7 +53,7 @@ metadata:
 > only for actions the table does not cover.
 > 3. Run `trigger_search.py` to confirm the trigger type.
 > 4. Run `validate.py` on every YAML file before presenting it.
-> 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, switch the Event Query to a CrowdStrike HTTP Request. Never hand off a file that fails validation.
+> 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, switch the Event Query to a CrowdStrike HTTP Request.
 >
 > **MUST NOT:**
 > - Author a workflow for a Foundry-app-shaped request (see action 0) — redirect to foundry-skills.
@@ -253,7 +253,7 @@ force an immediate refresh so newly shipped action types are never hidden.
 | "The template has `PLACEHOLDER_RAN_006`, I'll copy it." | NEVER. Templates are structural guides. Substitute a real value before saving. |
 | "Validation can wait until deploy." | NO. Validate after authoring — `validate.py` catches PLACEHOLDERs, bad IDs, and schema errors locally. |
 | "This action has a `class`, version_constraint is optional." | WRONG. Class-based actions REQUIRE `version_constraint`. Missing it fails import. |
-| "I'll use `~1` everywhere for version_constraint." | NO. The value is `~<major>` of the action's `semantic_version` (`~0` when it declares none): `1.0.4` → `~1`, `0.0.100` (Charlotte AI, most Store plugins) → `~0`. Read it from `--details`. |
+| "I'll use `~1` everywhere for version_constraint." | NO. The value is `~<major>` of the action's `semantic_version` (`~0` when it declares none): `1.0.4` → `~1`, `0.0.100` → `~0`. Read it from `--details`. |
 | "I'll make up a `config_id` for this Okta action." | NEVER. It's CID-specific (exists only once configured in the console). Ask the user (AskUserQuestion) — even non-interactively. Sequential/all-zeros/repeated-char UUIDs are still fabricated and fail at runtime; can't get a real one? STOP. See `references/best-practices.md`. |
 | "I'll set `definition_id: VIRUSTOTAL_..._ID` on this HTTP action." | NEVER. An `Inline.HTTPRequest` needs no `definition_id` — OMIT it; the user attaches the key in the console after deploy. A placeholder is a broken ref `validate.py` flags. |
 | "The Send email field is called Recipients, so I'll use `recipients:`." | WRONG. The property KEY is `to:` (a list); `recipients:` is rejected. Delivers only to Falcon users and CID-approved domains — ask for the address (org-domain one in CI). |
@@ -282,6 +282,7 @@ the task actually calls for them:
 | Run a CQL/FQL event query in a step — inputs, outputs | `references/event-query-action.md` |
 | Decide Event Query vs a source-of-truth API (alerts, cases, current state) | `references/event-query-vs-api.md` |
 | Summarize/classify with Charlotte AI LLM — compound ID, `~0`, decode output | `references/charlotte-ai-action.md` |
+| Deduplicate or rate-limit a workflow — scopes, keys | `references/deduplicate-ratelimit.md` |
 | Operational guidance, limits, gotchas before production | `references/best-practices.md` |
 
 **Advanced (rarely needed):**
