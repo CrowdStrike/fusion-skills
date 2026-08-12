@@ -114,6 +114,7 @@ When an execution ends in `Failed` or `NonRecoverable`:
 - Check the inputs you sent. Missing or empty required parameters are the most common cause.
 - Re-run with corrected parameters. For workflows that support resume, the Fusion console can resume a failed execution; these scripts trigger fresh executions.
 - **Analyzing failures across many executions** (success rates, top failing workflows, error-code breakdowns, find-by-value) is a job for CQL over the `fusion` execution-log repo, not the per-execution scripts. See `references/execution-log-queries.md`.
+- **A workflow that looks stuck "in progress"** may be **throttled**, not failed — Fusion paces an action when its execution volume exceeds a limit, queuing and auto-retrying it (up to 6 hours). This is not an error. See `references/throttling.md`.
 
 ## Script Reference
 
