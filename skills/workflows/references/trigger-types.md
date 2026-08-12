@@ -123,14 +123,16 @@ rejected at release as "unknown variable" for EPP triggers. Enrich indicators
 straight from the trigger payload (e.g. send `Process.SHA256` to VirusTotal);
 you do not need an Event Query to hydrate the detection.
 
-**If you must hydrate a detection** (indicators not on the trigger), the path
-depends on detection type. First-party/third-party detections can be pulled with
-an Event Query matching the composite `DetectionID` against `Ngsiem.alert.id` (not
-`Ngsiem.detection.id`). **Correlation-rule detections cannot be hydrated by an
-Event Query** — their `Ngsiem.detection.id` is not exposed on the trigger; use a
-**Get Detection Details** action (or an HTTP Request to
+**If you must hydrate a detection** (indicators not on the trigger), match the
+composite `DetectionID` against `Ngsiem.alert.id` (not `Ngsiem.detection.id`) in
+an Event Query. This works for all NG-SIEM detection types. For **correlation-rule
+detections** the same query returns **multiple records** (the alert plus the
+underlying events), so filter it to one predictable row — `| #event.kind = "event"`
+or `| Ngsiem.event.product = CrowdStrike` — or project columns with `table([...])`.
+A **Get Detection Details** action (or an HTTP Request to
 `/alerts/entities/alerts/v2` passing the composite `DetectionID` as `composite_id`)
-instead. See `../../authoring/references/event-query-vs-api.md`.
+is a valid alternative if Event Query results are unreliable. See
+`../../authoring/references/event-query-vs-api.md`.
 
 **Severity is an integer (1-5) at `Trigger.Detection.Severity`, not a string.** Use numeric comparison in CEL conditions:
 

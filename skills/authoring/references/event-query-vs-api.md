@@ -81,16 +81,17 @@ silently return zero. The split is about whether you already hold the object:
     Ngsiem.detection.id = ?detectID
     ```
 
-  - **Correlation-rule detections** → **Get Detection Details** action, NOT an
-    Event Query. The rule trigger exposes only the composite `DetectionID` and an
-    opaque `ID`; neither matches the `Ngsiem.detection.id` value that Advanced
-    event search filters on, and that field is not in the trigger schema. The
-    field that used to bridge it (`Ngsiem.original_indicator.id`) is gone from the
-    rule-trigger events, so a correlation-rule detection cannot be hydrated via
-    Event Query today. Add a **Get Detection Details** gather step (or a
-    CrowdStrike HTTP Request to `/alerts/entities/alerts/v2` passing the composite
-    `DetectionID` as `composite_id`) to fetch the full detection, then read fields
-    from its response.
+  - **Correlation-rule detections** → hydrate with the same
+    `Ngsiem.alert.id = ?detectID` query. It works, but returns **multiple records**
+    (the alert record plus the underlying events), so `results[0]` is
+    non-deterministic across runs. Filter to a single predictable row with
+    `| #event.kind = "event"` or `| Ngsiem.event.product = CrowdStrike`, or project
+    named columns with `table([field1, field2, ...])`. Restrict the action's output
+    schema to only the fields you read, so runs that omit some fields don't fail
+    schema validation. If Event Query results are unreliable for your detection
+    type, a **Get Detection Details** action (or a CrowdStrike HTTP Request to
+    `/alerts/entities/alerts/v2` passing the composite `DetectionID` as
+    `composite_id`) is a valid alternative.
 
   **Treat detection IDs as opaque.** Per the detections team, `composite_id` (what
   the trigger hands you) is the primary key used to retrieve a detection, but its
