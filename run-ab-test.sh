@@ -109,7 +109,12 @@ cleanup_phase_workflows() {
     local wf_file wf_name
     wf_file=$(find_workflow_file "$dir")
     [ -n "$wf_file" ] || continue
-    wf_name=$(grep -m1 -E '^name:' "$wf_file" 2>/dev/null | sed -E "s/^name:[[:space:]]*['\"]?(.+?)['\"]?[[:space:]]*$/\1/")
+    # Strip the "name:" prefix and any surrounding quotes. Uses three simple
+    # substitutions rather than one lazy-quantified capture group, because BSD
+    # (macOS) sed rejects the '.+?' non-greedy operator with "RE error:
+    # repetition-operator operand invalid".
+    wf_name=$(grep -m1 -E '^name:' "$wf_file" 2>/dev/null \
+      | sed -E "s/^name:[[:space:]]*//; s/^[\"']//; s/[\"'][[:space:]]*$//")
     [ -n "$wf_name" ] && names+=("$wf_name")
   done
 
