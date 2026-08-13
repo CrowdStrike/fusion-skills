@@ -126,13 +126,15 @@ you do not need an Event Query to hydrate the detection.
 **If you must hydrate a detection** (indicators not on the trigger), match the
 composite `DetectionID` against `Ngsiem.alert.id` (not `Ngsiem.detection.id`) in
 an Event Query. This works for all NG-SIEM detection types. For **correlation-rule
-detections** the same query returns **multiple records** (the alert plus the
-underlying events), so filter it to one predictable row — `| #event.kind = "event"`
-or `| Ngsiem.event.product = CrowdStrike` — or project columns with `table([...])`.
-A **Get Detection Details** action (or an HTTP Request to
+detections** the same query returns **multiple records** (the underlying events
+plus a correlation "meta-event" that only signals the rule fired), so drop the
+meta-event and keep the real events —
+`| xdr_type != correlation-rule-detection | report_name != *` — or project columns
+with `table([...])`. Event Query is how you reach the event-level detail that made
+up the detection; a **Get Detection Details** action (or an HTTP Request to
 `/alerts/entities/alerts/v2` passing the composite `DetectionID` as `composite_id`)
-is a valid alternative if Event Query results are unreliable. See
-`../../authoring/references/event-query-vs-api.md`.
+returns the detection object instead — use it when the object's summary fields are
+all you need. See `../../authoring/references/event-query-vs-api.md`.
 
 **Severity is an integer (1-5) at `Trigger.Detection.Severity`, not a string.** Use numeric comparison in CEL conditions:
 
