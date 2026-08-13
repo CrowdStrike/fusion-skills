@@ -12,7 +12,8 @@ User wants a workflow to query the NG-SIEM event store — ingested logs, custom
 LogScale search results, or enriching a detection the workflow already holds (e.g.
 `Ngsiem.alert.id = ?detectID` — for first-party/third-party detections the trigger's composite
 `DetectionID` is stored as `Ngsiem.alert.id`, not `Ngsiem.detection.id`; correlation-rule
-detections can't be hydrated this way, use a Get Detection Details action) — without defining a
+detections can be hydrated the same way, but the query returns multiple records — filter it, see
+below) — without defining a
 schema up front. The Event Query action
 runs a CQL/FQL query inline and
 returns matching events, which subsequent actions process and branch on. This is the
@@ -109,6 +110,9 @@ code-driven querying belongs in a function.
 > you already hold* — when the workflow was triggered on a **first-party or third-party** detection
 > and has its ID, an Event Query like `Ngsiem.alert.id = ?detectID` to pull more fields is the right
 > tool (match the composite `DetectionID` against `Ngsiem.alert.id`, not `Ngsiem.detection.id`).
-> **Correlation-rule detections are the exception:** their `Ngsiem.detection.id` is not in the
-> trigger and can't be reached by an Event Query — use a **Get Detection Details** action instead.
-> See [event-query-vs-api.md](../skills/authoring/references/event-query-vs-api.md).
+> **Correlation-rule detections can also be hydrated** with `Ngsiem.alert.id = ?detectID`, but the
+> query returns multiple records (the alert plus the underlying events), so `results[0]` is
+> non-deterministic without a filter. Narrow it with `| #event.kind = "event"` or
+> `| Ngsiem.event.product = CrowdStrike`, or project named columns with `table([...])`. A **Get
+> Detection Details** action remains a valid alternative if Event Query results are unreliable for
+> your detection type. See [event-query-vs-api.md](../skills/authoring/references/event-query-vs-api.md).

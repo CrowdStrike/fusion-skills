@@ -214,13 +214,17 @@ list), hydrate with an Event Query and read from its `results` array:
 through an inline Python extractor** (`cs.json.decode(data['<Python>.output_stdout'])`)
 — that form does not resolve at release. Read `results[0].<Field>` directly.
 
-**Event Query hydration only works for first-party and third-party detections**
-(match the composite `DetectionID` against `Ngsiem.alert.id`, not
-`Ngsiem.detection.id`). **Correlation-rule detections cannot be hydrated by an
-Event Query** — their `Ngsiem.detection.id` is not exposed on the trigger and no
-Event Query field matches it. For those, add a **Get Detection Details** action
-(or an HTTP Request to `/alerts/entities/alerts/v2` passing the composite
-`DetectionID` as `composite_id`). See `references/event-query-vs-api.md`.
+**Event Query hydration works for all NG-SIEM detection types** — match the
+composite `DetectionID` against `Ngsiem.alert.id` (not `Ngsiem.detection.id`).
+For **correlation-rule detections** the same `Ngsiem.alert.id = ?DetectionID`
+query works, but it returns **multiple records** (the alert record plus the
+underlying events), so `results[0]` is non-deterministic without a filter. Narrow
+it to one predictable row with `| #event.kind = "event"` or
+`| Ngsiem.event.product = CrowdStrike`, or project named columns with
+`table([field1, field2, ...])`. If Event Query results are unreliable for a given
+detection type, a **Get Detection Details** action (or an HTTP Request to
+`/alerts/entities/alerts/v2` passing the composite `DetectionID` as `composite_id`)
+is a valid alternative. See `references/event-query-vs-api.md`.
 
 **Not every `Trigger.Detection.*` field resolves on the NG-SIEM trigger.**
 `${Trigger.Detection.Product}` and `${Trigger.Detection.Description}` are available
