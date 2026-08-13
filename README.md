@@ -38,15 +38,9 @@ git clone https://github.com/CrowdStrike/fusion-skills.git
 claude --plugin-dir /path/to/fusion-skills
 ```
 
-The `--plugin-dir` flag loads the plugin for that session. To make it permanent, add it to your `.claude/settings.json`:
-
-```json
-{
-  "plugins": ["/path/to/fusion-skills"]
-}
-```
-
-Changes to skill files take effect on the next Claude Code session — no reinstall needed.
+The `--plugin-dir` flag loads the plugin for that session only. Run Claude with
+the flag again for each development session. Changes to skill files take effect
+the next time you start Claude Code with `--plugin-dir`; no reinstall is needed.
 
 #### Credentials
 
@@ -73,17 +67,24 @@ python common/scripts/auth.py
 
 ### Codex
 
-Codex discovers skills from `~/.agents/skills/`. Clone and symlink:
+Codex discovers individual skill directories from `~/.agents/skills/`. Clone
+the repository and symlink each skill:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
 mkdir -p ~/.agents/skills
-ln -s /path/to/fusion-skills/skills ~/.agents/skills/fusion-skills
+for skill in /path/to/fusion-skills/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
 ```
 
-Restart Codex to discover the skills. See the [Codex skills docs](https://learn.chatgpt.com/docs/build-skills) for details.
+Restart Codex to discover the skills. Run `/skills` to verify that all 6 skills
+are available. See the [Codex skills docs](https://learn.chatgpt.com/docs/build-skills)
+for details. If authentication is required, run `codex login`.
 
-`~/.agents/skills/` is the preferred location; `~/.codex/skills/` also works for backward compatibility. Codex 0.146.0 recognizes this repo's existing plugin manifest, so no Codex-specific manifest is needed.
+`~/.agents/skills/` is the preferred location; `~/.codex/skills/` also works
+for backward compatibility. Local skill discovery does not require a
+Codex-specific manifest.
 
 ### Copilot CLI
 
@@ -98,6 +99,10 @@ This installs all 6 skills, reading the plugin manifest already in the repo. Ver
 Copilot warns that direct repository installs are deprecated in favor of `plugin@marketplace` installs. The command works today; a marketplace listing is tracked separately.
 
 Copilot CLI also shares the `~/.agents/skills/` discovery directory with Codex, so the clone-and-symlink approach above works as an alternative.
+
+Before invoking the skills, authenticate with `gh auth login` or start
+`copilot` and use `/login`. Run `copilot skill list` to verify that all 6
+skills are available.
 
 ### Cursor (Experimental)
 
@@ -129,15 +134,20 @@ agy plugin install https://github.com/CrowdStrike/fusion-skills
 
 This installs all 6 skills plus the session hook, reading the plugin manifest already in the repo. Verify with `agy plugin list`.
 
-Alternatively, link the skills so Antigravity discovers them as native Agent Skills:
+Alternatively, symlink the skills into `~/.agents/skills/` so Antigravity discovers them as native Agent Skills:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
-agy skills link /path/to/fusion-skills/skills --scope user
+mkdir -p ~/.agents/skills
+for skill in /path/to/fusion-skills/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
 ```
 
-Use `--scope workspace` to install into the current project's `.agents/skills/` instead. Verify with `agy skills list` or `/skills list` inside a session.
+Use `.agents/skills/` instead for workspace scope. Verify with `agy plugin list` or `/skills list` inside a session.
 
+The first Antigravity session opens an authentication prompt if the client is not
+already authenticated. Complete that login, then start a new session.
 Antigravity activates the right skill on demand based on your prompt.
 
 ### Other Tools
