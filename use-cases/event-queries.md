@@ -111,8 +111,10 @@ code-driven querying belongs in a function.
 > and has its ID, an Event Query like `Ngsiem.alert.id = ?detectID` to pull more fields is the right
 > tool (match the composite `DetectionID` against `Ngsiem.alert.id`, not `Ngsiem.detection.id`).
 > **Correlation-rule detections can also be hydrated** with `Ngsiem.alert.id = ?detectID`, but the
-> query returns multiple records (the alert plus the underlying events), so `results[0]` is
-> non-deterministic without a filter. Narrow it with `| #event.kind = "event"` or
-> `| Ngsiem.event.product = CrowdStrike`, or project named columns with `table([...])`. A **Get
-> Detection Details** action remains a valid alternative if Event Query results are unreliable for
-> your detection type. See [event-query-vs-api.md](../skills/authoring/references/event-query-vs-api.md).
+> query returns multiple records (the underlying events plus a correlation "meta-event" that only
+> signals the rule fired), so `results[0]` is non-deterministic without a filter. Drop the meta-event
+> and keep the real events with `| xdr_type != correlation-rule-detection | report_name != *`, or
+> project named columns with `table([...])`. Event Query is how you reach the event-level detail that
+> composed the detection; a **Get Detection Details** action returns the detection object instead —
+> use it when the object's summary fields are all you need. See
+> [event-query-vs-api.md](../skills/authoring/references/event-query-vs-api.md).

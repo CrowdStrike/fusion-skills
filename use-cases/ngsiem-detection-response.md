@@ -79,10 +79,12 @@ where each is covered in depth and verified live.
 - **Hydration join key is `Ngsiem.alert.id`, not `Ngsiem.detection.id`.** Match the
   composite `DetectionID` against `Ngsiem.alert.id` for all detection types. A
   correlation-rule detection hydrates the same way, but the query returns multiple
-  records (the alert plus its underlying events), so filter to one predictable row
-  (`| #event.kind = "event"` or `| Ngsiem.event.product = CrowdStrike`) — an
-  unfiltered `results[0]` is the most common silent-empty/wrong-row failure. A Get
-  Detection Details action is a valid fallback. See `references/event-query-vs-api.md`.
+  records (the underlying events plus a correlation "meta-event" that only signals
+  the rule fired), so drop the meta-event and keep the real events
+  (`| xdr_type != correlation-rule-detection | report_name != *`) — an unfiltered
+  `results[0]` is the most common silent-empty/wrong-row failure. Event Query is how
+  you reach the event-level detail; a Get Detection Details action returns the
+  detection object instead. See `references/event-query-vs-api.md`.
 - **Charlotte AI needs credits**, and the org must opt in. A workflow that invokes
   it will not produce a summary in a tenant without them.
 - **Business-hours logic:** the guide implements the time gate as hardcoded

@@ -217,14 +217,16 @@ through an inline Python extractor** (`cs.json.decode(data['<Python>.output_stdo
 **Event Query hydration works for all NG-SIEM detection types** — match the
 composite `DetectionID` against `Ngsiem.alert.id` (not `Ngsiem.detection.id`).
 For **correlation-rule detections** the same `Ngsiem.alert.id = ?DetectionID`
-query works, but it returns **multiple records** (the alert record plus the
-underlying events), so `results[0]` is non-deterministic without a filter. Narrow
-it to one predictable row with `| #event.kind = "event"` or
-`| Ngsiem.event.product = CrowdStrike`, or project named columns with
-`table([field1, field2, ...])`. If Event Query results are unreliable for a given
-detection type, a **Get Detection Details** action (or an HTTP Request to
-`/alerts/entities/alerts/v2` passing the composite `DetectionID` as `composite_id`)
-is a valid alternative. See `references/event-query-vs-api.md`.
+query works, but it returns **multiple records** (the underlying events plus a
+correlation "meta-event" that only signals the rule fired), so `results[0]` is
+non-deterministic without a filter. Drop the meta-event and keep the real events
+with `| xdr_type != correlation-rule-detection | report_name != *`, or project
+named columns with `table([field1, field2, ...])`. Event Query is how you reach
+the event-level detail that composed the detection; a **Get Detection Details**
+action (or an HTTP Request to `/alerts/entities/alerts/v2` passing the composite
+`DetectionID` as `composite_id`) returns the detection object instead — use it when
+the object's summary fields are all you need. See
+`references/event-query-vs-api.md`.
 
 **Not every `Trigger.Detection.*` field resolves on the NG-SIEM trigger.**
 `${Trigger.Detection.Product}` and `${Trigger.Detection.Description}` are available

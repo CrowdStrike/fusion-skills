@@ -83,15 +83,24 @@ silently return zero. The split is about whether you already hold the object:
 
   - **Correlation-rule detections** → hydrate with the same
     `Ngsiem.alert.id = ?detectID` query. It works, but returns **multiple records**
-    (the alert record plus the underlying events), so `results[0]` is
-    non-deterministic across runs. Filter to a single predictable row with
-    `| #event.kind = "event"` or `| Ngsiem.event.product = CrowdStrike`, or project
-    named columns with `table([field1, field2, ...])`. Restrict the action's output
-    schema to only the fields you read, so runs that omit some fields don't fail
-    schema validation. If Event Query results are unreliable for your detection
-    type, a **Get Detection Details** action (or a CrowdStrike HTTP Request to
-    `/alerts/entities/alerts/v2` passing the composite `DetectionID` as
-    `composite_id`) is a valid alternative.
+    (the underlying events plus a correlation "meta-event" that only signals the
+    rule fired), so `results[0]` is non-deterministic across runs. Drop the
+    meta-event and keep the real events:
+
+    ```
+    Ngsiem.alert.id = ?detectID
+    | xdr_type != correlation-rule-detection
+    | report_name != *
+    ```
+
+    or project named columns with `table([field1, field2, ...])`. Restrict the
+    action's output schema to only the fields you read, so runs that omit some
+    fields don't fail schema validation. Event Query is how you reach the
+    **event-level detail** (per-event source IP, country, and so on) that made up
+    the detection. A **Get Detection Details** action returns the detection
+    *object* instead — reach for it when the object's summary fields are all you
+    need, or call `/alerts/entities/alerts/v2` with the composite `DetectionID` as
+    `composite_id` for that same object.
 
   **Treat detection IDs as opaque.** Per the detections team, `composite_id` (what
   the trigger hands you) is the primary key used to retrieve a detection, but its
