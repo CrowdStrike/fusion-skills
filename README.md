@@ -114,7 +114,7 @@ for skill in /path/to/fusion-skills/skills/*; do
 done
 ```
 
-Use `.cursor/skills/` (or `.agents/skills/`) inside a project for workspace scope
+Use `.agents/skills/` (or `.cursor/skills/`) inside a project for workspace scope
 instead. As an alternative to cloning, add the repo through the UI: **Customize →
 Rules → Add Rule → Remote Rule (GitHub)** and enter the repository URL.
 
