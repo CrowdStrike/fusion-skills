@@ -103,8 +103,7 @@ skills are available.
 ### Cursor (Experimental)
 
 Cursor discovers Agent Skills from `~/.agents/skills/` — the same directory Codex
-and Copilot CLI use — as well as `~/.cursor/skills/`. Clone the repo and symlink
-the skills:
+and Copilot CLI use. Clone the repo and symlink the skills:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
@@ -114,9 +113,9 @@ for skill in /path/to/fusion-skills/skills/*; do
 done
 ```
 
-Use `.agents/skills/` (or `.cursor/skills/`) inside a project for workspace scope
-instead. As an alternative to cloning, add the repo through the UI: **Customize →
-Rules → Add Rule → Remote Rule (GitHub)** and enter the repository URL.
+Use `.agents/skills/` inside a project for workspace scope instead. As an
+alternative to cloning, add the repo through the UI: **Customize → Rules → Add
+Rule → Remote Rule (GitHub)** and enter the repository URL.
 
 Cursor discovers skills on startup and activates the right one on demand based on
 your prompt; invoke one explicitly with `/<skill-name>`. Type `/` in Agent chat and
