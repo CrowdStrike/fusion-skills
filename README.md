@@ -102,23 +102,25 @@ skills are available.
 
 ### Cursor (Experimental)
 
-Add a rule file to your project's `.cursor/rules/` directory:
+Cursor discovers Agent Skills from `~/.agents/skills/` — the same directory Codex
+and Copilot CLI use — as well as `~/.cursor/skills/`. Clone the repo and symlink
+the skills:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
-mkdir -p .cursor/rules
-cat > .cursor/rules/fusion-skills.mdc << 'EOF'
----
-description: Use when building Falcon Fusion workflows — action discovery, YAML authoring, validation, deployment, execution
-alwaysApply: false
----
-
-Reference the Fusion skills in /path/to/fusion-skills/skills/ for building Fusion workflows.
-The primary orchestrator is workflows/SKILL.md.
-EOF
+mkdir -p ~/.agents/skills
+for skill in /path/to/fusion-skills/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
 ```
 
-Cursor activates the rule automatically when your prompt matches the description.
+Use `.cursor/skills/` (or `.agents/skills/`) inside a project for workspace scope
+instead. As an alternative to cloning, add the repo through the UI: **Customize →
+Rules → Add Rule → Remote Rule (GitHub)** and enter the repository URL.
+
+Cursor discovers skills on startup and activates the right one on demand based on
+your prompt; invoke one explicitly with `/<skill-name>`. Type `/` in Agent chat and
+confirm all 6 skills appear.
 
 ### Antigravity CLI
 
