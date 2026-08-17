@@ -16,7 +16,7 @@ tags: [fusion, soar, workflows, authoring, yaml, validation]
 author: CrowdStrike
 license: MIT
 compatibility: Claude Code >=1.0
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/python.sh:*)
+allowed-tools: Bash(cd *), Bash(../../scripts/python.sh:*)
 metadata:
   category: authoring
 ---
@@ -74,7 +74,7 @@ NOT import, release, execute, or monitor workflows — hand those off to the
 
 ---
 
-> **Outside Claude Code** `${CLAUDE_PLUGIN_ROOT}` is unset — run scripts by their path instead (e.g. `python3 <plugin-root>/skills/<skill>/scripts/<name>.py`); each self-bootstraps its venv. See AGENTS.md.
+> **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py`. For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/authoring"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/authoring`). The wrapper bootstraps its own Python venv.
 
 ## Prerequisites
 
@@ -86,7 +86,7 @@ NOT import, release, execute, or monitor workflows — hand those off to the
 
 Test credentials before authoring:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh ../../common/scripts/auth.py
+../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
 ---
@@ -137,13 +137,13 @@ biggest time sink.
 
 ```bash
 # Search by name across all vendors (note the --search flag; a bare term errors)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --search "contain"
+../../scripts/python.sh scripts/action_search.py --search "contain"
 
 # Search within a specific vendor
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --vendor "Okta" --search "revoke"
+../../scripts/python.sh scripts/action_search.py --vendor "Okta" --search "revoke"
 
 # Full schema for one action (input fields, class, plugin info)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --details <action_id>
+../../scripts/python.sh scripts/action_search.py --details <action_id>
 ```
 
 For each action you discover, record: `id` (32-char hex), `name`, input
@@ -151,16 +151,16 @@ fields/types, whether it has a `class` (needs `version_constraint`), and whether
 it is a plugin action (needs a `config_id`).
 
 > If a long-lived local cache might be hiding newly shipped actions, refresh it:
-> `${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --clear-cache`. The cache also auto-refreshes
+> `../../scripts/python.sh scripts/action_search.py --clear-cache`. The cache also auto-refreshes
 > once it is older than 1 hour.
 
 ### 2. Choose a trigger type
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --list
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --type "On demand"
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --events detection   # Signal event: values
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --fields Investigatable/EPP   # payload field paths
+../../scripts/python.sh scripts/trigger_search.py --list
+../../scripts/python.sh scripts/trigger_search.py --type "On demand"
+../../scripts/python.sh scripts/trigger_search.py --events detection   # Signal event: values
+../../scripts/python.sh scripts/trigger_search.py --fields Investigatable/EPP   # payload field paths
 ```
 
 Valid trigger types: **On demand**, **Signal**, **Scheduled**, **SubModel**.
@@ -207,10 +207,10 @@ See `references/cel-expressions.md` for operators, CrowdStrike extensions
 
 ```bash
 # Pre-flight + structural + API dry-run
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/validate.py workflow.yaml
+../../scripts/python.sh scripts/validate.py workflow.yaml
 
 # Pre-flight + structural only (no API call)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/validate.py --preflight-only workflow.yaml
+../../scripts/python.sh scripts/validate.py --preflight-only workflow.yaml
 ```
 
 Fix every error before handing the file to the `deployment` skill.
