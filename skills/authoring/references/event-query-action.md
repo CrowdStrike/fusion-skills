@@ -136,5 +136,5 @@ simple inline queries inside a workflow step (no app, no code). Reach for a
 Foundry function when you need complex processing, pagination, or transformation
 logic — that path belongs to the `foundry-skills` plugin.
 
-See [use-cases/event-queries.md](../../use-cases/event-queries.md) for the full
+See [use-cases/event-queries.md](../../../use-cases/event-queries.md) for the full
 pattern.

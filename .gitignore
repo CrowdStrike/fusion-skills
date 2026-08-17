@@ -17,5 +17,8 @@ __pycache__/
 htmlcov/
 working/
 
+# OpenAI submission bundle built by ./release.sh --bundle
+crowdstrike-falcon-fusion-*.zip
+
 # Local Atlassian/Jira pull artifacts (never commit — may contain internal content)
 pages-jira/
