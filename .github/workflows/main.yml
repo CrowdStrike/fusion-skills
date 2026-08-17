@@ -47,7 +47,7 @@ jobs:
           ./test-scorecard-parser.sh
           ./test-skill-scorecard.sh
           ./test-skill-isolation.sh
-          ./test-assistants-classify.sh
+          ./test-verdict-parser.sh
           ./test-bootstrap-symlink.sh
 
   pytest:

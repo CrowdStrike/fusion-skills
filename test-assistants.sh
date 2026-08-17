@@ -660,7 +660,7 @@ warm_creds() {
 [ "${FUSION_ASSISTANTS_LIB:-0}" = "1" ] && return 0
 
 # Run-time prerequisites (only for an actual run — not needed when sourced as a library
-# by test-assistants-classify.sh, which returns above with just the pure functions).
+# by test-verdict-parser.sh, which returns above with just the pure functions).
 TIMEOUT_BIN=$(command -v timeout || command -v gtimeout || true)
 [ -z "$TIMEOUT_BIN" ] && { echo "ERROR: needs 'timeout' or 'gtimeout' (brew install coreutils)" >&2; exit 1; }
 mkdir -p "$LOG_DIR"

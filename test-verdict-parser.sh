@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 #
-# test-assistants-classify.sh — unit tests for test-assistants.sh's report reading.
-# Fast, no network, launches nothing. Sources the harness as a library
-# (FUSION_ASSISTANTS_LIB=1 stops it before any live action) and drives classify()
-# against synthetic assistant logs, one per known verdict. This is the anti-false-
-# positive core: a self-reported SUCCESS with no evidence must FAIL, a missing
-# dependency must be named `deps`, an unresolved ${CLAUDE_PLUGIN_ROOT} must be `root`.
+# test-verdict-parser.sh — OFFLINE unit tests for test-assistants.sh's verdict logic.
+#
+# This does NOT run any assistant and needs NO credentials or tenant. It sources
+# test-assistants.sh as a library (FUSION_ASSISTANTS_LIB=1 makes that script return
+# before it launches anything or contacts the tenant) and drives the pure functions —
+# classify(), report_field(), blocker_category() — against synthetic assistant logs,
+# one per known verdict. Needs only bash; runs in CI (test-hooks job). This is the
+# anti-false-positive core: a self-reported SUCCESS with no evidence must FAIL, a
+# missing dependency must be named `deps`, an unresolved ${CLAUDE_PLUGIN_ROOT} `root`.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
