@@ -46,6 +46,7 @@ jobs:
         run: |
           ./test-scorecard-parser.sh
           ./test-skill-scorecard.sh
+          ./test-skill-isolation.sh
 
   pytest:
     runs-on: ubuntu-latest
@@ -105,8 +106,10 @@ jobs:
         run: |
           for f in \
             hooks/hooks.json \
+            plugin.json \
             .claude-plugin/plugin.json \
             .claude-plugin/marketplace.json \
+            .codex-plugin/plugin.json \
             test-result-schema.json \
             verify-result-schema.json; do
             echo "Validating $f"
@@ -198,6 +201,20 @@ jobs:
           # marketplace.json must match plugin.json
           if [ "$marketplace_version" != "$plugin_version" ]; then
             echo "FAIL: marketplace.json plugins[0].version '$marketplace_version' != plugin.json '$plugin_version'"
+            fail=1
+          fi
+
+          # Root Agent Plugins manifest must match .claude-plugin/plugin.json
+          root_plugin_version=$(jq -r '.version' plugin.json)
+          if [ "$root_plugin_version" != "$plugin_version" ]; then
+            echo "FAIL: plugin.json version '$root_plugin_version' != .claude-plugin/plugin.json '$plugin_version'"
+            fail=1
+          fi
+
+          # Codex manifest must match .claude-plugin/plugin.json
+          codex_plugin_version=$(jq -r '.version' .codex-plugin/plugin.json)
+          if [ "$codex_plugin_version" != "$plugin_version" ]; then
+            echo "FAIL: .codex-plugin/plugin.json version '$codex_plugin_version' != .claude-plugin/plugin.json '$plugin_version'"
             fail=1
           fi
 

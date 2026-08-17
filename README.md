@@ -117,6 +117,12 @@ Use `.agents/skills/` inside a project for workspace scope instead. As an
 alternative to cloning, add the repo through the UI: **Customize → Rules → Add
 Rule → Remote Rule (GitHub)** and enter the repository URL.
 
+Cursor's CLI also accepts a local plugin directory, like Claude Code and Copilot CLI:
+
+```bash
+cursor-agent --plugin-dir /path/to/fusion-skills
+```
+
 Cursor discovers skills on startup and activates the right one on demand based on
 your prompt; invoke one explicitly with `/<skill-name>`. Type `/` in Agent chat and
 confirm all 6 skills appear.

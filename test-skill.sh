@@ -102,6 +102,17 @@ else
   PYTHON="python3"
 fi
 
+# Skill-namespace isolation. ~/.agents/skills/ is a flat, shared namespace across
+# every installed plugin; a sibling repo's skill (e.g. a foreign `setup`) can be
+# selected mid-run and skew results. The helper stashes every entry out of the
+# way during the run and restores it after (move-only; nothing is ever deleted).
+export SKILL_ISO_REPO="$SCRIPT_DIR"
+export SKILL_ISO_STASH="${SKILL_ISO_STASH:-/tmp/fusion-skill-stash}"
+# shellcheck source=scripts/skill-isolation.sh
+source "$SCRIPT_DIR/scripts/skill-isolation.sh"
+# Reclaim any stash a prior interrupted run left behind, before touching anything.
+recover_orphans
+
 # When --skip-deploy is set, instruct the agent to author + validate only.
 if [ "$SKIP_DEPLOY" = "1" ]; then
   DEPLOY_INSTRUCTION="Author the workflow YAML to a file in the current directory and validate it with the authoring validate.py script in --preflight-only mode (no live API call). Do NOT import or deploy."
@@ -138,12 +149,35 @@ fi
 
 [ "$SKIP_DEPLOY" = "1" ] && echo "Mode: authoring + validation only (--skip-deploy)"
 
-# Disable installed Fusion plugins when using --plugin-dir.
-# Installed marketplace plugins take priority over --plugin-dir, so we must
-# disable them temporarily. Re-enable on exit (even if interrupted).
-# Skipped when called from run-ab-test.sh (which manages plugins itself).
+# Isolate the environment when testing via --plugin-dir:
+#   1) stash every ~/.agents/skills entry so a sibling repo's skills can't be
+#      selected mid-run, and
+#   2) disable installed Fusion marketplace plugins (they override --plugin-dir).
+# Everything is restored on exit, INCLUDING on Ctrl-C. Skipped when called from
+# run-ab-test.sh (which manages isolation itself).
 ENABLED_FUSION_PLUGINS=()
+SKILLS_STASHED=0
+cleanup_isolation() {
+  [ -n "${TIMER_PID:-}" ] && kill "$TIMER_PID" 2>/dev/null || true
+  [ "$SKILLS_STASHED" = "1" ] && restore_agents_skills
+  if [ ${#ENABLED_FUSION_PLUGINS[@]} -gt 0 ]; then
+    echo "Re-enabling Fusion plugins..."
+    for p in "${ENABLED_FUSION_PLUGINS[@]}"; do
+      echo "  Enabling: $p"
+      claude plugin enable "$p" 2>/dev/null || true
+    done
+  fi
+}
 if [ "$SKIP_PLUGIN_MANAGE" != "1" ] && [ "$NO_PLUGIN" != "1" ] && [ -n "$PLUGIN_DIR" ]; then
+  # Restore on any exit path, and on interrupt (guaranteed-restore requirement).
+  trap 'echo ""; cleanup_isolation' EXIT
+  trap 'echo ""; cleanup_isolation; exit 130' INT TERM
+
+  # 1) Stash competing skills from the shared ~/.agents/skills namespace.
+  stash_all_agents_skills
+  SKILLS_STASHED=1
+
+  # 2) Disable installed Fusion marketplace plugins.
   PLUGIN_LIST=$(claude plugin list 2>/dev/null || true)
   while IFS= read -r plugin; do
     if [ -n "$plugin" ] && echo "$PLUGIN_LIST" | grep -A3 "$plugin" | grep -q "enabled"; then
@@ -157,9 +191,8 @@ if [ "$SKIP_PLUGIN_MANAGE" != "1" ] && [ "$NO_PLUGIN" != "1" ] && [ -n "$PLUGIN_
       echo "  Disabling: $plugin"
       claude plugin disable "$plugin" 2>/dev/null || true
     done
-    trap 'echo ""; [ -n "${TIMER_PID:-}" ] && kill "$TIMER_PID" 2>/dev/null || true; if [ ${#ENABLED_FUSION_PLUGINS[@]} -gt 0 ]; then echo "Re-enabling Fusion plugins..."; for p in "${ENABLED_FUSION_PLUGINS[@]}"; do echo "  Enabling: $p"; claude plugin enable "$p" 2>/dev/null || true; done; fi' EXIT
-    echo ""
   fi
+  echo ""
 fi
 
 rm -rf "$BASE_DIR"
@@ -395,6 +428,22 @@ for m in re.finditer(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*(?:\[[^\[\]]*\][^{}]*)*\}', 
   echo ""
 done
 
+# GROUND TRUTH: snapshot the tenant's workflow definitions NOW — after the runs
+# have deployed but BEFORE cleanup deletes them — so a run's verdict is checked
+# against what's actually on the tenant, not the agent's self-report. A
+# self-reported "SUCCESS" with nothing deployed must fail; a real deploy whose
+# report was lost (e.g. a stream-json parse miss) must still pass.
+# Uses query_workflows.py --list (read-only), NOT action_search.py (1-hour
+# cache, succeeds offline → useless as evidence).
+TENANT_DEFS=""
+if [ "$SKIP_DEPLOY" != "1" ]; then
+  echo "Snapshotting tenant workflow definitions for ground-truth verdicts..."
+  TENANT_DEFS=$("$PYTHON" "$SCRIPT_DIR/skills/deployment/scripts/query_workflows.py" --list --json 2>/dev/null || true)
+  if [ -z "$TENANT_DEFS" ]; then
+    echo "  WARN: could not list tenant definitions; verdicts fall back to run artifacts."
+  fi
+fi
+
 # Determine a run's deploy/validation status from its result JSON + artifacts.
 # Returns one of: DEPLOYED, VALIDATED, FAILED, NOT_CREATED.
 #
@@ -414,16 +463,31 @@ check_run_status() {
       echo "VALIDATED"; return
     fi
     # Fall back to running validate.py preflight on the generated file.
-    if python3 "$SCRIPT_DIR/authoring/scripts/validate.py" --preflight-only "$wf_file" >/dev/null 2>&1; then
+    if python3 "$SCRIPT_DIR/skills/authoring/scripts/validate.py" --preflight-only "$wf_file" >/dev/null 2>&1; then
       echo "VALIDATED"; return
     fi
     echo "FAILED"; return
   fi
-  # Deploy mode: trust a SUCCESS summary, otherwise inspect the log text.
-  if grep -qE '"deploy_status"\s*:\s*"SUCCESS"' "$text_file" 2>/dev/null; then
-    echo "DEPLOYED"; return
+  # Deploy mode: verdict is GROUND TRUTH, not the self-report. Find the def ID
+  # this run claims (the import script's authoritative "Imported — ID" line
+  # first, then a workflow_id in the reported JSON), and confirm it is actually
+  # present on the tenant snapshot. A def on the tenant passes even if the
+  # report was lost; a reported SUCCESS with no def on the tenant fails.
+  local log_file="${run_dir}.log" def_id=""
+  def_id=$(grep -oE 'Imported — ID: [a-f0-9]{32}' "$log_file" 2>/dev/null | grep -oE '[a-f0-9]{32}' | head -1 || true)
+  if [ -z "$def_id" ]; then
+    def_id=$(grep -oE '"workflow_id"[[:space:]]*:[[:space:]]*"[a-f0-9]{32}"' "$text_file" 2>/dev/null | grep -oE '[a-f0-9]{32}' | head -1 || true)
   fi
-  if grep -qi "imported — id\|import.*success" "$text_file" 2>/dev/null; then
+  if [ -n "$def_id" ] && [ -n "$TENANT_DEFS" ]; then
+    if printf '%s' "$TENANT_DEFS" | grep -q "$def_id"; then
+      echo "DEPLOYED"; return
+    fi
+    # Claimed/created a def the tenant cannot show — not a real deploy.
+    echo "FAILED"; return
+  fi
+  # Could not snapshot the tenant (offline): fall back to the artifacts we have,
+  # but this is weaker evidence — the WARN above already flagged it.
+  if [ -z "$TENANT_DEFS" ] && { [ -n "$def_id" ] || grep -qi "imported — id\|import.*success" "$text_file" 2>/dev/null; }; then
     echo "DEPLOYED"; return
   fi
   echo "FAILED"
@@ -602,6 +666,28 @@ for m in re.finditer(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*(?:\[[^\[\]]*(?:\[[^\[\]]*\]
     fi
 
     [ "$WF_OK" = true ] && echo "  ✅ Workflow YAML looks correct"
+
+    # Pipeline stage markers — a missing mark names the stage that wasn't built,
+    # mapping onto the skills the canonical prompt exercises. Read from the
+    # generated YAML; the deploy marker is GROUND TRUTH (def on the tenant).
+    echo ""
+    echo "Pipeline stage markers:"
+    grep -qiE 'Inline\.QueryEvent' "$WF_FILE" 2>/dev/null \
+      && echo "  ✅ event-query hydration (authoring)" || echo "  ⚠️  event-query hydration — not found"
+    grep -qiE 'Inline\.HTTPRequest' "$WF_FILE" 2>/dev/null \
+      && echo "  ✅ HTTP enrichment" || echo "  ⚠️  HTTP enrichment — not found"
+    grep -qiE 'charlotte|llminvocator|completion' "$WF_FILE" 2>/dev/null \
+      && echo "  ✅ LLM completion summary" || echo "  ⚠️  LLM completion summary — not found"
+    grep -qiE 'send.?email|msg_type' "$WF_FILE" 2>/dev/null \
+      && echo "  ✅ send email" || echo "  ⚠️  send email — not found"
+    if [ "$SKIP_DEPLOY" != "1" ]; then
+      _dmark=$(grep -oE 'Imported — ID: [a-f0-9]{32}' "$BASE_DIR/run-$i.log" 2>/dev/null | grep -oE '[a-f0-9]{32}' | head -1 || true)
+      if [ -n "$_dmark" ] && [ -n "$TENANT_DEFS" ] && printf '%s' "$TENANT_DEFS" | grep -q "$_dmark"; then
+        echo "  ✅ deployment (def on tenant)"
+      else
+        echo "  ⚠️  deployment — no def confirmed on tenant"
+      fi
+    fi
   fi
 
   echo ""
