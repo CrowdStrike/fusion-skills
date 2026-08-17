@@ -20,7 +20,7 @@ import os
 
 # fetch_results and TERMINAL_STATUSES live alongside this script; they own the
 # auth client and API-response parsing, so this script needs no direct client.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from get_execution_results import fetch_results, TERMINAL_STATUSES  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding

@@ -142,12 +142,11 @@ OPTIMIZED_JSON="$AB_RESULTS_DIR/optimized.json"
 MAIN_EXTRACT_DIR="$AB_RESULTS_DIR/main-branch"
 mkdir -p "$AB_RESULTS_DIR"
 
-# Copy test-skill.sh and its schema to /tmp so it works regardless of branch.
-cp "$REPO_ROOT/test-skill.sh" /tmp/fusion-test-skill.sh
-cp "$REPO_ROOT/test-result-schema.json" /tmp/test-result-schema.json
-chmod +x /tmp/fusion-test-skill.sh
-# The inner harness reads its schema relative to its own dir, so keep them together.
-TEST_SKILL=/tmp/fusion-test-skill.sh
+# Run the harness in place from the repo. The baseline (RED) plugin is extracted
+# to a separate dir via `git archive` and loaded with --plugin-dir; the working
+# tree is never checked out, so test-skill.sh is stable across both phases and
+# finds its schema, venv, and scripts/skill-isolation.sh via its own dir.
+TEST_SKILL="$REPO_ROOT/test-skill.sh"
 
 # ── Baseline staleness check ─────────────────────────────────
 SKIP_RED=0

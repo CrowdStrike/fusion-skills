@@ -38,15 +38,9 @@ git clone https://github.com/CrowdStrike/fusion-skills.git
 claude --plugin-dir /path/to/fusion-skills
 ```
 
-The `--plugin-dir` flag loads the plugin for that session. To make it permanent, add it to your `.claude/settings.json`:
-
-```json
-{
-  "plugins": ["/path/to/fusion-skills"]
-}
-```
-
-Changes to skill files take effect on the next Claude Code session — no reinstall needed.
+The `--plugin-dir` flag loads the plugin for that session only. Run Claude with
+the flag again for each development session. Changes to skill files take effect
+the next time you start Claude Code with `--plugin-dir`; no reinstall is needed.
 
 #### Credentials
 
@@ -71,61 +65,103 @@ Credentials come from environment variables (checked first) or the TOML profile,
 python common/scripts/auth.py
 ```
 
-### Codex (Experimental)
+### Codex
 
-Codex discovers skills from `~/.agents/skills/`. Clone and symlink:
-
-```bash
-git clone https://github.com/CrowdStrike/fusion-skills.git
-mkdir -p ~/.agents/skills
-ln -s /path/to/fusion-skills/skills ~/.agents/skills/fusion-skills
-```
-
-Restart Codex to discover the skills. See the [Codex skills docs](https://learn.chatgpt.com/docs/build-skills) for details.
-
-### Copilot CLI (Experimental)
-
-Copilot CLI shares the `~/.agents/skills/` discovery directory with Codex:
+Codex discovers individual skill directories from `~/.agents/skills/`. Clone
+the repository and symlink each skill:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
 mkdir -p ~/.agents/skills
-ln -s /path/to/fusion-skills/skills ~/.agents/skills/fusion-skills
+for skill in /path/to/fusion-skills/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
 ```
 
-Restart Copilot CLI to discover the skills.
+Restart Codex to discover the skills. Run `/skills` to verify that all 6 skills
+are available. See the [Codex skills docs](https://learn.chatgpt.com/docs/build-skills)
+for details. If authentication is required, run `codex login`.
+
+> **On the shared `~/.agents/skills/` namespace.** This directory is flat and
+> shared by every plugin that symlinks into it, so two plugins with an
+> identically-named skill would collide there. fusion-skills' six skill names do
+> not overlap with foundry-skills' eleven, so both can be symlinked together
+> safely. A namespaced plugin install — where the assistant exposes skills as
+> `crowdstrike-falcon-fusion:<skill>` — sidesteps the shared-namespace question
+> entirely, which is why a marketplace/plugin install is preferable to symlinks
+> where one is available.
+
+### Copilot CLI
+
+Install directly from this repository:
+
+```bash
+copilot plugin install CrowdStrike/fusion-skills
+```
+
+This installs all 6 skills, reading the plugin manifest already in the repo. Verify with `copilot plugin list`.
+
+Copilot warns that direct repository installs are deprecated in favor of `plugin@marketplace` installs. The command works today; a marketplace listing is tracked separately.
+
+Copilot CLI also shares the `~/.agents/skills/` discovery directory with Codex, so the clone-and-symlink approach above works as an alternative.
+
+Before invoking the skills, authenticate with `gh auth login` or start
+`copilot` and use `/login`. Run `copilot skill list` to verify that all 6
+skills are available.
 
 ### Cursor (Experimental)
 
-Add a rule file to your project's `.cursor/rules/` directory:
+Cursor's CLI accepts a local plugin directory, like Claude Code and Copilot CLI.
+This is the path the test harness verifies, so it's the recommended install:
+
+```bash
+agent --plugin-dir /path/to/fusion-skills --trust
+```
+
+`--trust` skips the one-time workspace-trust prompt for the cloned directory; add
+`--force` (or `--yolo`) for fully non-interactive runs. Cursor discovers skills on
+startup and activates the right one on demand based on your prompt; invoke one
+explicitly with `/<skill-name>`. Type `/` in Agent chat and confirm all 6 skills appear.
+
+Alternatively, Cursor discovers Agent Skills from `~/.agents/skills/` — the same
+directory Codex and Copilot CLI use:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
-mkdir -p .cursor/rules
-cat > .cursor/rules/fusion-skills.mdc << 'EOF'
----
-description: Use when building Falcon Fusion workflows — action discovery, YAML authoring, validation, deployment, execution
-alwaysApply: false
----
-
-Reference the Fusion skills in /path/to/fusion-skills/skills/ for building Fusion workflows.
-The primary orchestrator is workflows/SKILL.md.
-EOF
+mkdir -p ~/.agents/skills
+for skill in /path/to/fusion-skills/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
 ```
 
-Cursor activates the rule automatically when your prompt matches the description.
+Use `.agents/skills/` inside a project for workspace scope instead. As an
+alternative to cloning, add the repo through the UI: **Customize → Rules → Add
+Rule → Remote Rule (GitHub)** and enter the repository URL.
 
-### Antigravity CLI (Experimental)
+### Antigravity CLI
 
-Link the skills so Antigravity discovers them as native Agent Skills:
+Install directly from this repository:
+
+```bash
+agy plugin install https://github.com/CrowdStrike/fusion-skills
+```
+
+This installs all 6 skills plus the session hook, reading the plugin manifest already in the repo. Verify with `agy plugin list`.
+
+Alternatively, symlink the skills into `~/.agents/skills/` so Antigravity discovers them as native Agent Skills:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
-agy skills link /path/to/fusion-skills/skills --scope user
+mkdir -p ~/.agents/skills
+for skill in /path/to/fusion-skills/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
 ```
 
-This creates symlinks in `~/.gemini/antigravity-cli/skills/` so all skills are available in every workspace. Use `--scope workspace` to install into the current project's `.agents/skills/` instead. Verify with `agy skills list` or `/skills list` inside a session.
+Use `.agents/skills/` instead for workspace scope. Verify with `agy plugin list` or `/skills list` inside a session.
 
+The first Antigravity session opens an authentication prompt if the client is not
+already authenticated. Complete that login, then start a new session.
 Antigravity activates the right skill on demand based on your prompt.
 
 ### Other Tools
@@ -336,6 +372,17 @@ Runs the canonical prompt end-to-end: the skill authors a workflow, validates it
 ```
 
 Two-phase verification that workflow YAML files actually work. Phase 1 (script-based) runs each workflow through validation, import, trigger, and monitoring using the fusion-skills Python scripts. Phase 2 (browser) drives the Falcon console to configure the VirusTotal credential, publish, and execute — the part the API cannot do — and runs by default, prompting for a console login. A workflow only passes if every phase that ran succeeds.
+
+### Multi-assistant smoke test
+
+```bash
+./test-assistants.sh                  # smoke-test every installed assistant in parallel
+./test-assistants.sh --include codex  # only these (comma-separated)
+./test-assistants.sh --e2e            # author, validate, and import for real
+./test-assistants.sh --judge          # confirm the last --e2e run against the tenant
+```
+
+Gives each installed assistant (Claude Code, Codex, Copilot CLI, Cursor, Antigravity CLI) the canonical prompt and reads back a fixed plain-text report — which skills loaded, which scripts ran, and any blocker — so a clean timeout is never mistaken for a pass. Before testing it isolates skill sources so results are unambiguous: it disables installed Fusion plugins where it can and moves every `~/.agents/skills/` symlink aside (restoring them on exit, including on Ctrl-C, via `scripts/skill-isolation.sh`). `--e2e` requires a real workflow definition id, and `--judge` confirms that id against the tenant with `query_workflows.py --list` and reads the authored YAML for each pipeline stage — it never trusts the transcript.
 
 ### A/B test (baseline vs local branch)
 

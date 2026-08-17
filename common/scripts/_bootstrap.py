@@ -38,7 +38,7 @@ def _python_sh_path():
     This module lives at ``<repo>/common/scripts/_bootstrap.py``; the wrapper is
     at ``<repo>/scripts/python.sh``.
     """
-    here = os.path.dirname(os.path.abspath(__file__))
+    here = os.path.dirname(os.path.realpath(__file__))
     return os.path.join(here, "..", "..", "scripts", "python.sh")
 
 
@@ -75,5 +75,5 @@ def ensure_deps(script_path):
 
     os.environ[_GUARD_ENV] = "1"
     # Re-run this exact script with its original args through the venv wrapper.
-    args = [wrapper, os.path.abspath(script_path), *sys.argv[1:]]
+    args = [wrapper, os.path.realpath(script_path), *sys.argv[1:]]
     os.execv(wrapper, args)
