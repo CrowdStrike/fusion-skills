@@ -261,11 +261,6 @@ warn() { printf '  %s▲%s  %s\n' "$YELLOW" "$RESET" "$1"; }
 info() { printf '      %s%s%s\n' "$DIM" "$1" "$RESET"; }
 head2(){ printf '\n%s%s%s%s\n' "$BOLD" "$CYAN" "$1" "$RESET"; }
 
-TIMEOUT_BIN=$(command -v timeout || command -v gtimeout || true)
-[ -z "$TIMEOUT_BIN" ] && { echo "ERROR: needs 'timeout' or 'gtimeout' (brew install coreutils)" >&2; exit 1; }
-
-mkdir -p "$LOG_DIR"
-
 # ── Bias control ───────────────────────────────────────────────
 DISABLED_CLAUDE=()
 DISABLED_AGY=()
@@ -663,6 +658,12 @@ warm_creds() {
 # FUSION_ASSISTANTS_LIB=1 to exercise classify()/report_field()/blocker_category()
 # against synthetic logs without launching anything or touching the filesystem.
 [ "${FUSION_ASSISTANTS_LIB:-0}" = "1" ] && return 0
+
+# Run-time prerequisites (only for an actual run — not needed when sourced as a library
+# by test-assistants-classify.sh, which returns above with just the pure functions).
+TIMEOUT_BIN=$(command -v timeout || command -v gtimeout || true)
+[ -z "$TIMEOUT_BIN" ] && { echo "ERROR: needs 'timeout' or 'gtimeout' (brew install coreutils)" >&2; exit 1; }
+mkdir -p "$LOG_DIR"
 
 recover_orphans           # helper: reclaim a ~/.agents/skills stash from a killed run
 recover_codex_cache_orphan
