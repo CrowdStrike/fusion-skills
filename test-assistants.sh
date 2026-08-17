@@ -452,20 +452,21 @@ unlink_repo_skills() {
 #
 # The source column decides which parallel group an assistant runs in: --plugin-dir
 # assistants run with ~/.agents/skills emptied, while Codex and Antigravity need this
-# repo's symlinks present there. Cursor's CLI binary is `cursor-agent`.
+# repo's symlinks present there. Cursor's CLI binary is `agent` (also installed as `cursor-agent`; both are the same executable).
 ASSISTANTS=(
   "Claude Code|claude|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --dangerously-skip-permissions --verbose --output-format stream-json"
   "Codex|codex|~/.agents/skills|exec %%PROMPT%% --skip-git-repo-check"
   "Copilot CLI|copilot|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --allow-all"
-  "Cursor|cursor-agent|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --force --trust --output-format stream-json"
+  "Cursor|agent|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --force --trust --output-format stream-json"
   "Antigravity CLI|agy|~/.agents/skills|-p %%PROMPT%% --dangerously-skip-permissions"
 )
 
 want() {
   local n="$1" b="$2" o
   # Match either the display name or the binary. Names are what the table shows;
-  # binaries are what the log files are named after, so `--only cursor-agent` has to
-  # select Cursor or someone reading cursor-agent.log gets a silent empty run.
+  # binaries are what the log files are named after, so `--only agent` has to
+  # select Cursor or someone reading agent.log gets a silent empty run. (`--only
+  # cursor` also works — it matches the display name.)
   for o in ${SKIP[@]+"${SKIP[@]}"}; do
     [[ "${n,,}" == *"${o,,}"* || "${b,,}" == *"${o,,}"* ]] && return 1
   done

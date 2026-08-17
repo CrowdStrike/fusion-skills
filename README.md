@@ -115,7 +115,7 @@ Cursor's CLI accepts a local plugin directory, like Claude Code and Copilot CLI.
 This is the path the test harness verifies, so it's the recommended install:
 
 ```bash
-cursor-agent --plugin-dir /path/to/fusion-skills --trust
+agent --plugin-dir /path/to/fusion-skills --trust
 ```
 
 `--trust` skips the one-time workspace-trust prompt for the cloned directory; add
