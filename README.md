@@ -192,7 +192,7 @@ The `workflows` orchestrator is the entry point: you say what you want, and it r
 
 ## Skills
 
-One plugin provides five skills: an orchestrator plus four focused sub-skills.
+One plugin provides six skills: an orchestrator, four focused sub-skills, and a Foundry-app redirect.
 
 | Skill | Purpose |
 |-------|---------|
@@ -201,6 +201,7 @@ One plugin provides five skills: an orchestrator plus four focused sub-skills.
 | `deployment` | Duplicate check, import to CID, release, version management |
 | `execution` | Trigger workflows with payloads, monitor status, tail logs, debug failures |
 | `lookup-files` | Manage Falcon Next-Gen SIEM lookup files (CSV/JSON/TXT) for CQL `match()` queries |
+| `foundry-redirect` | Declines Falcon Foundry app requests (UI, functions, collections, `manifest.yml`) and points to the `crowdstrike-falcon-foundry` plugin |
 
 ### Architecture
 
