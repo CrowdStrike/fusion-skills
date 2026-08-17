@@ -82,6 +82,15 @@ Restart Codex to discover the skills. Run `/skills` to verify that all 6 skills
 are available. See the [Codex skills docs](https://learn.chatgpt.com/docs/build-skills)
 for details. If authentication is required, run `codex login`.
 
+> **On the shared `~/.agents/skills/` namespace.** This directory is flat and
+> shared by every plugin that symlinks into it, so two plugins with an
+> identically-named skill would collide there. fusion-skills' six skill names do
+> not overlap with foundry-skills' eleven, so both can be symlinked together
+> safely. A namespaced plugin install — where the assistant exposes skills as
+> `crowdstrike-falcon-fusion:<skill>` — sidesteps the shared-namespace question
+> entirely, which is why a marketplace/plugin install is preferable to symlinks
+> where one is available.
+
 ### Copilot CLI
 
 Install directly from this repository:
@@ -102,8 +111,20 @@ skills are available.
 
 ### Cursor (Experimental)
 
-Cursor discovers Agent Skills from `~/.agents/skills/` — the same directory Codex
-and Copilot CLI use. Clone the repo and symlink the skills:
+Cursor's CLI accepts a local plugin directory, like Claude Code and Copilot CLI.
+This is the path the test harness verifies, so it's the recommended install:
+
+```bash
+cursor-agent --plugin-dir /path/to/fusion-skills --trust
+```
+
+`--trust` skips the one-time workspace-trust prompt for the cloned directory; add
+`--force` (or `--yolo`) for fully non-interactive runs. Cursor discovers skills on
+startup and activates the right one on demand based on your prompt; invoke one
+explicitly with `/<skill-name>`. Type `/` in Agent chat and confirm all 6 skills appear.
+
+Alternatively, Cursor discovers Agent Skills from `~/.agents/skills/` — the same
+directory Codex and Copilot CLI use:
 
 ```bash
 git clone https://github.com/CrowdStrike/fusion-skills.git
@@ -116,16 +137,6 @@ done
 Use `.agents/skills/` inside a project for workspace scope instead. As an
 alternative to cloning, add the repo through the UI: **Customize → Rules → Add
 Rule → Remote Rule (GitHub)** and enter the repository URL.
-
-Cursor's CLI also accepts a local plugin directory, like Claude Code and Copilot CLI:
-
-```bash
-cursor-agent --plugin-dir /path/to/fusion-skills
-```
-
-Cursor discovers skills on startup and activates the right one on demand based on
-your prompt; invoke one explicitly with `/<skill-name>`. Type `/` in Agent chat and
-confirm all 6 skills appear.
 
 ### Antigravity CLI
 
