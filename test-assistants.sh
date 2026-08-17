@@ -222,12 +222,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Concurrency slows each agent under contention, so the parallel cap is higher than
-# the sequential one to leave room to report. --e2e is a different measurement: an
-# author-validate-import cycle takes minutes, so the cap and report deadline move out.
+# the sequential one to leave room to report. The parallel cap is generous because
+# the slowest assistant sets the group's wall clock and some (Cursor) are slow per
+# step — Cursor was observed still writing its report at 150s, so 240s gives it room
+# to finish rather than being killed mid-sentence. Fast assistants finish early and
+# don't pad to the cap. --e2e is a different measurement (author-validate-import).
 if [ -z "$TIMEOUT" ]; then
   if   [ "$E2E" -eq 1 ];      then TIMEOUT=900
-  elif [ "$PARALLEL" -eq 1 ]; then TIMEOUT=150
-  else                             TIMEOUT=120
+  elif [ "$PARALLEL" -eq 1 ]; then TIMEOUT=240
+  else                             TIMEOUT=180
   fi
 fi
 
@@ -459,7 +462,7 @@ ASSISTANTS=(
   "Claude Code|claude|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --dangerously-skip-permissions --verbose --output-format stream-json"
   "Codex|codex|~/.agents/skills|exec %%PROMPT%% --skip-git-repo-check"
   "Copilot CLI|copilot|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --allow-all"
-  "Cursor|cursor-agent|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --force --trust"
+  "Cursor|cursor-agent|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --force --trust --output-format stream-json"
   "Antigravity CLI|agy|~/.agents/skills|-p %%PROMPT%% --dangerously-skip-permissions"
 )
 
@@ -560,9 +563,11 @@ classify() {
   # (the SessionStart hook is Claude-only) or the script was run outside python.sh.
   grep -qiE "ModuleNotFoundError|No module named '(falconpy|yaml|tomli)'" <<< "$body" && { echo "FAIL|deps|missing Python dependency (venv not built?)||"; return; }
   # An unresolved ${CLAUDE_PLUGIN_ROOT} means the skill's own invocation path expanded
-  # empty — the env var is set only by Claude Code, so this is the classic non-Claude
-  # failure. Anchored on the shell's own "No such file"/"not found" for that path.
-  grep -qiE '(^|/)scripts/python\.sh: (No such file|command not found)|\$\{?CLAUDE_PLUGIN_ROOT\}?/' <<< "$body" && { echo "FAIL|root|CLAUDE_PLUGIN_ROOT unset — script path did not resolve||"; return; }
+  # empty — the env var is set only by Claude Code. The real failure surfaces as the
+  # shell's own "No such file"/"command not found" on the python.sh path; match ONLY
+  # that, never the bare variable name, because a SKILL.md documents `$CLAUDE_PLUGIN_ROOT`
+  # for Claude users and an assistant streaming that doc text would otherwise false-fail.
+  grep -qiE '(^|/)scripts/python\.sh: (No such file|command not found)' <<< "$body" && { echo "FAIL|root|CLAUDE_PLUGIN_ROOT unset — script path did not resolve||"; return; }
   # A launch-flag rejection by the ASSISTANT CLI itself is decisive. A fusion *script's*
   # argparse error (e.g. "action_search.py: error: unrecognized arguments") is NOT — the
   # assistant can fix the args and retry — so it is deliberately not matched here; it

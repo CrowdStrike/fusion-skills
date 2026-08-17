@@ -67,6 +67,18 @@ SKILLS: NONE
 COMMANDS: NONE
 BLOCKER: ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh not found'
 
+# A SKILL.md documents `$CLAUDE_PLUGIN_ROOT/skills/<skill>` for Claude users. An
+# assistant that streams that doc text (stream-json surfaces the whole transcript)
+# must NOT be scored as an unresolved-path failure — only a real shell "No such file"
+# on the python.sh path is decisive, not the bare variable name.
+expect_verdict "echoed \$CLAUDE_PLUGIN_ROOT doc text is not a root failure" 0 "PASS|ok" \
+'For the folder, Claude Code uses "$CLAUDE_PLUGIN_ROOT/skills/authoring".
+FUSION-REPORT
+STATUS: WORKING
+SKILLS: skills/authoring/SKILL.md
+COMMANDS: action_search.py => OK
+BLOCKER: NONE'
+
 expect_verdict "tenant rejecting credentials is auth" 0 "FAIL|auth" \
 "401 Unauthorized when calling the Workflows API
 FUSION-REPORT
