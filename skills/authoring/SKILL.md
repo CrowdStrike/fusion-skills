@@ -153,8 +153,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --details <acti
 ```
 
 For each action you discover, record: `id` (32-char hex), `name`, input
-fields/types, whether it has a `class` (needs `version_constraint`), and whether
-it is a plugin action (needs a `config_id`).
+fields/types, its `version_constraint` (nearly all have one), `class` if any,
+and whether it is a plugin action (needs a `config_id`).
 
 > If a long-lived local cache might be hiding newly shipped actions, refresh it:
 > `${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --clear-cache`. The cache also auto-refreshes
@@ -252,7 +252,7 @@ force an immediate refresh so newly shipped action types are never hidden.
 | "I can guess the action ID format." | WRONG. IDs are 32-char hex, only discoverable via the table or the live API. |
 | "The template has `PLACEHOLDER_RAN_006`, I'll copy it." | NEVER. Templates are structural guides. Substitute a real value before saving. |
 | "Validation can wait until deploy." | NO. Validate after authoring — `validate.py` catches PLACEHOLDERs, bad IDs, and schema errors locally. |
-| "This action has a `class`, version_constraint is optional." | WRONG. Class-based actions REQUIRE `version_constraint`. Missing it fails import. |
+| "Only class-based actions need `version_constraint`." | WRONG. Not class-specific — nearly every action has a `version_constraint`. |
 | "I'll use `~1` everywhere for version_constraint." | NO. The value is `~<major>` of the action's `semantic_version` (`~0` when it declares none): `1.0.4` → `~1`, `0.0.100` → `~0`. Read it from `--details`. |
 | "I'll make up a `config_id` for this Okta action." | NEVER. It's CID-specific (exists only once configured in the console). Ask the user (AskUserQuestion) — even non-interactively. Sequential/all-zeros/repeated-char UUIDs are still fabricated and fail at runtime; can't get a real one? STOP. See `references/best-practices.md`. |
 | "I'll set `definition_id: VIRUSTOTAL_..._ID` on this HTTP action." | NEVER. An `Inline.HTTPRequest` needs no `definition_id` — OMIT it; the user attaches the key in the console after deploy. A placeholder is a broken ref `validate.py` flags. |

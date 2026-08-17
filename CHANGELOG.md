@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Throttling reference in the execution skill: explains that a workflow stuck "in progress" may be throttled (Fusion paces an action past a volume limit, auto-retrying up to 6 hours) rather than failed, how to recognize it on the execution detail view, and when sustained throttling signals a workflow-design issue.
 - Deduplicate and Rate Limit action reference plus a worked tutorial example. Covers all six Deduplicate activities and all four Rate Limit activities: the `definition`/`cid` scope values (which the console labels "Workflow" and "CID"), the atomic claim, metadata handoff, and the save-time validation the builder runs. The example deduplicates third-party NG-SIEM detections into a single case. Action IDs were confirmed against a live tenant; the example passes validation at all tiers.
 
+### Fixed
+
+- Three authoring-doc corrections from a Fusion engineer's tech review. `version_constraint` is no longer framed as class-specific — nearly every action carries one whether or not it declares a `class`, so include it on every action node. The event-trigger and system-level variables (`Trigger.CID`, `Workflow.Execution.ID`, `Workflow.Definition.Name`, etc.) are now shown in the `${data['...']}` form and are documented as living in the `data` namespace like any other field rather than as an exception. And the action `name:` field is described as a relabelable display label — renaming it does not break references, which resolve by node key and action `id`.
+
 ## [1.0.1] - 2026-08-07
 
 ### Fixed
