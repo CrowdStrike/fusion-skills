@@ -75,13 +75,26 @@ SKILLS: skills/deployment/SKILL.md
 COMMANDS: query_workflows.py => FAIL: 401
 BLOCKER: 401 Unauthorized"
 
-expect_verdict "rejected flag is flag" 0 "FAIL|flag" \
-"validate.py: error: unrecognized arguments: --bogus
+expect_verdict "an assistant-CLI launch-flag rejection is decisive flag" 0 "FAIL|flag" \
+"Error: unknown flag: --bogus-launch-flag
+See 'claude --help' for usage."
+
+# A fusion SCRIPT's argparse error is recoverable, not terminal: if the assistant fixes
+# the args and reports a successful command, the run passes. The decisive log-scan must
+# NOT treat it like an assistant-CLI launch-flag rejection.
+expect_verdict "a recovered script argparse error is not terminal" 0 "PASS|ok" \
+"action_search.py: error: unrecognized arguments: event query
+Let me fix that and re-run with the --search flag.
 FUSION-REPORT
-STATUS: BLOCKED
-SKILLS: NONE
-COMMANDS: validate.py => FAIL: bad flag
-BLOCKER: unrecognized arguments"
+STATUS: WORKING
+SKILLS: skills/authoring/SKILL.md
+COMMANDS: action_search.py => OK
+BLOCKER: NONE"
+
+# An account/quota exhaustion is an environment SKIP, not a failure — it cannot be
+# fixed by re-running and is not a skills or harness fault.
+expect_verdict "account quota exhaustion is an environment skip" 1 "SKIP|account" \
+"Error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 75h."
 
 expect_verdict "self-reported blocker wins even with a script OK" 0 "FAIL|auth" \
 "FUSION-REPORT

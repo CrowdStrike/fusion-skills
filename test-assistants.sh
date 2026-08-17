@@ -130,21 +130,22 @@ report_instructions() {
 
 Two more things, because this is a timed test harness rather than a real build.
 
-Do not import or deploy the workflow — discover the actions you need and begin
-authoring the YAML, no further. You have about ${REPORT_AT} seconds of wall clock; run \`date\`
-if you need to know where you are. When that is up, stop wherever you have got to and
-report. Report early — right away — if something blocks you, if you find yourself
-about to ask me a question, or if you sense you are about to be interrupted.
-Running out of the time budget is expected and is not a failure — report what you
-have done so far with BLOCKER: NONE. The report is worth more to me than the extra
-progress.
+This is a lightweight smoke test of the SKILL, not a real build. Your ONLY goal is
+to confirm the skill loaded and its scripts run: run one or two discovery commands
+(for example action_search.py or trigger_search.py, or this skill's own script such
+as query_workflows.py --list), then STOP and report. Do NOT author workflow YAML,
+and do NOT import or deploy anything.
+
+Report within about ${REPORT_AT} seconds — run \`date\` to check where you are. Report
+immediately if something blocks you or you find yourself about to ask a question.
+Running out of the time budget is not a failure; report what you have with BLOCKER: NONE.
 
 To report, end your reply with these five lines, in this order, each starting a line
 of plain text. No code fence, no blockquote, no bullets, no bold, and no angle
 brackets in anything you write:
 
 FUSION-REPORT
-STATUS: <one word — WORKING if the scripts are doing real work, BLOCKED only if a real problem stopped you, DONE if the workflow is authored. Running out of the time budget is NOT blocked; that is WORKING>
+STATUS: <one word — WORKING or DONE if the skill's scripts ran, BLOCKED only if a real problem stopped you. Running out of the time budget is NOT blocked; that is WORKING>
 SKILLS: <comma-separated paths of the skill files you loaded, or NONE>
 COMMANDS: <comma-separated, every fusion-skills script you ran (action_search.py, validate.py, etc.), each written as the script followed by => OK or => FAIL: reason. NONE if you ran none>
 BLOCKER: <one line naming a real problem, quoting the error verbatim if there was one. NONE if nothing did. The time budget is not a blocker — if you simply ran out of time and nothing failed, write NONE>
@@ -549,6 +550,12 @@ classify() {
   body=$(sed -e 's/\\n/\
 /g' -e 's/"[]}].*$//' "$log" 2>/dev/null | grep -v '^[[:space:]]*>')
 
+  # An account-level block — quota or subscription exhausted — is not a skills or
+  # harness fault and cannot be fixed by re-running, so treat it as an environment SKIP
+  # (like a missing CLI), not a failure. Anchored on assistant billing phrasing so it
+  # cannot match a skill doc's own "rate limit" guidance.
+  grep -qiE "quota reached|quota exceeded|upgrade your subscription|subscription (required|expired|to increase)|insufficient (credits|quota)|out of (credits|quota)" <<< "$body" && { echo "SKIP|account|account quota/subscription limit reached||"; return; }
+
   # A Python traceback for a missing dependency is decisive: the venv was never built
   # (the SessionStart hook is Claude-only) or the script was run outside python.sh.
   grep -qiE "ModuleNotFoundError|No module named '(falconpy|yaml|tomli)'" <<< "$body" && { echo "FAIL|deps|missing Python dependency (venv not built?)||"; return; }
@@ -556,7 +563,11 @@ classify() {
   # empty — the env var is set only by Claude Code, so this is the classic non-Claude
   # failure. Anchored on the shell's own "No such file"/"not found" for that path.
   grep -qiE '(^|/)scripts/python\.sh: (No such file|command not found)|\$\{?CLAUDE_PLUGIN_ROOT\}?/' <<< "$body" && { echo "FAIL|root|CLAUDE_PLUGIN_ROOT unset — script path did not resolve||"; return; }
-  grep -qiE "^[[:space:]]*(❌[[:space:]]*)?(Error|error):.*(unknown|unrecognized) (flag|option|argument)|: error: unrecognized arguments" <<< "$body" && { echo "FAIL|flag|rejected a CLI flag||"; return; }
+  # A launch-flag rejection by the ASSISTANT CLI itself is decisive. A fusion *script's*
+  # argparse error (e.g. "action_search.py: error: unrecognized arguments") is NOT — the
+  # assistant can fix the args and retry — so it is deliberately not matched here; it
+  # flows through to the report/OK-FAIL logic below.
+  grep -qiE "^[[:space:]]*(❌[[:space:]]*)?(Error|error): (unknown|unrecognized|unsupported) (flag|option)" <<< "$body" && { echo "FAIL|flag|the assistant CLI rejected a launch flag||"; return; }
   grep -qiE "401 Unauthorized|403 Forbidden|\"?errors\"?.*invalid_client|access denied|Failed to authenticate|Could not authenticate" <<< "$body" && { echo "FAIL|auth|credentials rejected by the tenant||"; return; }
   grep -qiE "^[[:space:]]*(❌[[:space:]]*)?Error: no TTY available|^[[:space:]]*(❌[[:space:]]*)?could not open a new TTY|/dev/tty: device not configured" <<< "$body" && { echo "FAIL|tty|CLI demanded a TTY||"; return; }
   grep -qiE "Not inside a trusted directory" <<< "$body" && { echo "FAIL|trust|refused to run in this directory||"; return; }
@@ -671,7 +682,7 @@ else
 fi
 printf '\n'
 
-RESULTS=(); CATEGORIES=(); FAILURES=0; TESTED=0
+RESULTS=(); CATEGORIES=(); FAILURES=0; TESTED=0; SKIPPED=0
 
 # Two groups, because they need OPPOSITE filesystem state and cannot overlap:
 # --plugin-dir assistants run with this repo's symlinks stashed away, while Codex and
@@ -724,6 +735,9 @@ report_one() {   # name bin source rc elapsed
   case "$status" in
     PASS)    printf '  %s%-16s%s %s✔ PASS%s  %-43s %s%4ss%s\n' \
                "$BOLD" "$name" "$RESET" "$GREEN$BOLD" "$RESET" "$detail" "$DIM" "$elapsed" "$RESET" ;;
+    SKIP)    printf '  %s%-16s%s %s⊘ SKIP%s  %-43s %s%4ss%s\n' \
+               "$BOLD" "$name" "$RESET" "$YELLOW" "$RESET" "$detail" "$DIM" "$elapsed" "$RESET"
+             SKIPPED=$((SKIPPED+1)) ;;
     TIMEOUT) printf '  %s%-16s%s %s◷ SLOW%s   %-43s %s%4ss%s\n' \
                "$BOLD" "$name" "$RESET" "$YELLOW$BOLD" "$RESET" "$detail" "$DIM" "$elapsed" "$RESET"
              FAILURES=$((FAILURES+1)) ;;
@@ -736,7 +750,8 @@ report_one() {   # name bin source rc elapsed
   # log, and the pair that shows a pass came from the working tree.
   [ -n "$rskills" ] && info "skills: $rskills"
   [ -n "$rcmds" ]   && info "ran: $rcmds"
-  [ "$status" != "PASS" ] && CATEGORIES+=("$category")
+  # Only real failures contribute a failure-cause; an environment SKIP or a PASS does not.
+  [ "$status" != "PASS" ] && [ "$status" != "SKIP" ] && CATEGORIES+=("$category")
   # --e2e records the two claims a judging pass needs as their own fields, not buried
   # in the display string: --judge has to look them up on the tenant.
   local rwf="" rdef=""
@@ -746,7 +761,9 @@ report_one() {   # name bin source rc elapsed
     rdef=$(clean "$(report_field DEFINITION <<< "$ebody")" 60)
   fi
   RESULTS+=("$name|$status|$category|$detail|$elapsed|$source|$rskills|$rwf|$rdef")
-  TESTED=$((TESTED+1))
+  # An environment SKIP (account/quota) is "could not test", like a missing CLI — it is
+  # not counted among the tested assistants and never fails the run.
+  [ "$status" = "SKIP" ] || TESTED=$((TESTED+1))
   return 0
 }
 
@@ -947,16 +964,22 @@ if [ "$JUDGE" -eq 1 ]; then
 fi
 
 head2 "Summary"
+skipnote=""
+[ "$SKIPPED" -gt 0 ] && skipnote="   ${DIM}·  ${SKIPPED} skipped (environment)${RESET}"
 if [ "$TESTED" -eq 0 ]; then
-  printf '  no assistants tested\n'
+  if [ "$SKIPPED" -gt 0 ]; then
+    printf '  no assistants tested (%s skipped: account/quota)\n' "$SKIPPED"
+  else
+    printf '  no assistants tested\n'
+  fi
 elif [ "$FAILURES" -eq 0 ]; then
-  printf '  %s%s✔ %s of %s%s reached the tenant%s\n' \
-    "$GREEN" "$BOLD" "$TESTED" "$TESTED" "$RESET$GREEN" "$RESET"
+  printf '  %s%s✔ %s of %s%s reached the tenant%s%s\n' \
+    "$GREEN" "$BOLD" "$TESTED" "$TESTED" "$RESET$GREEN" "$RESET" "$skipnote"
   printf '    %s%ss wall clock · %ss if run one at a time%s\n' "$DIM" "$WALL" "$SEQ" "$RESET"
 else
-  printf '  %s%s%s of %s%s reached the tenant%s   %s│%s   %s%s✘ %s failed%s\n' \
+  printf '  %s%s%s of %s%s reached the tenant%s   %s│%s   %s%s✘ %s failed%s%s\n' \
     "$GREEN" "$BOLD" "$((TESTED-FAILURES))" "$TESTED" "$RESET$GREEN" "$RESET" \
-    "$DIM" "$RESET" "$RED" "$BOLD" "$FAILURES" "$RESET"
+    "$DIM" "$RESET" "$RED" "$BOLD" "$FAILURES" "$RESET" "$skipnote"
   printf '    %s%ss wall clock · %ss if run one at a time%s\n' "$DIM" "$WALL" "$SEQ" "$RESET"
   printf '\n  %sfailures by cause%s\n' "$BOLD" "$RESET"
   # Counts per known failure mode, worth tracking run to run.
