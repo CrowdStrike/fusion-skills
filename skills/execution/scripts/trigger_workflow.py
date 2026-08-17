@@ -24,7 +24,7 @@ import os
 sys.path.insert(
     0,
     os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        os.path.dirname(os.path.realpath(__file__)),
         "..", "..", "..", "common", "scripts",
     ),
 )
@@ -33,7 +33,7 @@ _bootstrap.ensure_deps(__file__)  # re-exec via managed venv if deps are missing
 from auth import get_client  # pylint: disable=wrong-import-position
 
 # fetch_results and TERMINAL_STATUSES live alongside this script.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from get_execution_results import fetch_results, TERMINAL_STATUSES  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding

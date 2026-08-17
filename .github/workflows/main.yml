@@ -46,6 +46,9 @@ jobs:
         run: |
           ./test-scorecard-parser.sh
           ./test-skill-scorecard.sh
+          ./test-skill-isolation.sh
+          ./test-verdict-parser.sh
+          ./test-bootstrap-symlink.sh
 
   pytest:
     runs-on: ubuntu-latest
@@ -105,8 +108,10 @@ jobs:
         run: |
           for f in \
             hooks/hooks.json \
+            plugin.json \
             .claude-plugin/plugin.json \
             .claude-plugin/marketplace.json \
+            .codex-plugin/plugin.json \
             test-result-schema.json \
             verify-result-schema.json; do
             echo "Validating $f"
@@ -201,6 +206,20 @@ jobs:
             fail=1
           fi
 
+          # Root Agent Plugins manifest must match .claude-plugin/plugin.json
+          root_plugin_version=$(jq -r '.version' plugin.json)
+          if [ "$root_plugin_version" != "$plugin_version" ]; then
+            echo "FAIL: plugin.json version '$root_plugin_version' != .claude-plugin/plugin.json '$plugin_version'"
+            fail=1
+          fi
+
+          # Codex manifest must match .claude-plugin/plugin.json
+          codex_plugin_version=$(jq -r '.version' .codex-plugin/plugin.json)
+          if [ "$codex_plugin_version" != "$plugin_version" ]; then
+            echo "FAIL: .codex-plugin/plugin.json version '$codex_plugin_version' != .claude-plugin/plugin.json '$plugin_version'"
+            fail=1
+          fi
+
           # All SKILL.md versions must match plugin.json
           for skill in skills/*/SKILL.md; do
             skill_version=$(sed -n 's/^version: *//p' "$skill")
@@ -224,6 +243,27 @@ jobs:
 
           [ $fail -eq 0 ] && echo "All versions consistent: $plugin_version"
           exit $fail
+
+      - name: Validate assistant prompt consistency
+        run: |
+          # The canonical workflow-creation prompt lives in the README example block.
+          # test-assistants.sh must BEGIN with it verbatim, so the harness measures the
+          # same prompt users are actually shown. (Reporting instructions are appended
+          # at run time, never spliced into this line.)
+          readme_prompt=$(grep -m1 '^> Generate a Falcon Fusion workflow' README.md | sed 's/^> //')
+          if [ -z "$readme_prompt" ]; then
+            echo "FAIL: could not find the canonical prompt in README.md"
+            exit 1
+          fi
+          harness_prompt=$(sed -n 's/^PROMPT="\(.*\)"$/\1/p' test-assistants.sh | head -1)
+          if [ -z "$harness_prompt" ]; then
+            echo "FAIL: could not extract the PROMPT from test-assistants.sh"
+            exit 1
+          fi
+          case "$harness_prompt" in
+            "$readme_prompt"*) echo "OK: test-assistants.sh prompt starts with the README canonical prompt" ;;
+            *) echo "FAIL: test-assistants.sh PROMPT does not start with the README canonical prompt"; exit 1 ;;
+          esac
 
   markdownlint:
     runs-on: ubuntu-latest

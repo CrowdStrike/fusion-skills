@@ -16,7 +16,7 @@ tags: [fusion, soar, workflows, authoring, yaml, validation]
 author: CrowdStrike
 license: MIT
 compatibility: Claude Code >=1.0
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/python.sh:*)
+allowed-tools: Bash(cd *), Bash(../../scripts/python.sh:*)
 metadata:
   category: authoring
 ---
@@ -74,32 +74,26 @@ NOT import, release, execute, or monitor workflows — hand those off to the
 
 ---
 
+> **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py`. For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/authoring"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/authoring`). The wrapper bootstraps its own Python venv.
+
 ## Prerequisites
 
 - **Python 3.13+** with the `falconpy` SDK and `pyyaml` installed.
-- **CrowdStrike API credentials** (never hardcoded). The shared auth module
-  `common/scripts/auth.py` resolves them from the first source that supplies
-  both an ID and a secret:
-  1. Environment variables: `FALCON_CLIENT_ID`, `FALCON_CLIENT_SECRET`, and the
-     optional `FALCON_BASE_URL` (for CI and overrides).
-  2. TOML profile file `~/.cache/crowdstrike-falcon-fusion/credentials.toml`
-     (profile chosen by `FALCON_PROFILE` or the file's `default` key).
-
-  > Run `/crowdstrike-falcon-fusion:setup` to configure credentials interactively (writes the TOML profile).
+- **CrowdStrike API credentials** (never hardcoded) — `common/scripts/auth.py` resolves them from `FALCON_CLIENT_ID`/`FALCON_CLIENT_SECRET` (plus optional `FALCON_BASE_URL`) or a `~/.cache/crowdstrike-falcon-fusion/credentials.toml` profile (chosen by `FALCON_PROFILE` or the file's `default` key). Run `/crowdstrike-falcon-fusion:setup` to configure interactively.
 - **Workflow** API scope on the API client, with read access to
   the activities catalog and import (validate) permission.
 - Fusion access in the target CID.
 
 Test credentials before authoring:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh ../../common/scripts/auth.py     # self-test from authoring/scripts/
+../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
 ---
 
 ## Core Workflow
 
-Follow these steps in order. Do not skip discovery (steps 1–2).
+Follow these steps in order — do not skip discovery (steps 1–2).
 
 ### 1. Resolve action IDs (MANDATORY)
 
@@ -143,30 +137,30 @@ biggest time sink.
 
 ```bash
 # Search by name across all vendors (note the --search flag; a bare term errors)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --search "contain"
+../../scripts/python.sh scripts/action_search.py --search "contain"
 
 # Search within a specific vendor
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --vendor "Okta" --search "revoke"
+../../scripts/python.sh scripts/action_search.py --vendor "Okta" --search "revoke"
 
 # Full schema for one action (input fields, class, plugin info)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --details <action_id>
+../../scripts/python.sh scripts/action_search.py --details <action_id>
 ```
 
 For each action you discover, record: `id` (32-char hex), `name`, input
-fields/types, whether it has a `class` (needs `version_constraint`), and whether
-it is a plugin action (needs a `config_id`).
+fields/types, its `version_constraint` (nearly all have one), `class` if any,
+and whether it is a plugin action (needs a `config_id`).
 
 > If a long-lived local cache might be hiding newly shipped actions, refresh it:
-> `${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/action_search.py --clear-cache`. The cache also auto-refreshes
+> `../../scripts/python.sh scripts/action_search.py --clear-cache`. The cache also auto-refreshes
 > once it is older than 1 hour.
 
 ### 2. Choose a trigger type
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --list
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --type "On demand"
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --events detection   # Signal event: values
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/trigger_search.py --fields Investigatable/EPP   # payload field paths
+../../scripts/python.sh scripts/trigger_search.py --list
+../../scripts/python.sh scripts/trigger_search.py --type "On demand"
+../../scripts/python.sh scripts/trigger_search.py --events detection   # Signal event: values
+../../scripts/python.sh scripts/trigger_search.py --fields Investigatable/EPP   # payload field paths
 ```
 
 Valid trigger types: **On demand**, **Signal**, **Scheduled**, **SubModel**.
@@ -213,10 +207,10 @@ See `references/cel-expressions.md` for operators, CrowdStrike extensions
 
 ```bash
 # Pre-flight + structural + API dry-run
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/validate.py workflow.yaml
+../../scripts/python.sh scripts/validate.py workflow.yaml
 
 # Pre-flight + structural only (no API call)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh scripts/validate.py --preflight-only workflow.yaml
+../../scripts/python.sh scripts/validate.py --preflight-only workflow.yaml
 ```
 
 Fix every error before handing the file to the `deployment` skill.
@@ -252,7 +246,7 @@ force an immediate refresh so newly shipped action types are never hidden.
 | "I can guess the action ID format." | WRONG. IDs are 32-char hex, only discoverable via the table or the live API. |
 | "The template has `PLACEHOLDER_RAN_006`, I'll copy it." | NEVER. Templates are structural guides. Substitute a real value before saving. |
 | "Validation can wait until deploy." | NO. Validate after authoring — `validate.py` catches PLACEHOLDERs, bad IDs, and schema errors locally. |
-| "This action has a `class`, version_constraint is optional." | WRONG. Class-based actions REQUIRE `version_constraint`. Missing it fails import. |
+| "Only class-based actions need `version_constraint`." | WRONG. Not class-specific — nearly every action has a `version_constraint`. |
 | "I'll use `~1` everywhere for version_constraint." | NO. The value is `~<major>` of the action's `semantic_version` (`~0` when it declares none): `1.0.4` → `~1`, `0.0.100` → `~0`. Read it from `--details`. |
 | "I'll make up a `config_id` for this Okta action." | NEVER. It's CID-specific (exists only once configured in the console). Ask the user (AskUserQuestion) — even non-interactively. Sequential/all-zeros/repeated-char UUIDs are still fabricated and fail at runtime; can't get a real one? STOP. See `references/best-practices.md`. |
 | "I'll set `definition_id: VIRUSTOTAL_..._ID` on this HTTP action." | NEVER. An `Inline.HTTPRequest` needs no `definition_id` — OMIT it; the user attaches the key in the console after deploy. A placeholder is a broken ref `validate.py` flags. |

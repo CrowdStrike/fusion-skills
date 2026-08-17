@@ -12,7 +12,7 @@ tags: [fusion, soar, workflows, deployment, import, release]
 author: CrowdStrike
 license: MIT
 compatibility: Claude Code >=1.0
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/python.sh:*)
+allowed-tools: Bash(cd *), Bash(../../scripts/python.sh:*)
 metadata:
   category: deployment
 ---
@@ -69,6 +69,8 @@ This skill moves a finished Fusion workflow definition from a local YAML/JSON fi
 
 In Falcon Fusion, an imported definition is **disabled** until it is **released** (enabled). Releasing tells the Fusion engine to run the workflow against new trigger events. Keep the workflow disabled until you have tested it.
 
+> **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py` (a sibling skill's script is `../<skill>/scripts/<name>.py`). For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/deployment"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/deployment`). The wrapper bootstraps its own Python venv.
+
 ## Prerequisites
 
 - **Python 3.13+**
@@ -83,7 +85,7 @@ In Falcon Fusion, an imported definition is **disabled** until it is **released*
 - An API client with the **Workflow** API scope (read + write)
 - Verify auth before deploying:
   ```bash
-  ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh common/scripts/auth.py
+  ../../scripts/python.sh ../../common/scripts/auth.py
   ```
 
 ## Core Workflow
@@ -96,7 +98,7 @@ Validation is owned by the **authoring** skill's `validate.py`. The import scrip
 calls it automatically, but run it manually first when iterating:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh authoring/scripts/validate.py workflows/my-workflow.yaml
+../../scripts/python.sh ../authoring/scripts/validate.py workflows/my-workflow.yaml
 ```
 
 Fix every structural error before continuing. A definition that fails validation will be rejected by the API.
@@ -107,10 +109,10 @@ Workflow names must be unique within the tenant. Importing a duplicate creates c
 
 ```bash
 # Exact-name check (exit 0 if it exists, 1 if not)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --check-name "My Workflow"
+../../scripts/python.sh scripts/query_workflows.py --check-name "My Workflow"
 
 # Or extract the name straight from the YAML and check
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --check-yaml workflows/my-workflow.yaml
+../../scripts/python.sh scripts/query_workflows.py --check-yaml workflows/my-workflow.yaml
 ```
 
 If a duplicate is found, this is almost always your own earlier attempt at the
@@ -125,10 +127,10 @@ definition explicitly) instead.
 
 ```bash
 # Single file — validates and checks duplicates by default
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/import_workflows.py workflows/my-workflow.yaml
+../../scripts/python.sh scripts/import_workflows.py workflows/my-workflow.yaml
 
 # A whole directory of definitions (all *.yaml/*.yml)
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/import_workflows.py workflows/
+../../scripts/python.sh scripts/import_workflows.py workflows/
 ```
 
 On success the script prints the new **definition ID**. Capture it — you need it to release and to execute the workflow.
@@ -167,7 +169,7 @@ imports will resolve.
 Releasing enables the definition so the Fusion engine runs it against trigger events. Do this only after testing (see the execution skill):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/release_workflow.py --id <definition_id>
+../../scripts/python.sh scripts/release_workflow.py --id <definition_id>
 ```
 
 **If release reports validation errors, stop — do not patch the deployed
@@ -201,10 +203,10 @@ node's `next:`. Do not hand-edit the deployed definition to add the missing flag
 #    Keep the workflow `name:` IDENTICAL — do NOT bump it to `<name>-v2`.
 #    The name is the workflow's identity; --replace matches on it.
 # 2. Re-validate — this now catches the release-failing shape pre-deploy:
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh authoring/scripts/validate.py my-workflow.yaml
+../../scripts/python.sh ../authoring/scripts/validate.py my-workflow.yaml
 # 3. Re-import with --replace: deletes the broken same-name definition and
 #    imports the fixed YAML in one step (supported delete + import, not a patch).
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/import_workflows.py --replace my-workflow.yaml
+../../scripts/python.sh scripts/import_workflows.py --replace my-workflow.yaml
 ```
 
 `--replace` keeps ONE definition per workflow name instead of leaving a renamed
@@ -231,10 +233,10 @@ All scripts add `common/scripts` to `sys.path` and import `get_client` from the 
 ### query_workflows.py
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --list                 # All definitions
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --search "contain"     # Substring match
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --check-name "My Flow" --json
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --check-yaml *.yaml     # Batch duplicate check
+../../scripts/python.sh scripts/query_workflows.py --list                 # All definitions
+../../scripts/python.sh scripts/query_workflows.py --search "contain"     # Substring match
+../../scripts/python.sh scripts/query_workflows.py --check-name "My Flow" --json
+../../scripts/python.sh scripts/query_workflows.py --check-yaml *.yaml     # Batch duplicate check
 ```
 
 `--check-name` and `--check-yaml` exit non-zero when a duplicate exists, so they compose cleanly in shell pipelines and CI gates.
@@ -242,10 +244,10 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --
 ### import_workflows.py
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/import_workflows.py wf.yaml               # Default: validate + dedupe
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/import_workflows.py --skip-validate wf.yaml   # AVOID — see pitfall 2
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/import_workflows.py --skip-duplicate-check wf.yaml
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/import_workflows.py ./workflows/          # Glob a directory
+../../scripts/python.sh scripts/import_workflows.py wf.yaml               # Default: validate + dedupe
+../../scripts/python.sh scripts/import_workflows.py --skip-validate wf.yaml   # AVOID — see pitfall 2
+../../scripts/python.sh scripts/import_workflows.py --skip-duplicate-check wf.yaml
+../../scripts/python.sh scripts/import_workflows.py ./workflows/          # Glob a directory
 ```
 
 Supports YAML and JSON definitions, batch mode (multiple files), and directory expansion (`*.yaml`/`*.yml`). Prints a per-file summary and exits non-zero if any file failed or was a duplicate.
@@ -253,8 +255,8 @@ Supports YAML and JSON definitions, batch mode (multiple files), and directory e
 ### release_workflow.py
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/release_workflow.py --id 1a2b3c...        # Enable
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/release_workflow.py --id 1a2b3c... --json # Machine-readable
+../../scripts/python.sh scripts/release_workflow.py --id 1a2b3c...        # Enable
+../../scripts/python.sh scripts/release_workflow.py --id 1a2b3c... --json # Machine-readable
 ```
 
 Calls the Workflows definition-action endpoint with `action_name="enable"`. The definition ID comes from the import step or from `query_workflows.py`.
@@ -262,9 +264,9 @@ Calls the Workflows definition-action endpoint with `action_name="enable"`. The 
 ### delete_workflow.py
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/delete_workflow.py --id 1a2b3c...          # Delete by ID
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/delete_workflow.py --name "Probe run 1"    # Delete by exact name
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/delete_workflow.py --id 1a2b3c... --yes    # Skip confirmation (scripted)
+../../scripts/python.sh scripts/delete_workflow.py --id 1a2b3c...          # Delete by ID
+../../scripts/python.sh scripts/delete_workflow.py --name "Probe run 1"    # Delete by exact name
+../../scripts/python.sh scripts/delete_workflow.py --id 1a2b3c... --yes    # Skip confirmation (scripted)
 ```
 
 Deletes a whole definition via the Workflows delete endpoint (FalconPy

@@ -66,7 +66,7 @@ Each skill's `SKILL.md` is plain markdown with YAML frontmatter — read it dire
 The skills are markdown instructions plus Python scripts — no plugin runtime is required.
 
 1. **Read the SKILL.md** for the task you are doing (e.g., `skills/authoring/SKILL.md` to write a workflow).
-2. **Run the scripts directly** with `python <skill>/scripts/<script>.py --help` to see flags.
+2. **Run the scripts directly** with `python <skill>/scripts/<script>.py --help` to see flags. Any absolute or `~/.agents/skills/...` symlink path works — each script resolves its own location and bootstraps its managed Python venv, so `${CLAUDE_PLUGIN_ROOT}` (set only by Claude Code) is not required.
 3. **Follow the discipline rules**, which are not optional:
    - Always discover real action IDs with `action_search.py` — never guess. IDs are 32-char hex.
    - Never write `PLACEHOLDER_*` values. Resolve every ID before authoring.

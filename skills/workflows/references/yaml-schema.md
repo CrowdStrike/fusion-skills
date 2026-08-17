@@ -72,7 +72,7 @@ Each action is a named node with a unique label (PascalCase recommended).
 actions:
     ContainDevice:                  # Node label — referenced by next/conditions
         id: bec9fbeb...            # 32-char hex from the action catalog (global, not per-CID)
-        name: Contain device        # Display name (must match catalog name)
+        name: Contain device        # Display label — defaults to the catalog name, but you can rename it freely (next:/conditions resolve by node key and id, not this label)
         next:                       # Next node(s) to execute
             - UpdateVariable
         properties:                 # Action-specific inputs
@@ -101,7 +101,7 @@ CreateVariable:
             required:
                 - my_field
             type: object
-    version_constraint: ~1          # REQUIRED for class-based actions
+    version_constraint: ~1          # Nearly every action needs a version_constraint, not just class-based ones
 ```
 
 ```yaml
@@ -399,10 +399,20 @@ plus a `cs.ip.valid` input gate) and `examples/threat-intel/domain-enrichment-vi
 ### Custom variable
 - `${data['WorkflowCustomVariable.field']}` — read current custom variable value
 
-### Event trigger variables
-- `${Trigger.Category.Investigatable.Product.EPP.Sensor.SensorID}`
-- `${Trigger.Category.Incident.Name}`
-- `${Workflow.Execution.Time}`
+### Event trigger and system variables
+Trigger fields and workflow/system fields (CID, execution ID, definition name,
+etc.) live in the `data` namespace like every other field. Inside string
+interpolation, reference them with the `${data['...']}` form — the system-level
+fields are **not** an exception:
+- `${data['Trigger.Category.Investigatable.Product.EPP.Sensor.SensorID']}`
+- `${data['Trigger.Category.Incident.Name']}`
+- `${data['Trigger.CID']}`
+- `${data['Workflow.Execution.ID']}`
+- `${data['Workflow.Execution.Time']}`
+- `${data['Workflow.Definition.Name']}`
+
+(The bare `${Trigger.X}` form is only for dedicated ID property fields — see the
+interpolation-vs-dedicated-field note in `trigger-types.md`.)
 
 ---
 

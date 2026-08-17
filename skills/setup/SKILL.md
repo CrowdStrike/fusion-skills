@@ -46,13 +46,15 @@ the secret is entered through the user's own editor — never through the chat.
 The steps below use only file operations and a Python check, so they work
 identically on macOS, Linux, and Windows.
 
+> **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh ../../common/scripts/auth.py`. For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/setup"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/setup`). The wrapper bootstraps its own Python venv.
+
 ## Step 1 — Check for existing credentials
 
 Run the auth self-test. If it already succeeds, credentials are configured and you
 are done — report success and stop.
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/common/scripts/auth.py"
+../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
 - **"Authentication successful"** for both clients → done.
@@ -146,7 +148,7 @@ not through the chat. Do **not** ask them to paste the secret into the chat.
 Once the user says they have saved the file, re-run the self-test:
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/common/scripts/auth.py"
+../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
 A successful run prints the resolved base URL, a masked client ID, and
@@ -173,7 +175,7 @@ Add more `[profile]` sections to the TOML file (for example `us-2` or `eu-1`) an
 change the `default` key, or select one per run:
 
 ```bash
-FALCON_PROFILE=eu-1 python "${CLAUDE_PLUGIN_ROOT}/common/scripts/auth.py"
+FALCON_PROFILE=eu-1 ../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
 ## Required API scopes

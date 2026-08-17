@@ -12,7 +12,7 @@ tags: [fusion, soar, workflows, execution, monitoring, debugging]
 author: CrowdStrike
 license: MIT
 compatibility: Claude Code >=1.0
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/python.sh:*)
+allowed-tools: Bash(cd *), Bash(../../scripts/python.sh:*)
 metadata:
   category: execution
 ---
@@ -37,6 +37,8 @@ This skill runs Fusion workflows that are already deployed and released, watches
 
 An execution moves through states and ends in a **terminal** state. The terminal states are `Succeeded`, `Failed`, `Canceled`, `NonRecoverable`, and `ActionRequired`. (`ActionRequired` is terminal for polling: it waits on human input and will not progress on its own.) Anything else means the execution is still running.
 
+> **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py` (a sibling skill's script is `../<skill>/scripts/<name>.py`). For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/execution"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/execution`). The wrapper bootstraps its own Python venv.
+
 ## Prerequisites
 
 - **Python 3.13+**
@@ -52,7 +54,7 @@ An execution moves through states and ends in a **terminal** state. The terminal
 - The **definition ID** of the workflow to run (from the deployment skill's import output, or `query_workflows.py --search`)
 - Verify auth before running:
   ```bash
-  ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh common/scripts/auth.py
+  ../../scripts/python.sh ../../common/scripts/auth.py
   ```
 
 ## Core Workflow
@@ -62,7 +64,7 @@ An execution moves through states and ends in a **terminal** state. The terminal
 A workflow must be enabled before it will execute. Confirm it exists and is enabled:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh deployment/scripts/query_workflows.py --search "my workflow"
+../../scripts/python.sh ../deployment/scripts/query_workflows.py --search "my workflow"
 ```
 
 Look for `Status: enabled` in the output. If it shows `disabled`, release it first with the deployment skill (`release_workflow.py --id <id>`).
@@ -71,10 +73,10 @@ Look for `Status: enabled` in the output. If it shows `disabled`, release it fir
 
 ```bash
 # Pass parameters inline as JSON
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/trigger_workflow.py --id <definition_id> --params '{"device_id":"abc123"}'
+../../scripts/python.sh scripts/trigger_workflow.py --id <definition_id> --params '{"device_id":"abc123"}'
 
 # Or let the script prompt you interactively from the workflow's parameter schema
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/trigger_workflow.py --id <definition_id>
+../../scripts/python.sh scripts/trigger_workflow.py --id <definition_id>
 ```
 
 On success the script prints an **execution ID**. Capture it — you need it to monitor and to fetch results.
@@ -84,10 +86,10 @@ On success the script prints an **execution ID**. Capture it — you need it to 
 Poll until the execution reaches a terminal state:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/monitor_execution.py --execution-id <execution_id>
+../../scripts/python.sh scripts/monitor_execution.py --execution-id <execution_id>
 
 # Tune the cadence for long-running workflows
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/monitor_execution.py --execution-id <execution_id> --interval 10 --timeout 600
+../../scripts/python.sh scripts/monitor_execution.py --execution-id <execution_id> --interval 10 --timeout 600
 ```
 
 Status updates go to stderr; the final result goes to stdout, so you can pipe the result while still watching progress.
@@ -97,8 +99,8 @@ Status updates go to stderr; the final result goes to stdout, so you can pipe th
 ### 4. Get the results
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/get_execution_results.py --execution-id <execution_id>
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/get_execution_results.py --execution-id <execution_id> --json
+../../scripts/python.sh scripts/get_execution_results.py --execution-id <execution_id>
+../../scripts/python.sh scripts/get_execution_results.py --execution-id <execution_id> --json
 ```
 
 This is a single fetch — use it after `monitor_execution.py` reports a terminal state, or any time you want the current status and output without polling.
@@ -109,7 +111,7 @@ When an execution ends in `Failed` or `NonRecoverable`:
 
 - Pull the full record with `--json` to see the `output` and any error detail:
   ```bash
-  ${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/get_execution_results.py --execution-id <execution_id> --json
+  ../../scripts/python.sh scripts/get_execution_results.py --execution-id <execution_id> --json
   ```
 - Check the inputs you sent. Missing or empty required parameters are the most common cause.
 - Re-run with corrected parameters. For workflows that support resume, the Fusion console can resume a failed execution; these scripts trigger fresh executions.
@@ -129,9 +131,9 @@ All scripts add `common/scripts` to `sys.path` and import from the shared `auth`
 ### trigger_workflow.py
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/trigger_workflow.py --id <def_id> --params '{"k":"v"}'
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/trigger_workflow.py --id <def_id>                 # Interactive prompts
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/trigger_workflow.py --id <def_id> --params '{}' --wait --timeout 120
+../../scripts/python.sh scripts/trigger_workflow.py --id <def_id> --params '{"k":"v"}'
+../../scripts/python.sh scripts/trigger_workflow.py --id <def_id>                 # Interactive prompts
+../../scripts/python.sh scripts/trigger_workflow.py --id <def_id> --params '{}' --wait --timeout 120
 ```
 
 Parameters come from `--params` (a JSON string) or interactive prompts derived from the workflow's parameter schema, with type coercion for integers, booleans, arrays, and objects. The execute endpoint returns the execution ID as a bare string or an object; the script handles both shapes.
@@ -139,8 +141,8 @@ Parameters come from `--params` (a JSON string) or interactive prompts derived f
 ### monitor_execution.py
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/monitor_execution.py --execution-id <exec_id>
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/monitor_execution.py --execution-id <exec_id> --interval 10 --timeout 600 --json
+../../scripts/python.sh scripts/monitor_execution.py --execution-id <exec_id>
+../../scripts/python.sh scripts/monitor_execution.py --execution-id <exec_id> --interval 10 --timeout 600 --json
 ```
 
 Defaults: `--interval 5`, `--timeout 300`. Prints status updates to stderr and the final result to stdout. Exits `0` only when the execution `Succeeded`; non-zero on any other terminal state or timeout, so CI can react.
@@ -148,8 +150,8 @@ Defaults: `--interval 5`, `--timeout 300`. Prints status updates to stderr and t
 ### get_execution_results.py
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/get_execution_results.py --execution-id <exec_id>
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh execution/scripts/get_execution_results.py --execution-id <exec_id> --json
+../../scripts/python.sh scripts/get_execution_results.py --execution-id <exec_id>
+../../scripts/python.sh scripts/get_execution_results.py --execution-id <exec_id> --json
 ```
 
 Single fetch. Reads `resources[0]` from the API envelope for the execution's `status` and `output`.

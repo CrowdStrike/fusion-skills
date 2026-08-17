@@ -18,7 +18,7 @@ import sys
 import os
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "common", "scripts"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "common", "scripts"))
 import _bootstrap  # pylint: disable=wrong-import-position
 _bootstrap.ensure_deps(__file__)  # re-exec via managed venv if deps are missing
 from auth import get_client  # pylint: disable=wrong-import-position
@@ -34,7 +34,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 # embedded in the JSON, so a stale cache auto-refreshes on the next scan.
 # This prevents a long-lived snapshot from hiding newly shipped action types
 # (e.g. Inline.Python, Event Query).  Use --clear-cache to force a refresh.
-_CACHE_DIR = os.path.dirname(os.path.abspath(__file__))
+_CACHE_DIR = os.path.dirname(os.path.realpath(__file__))
 _CACHE_FILE = os.path.join(_CACHE_DIR, ".action_cache.json")
 _CACHE_TTL = 3600  # 1 hour
 

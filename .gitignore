@@ -16,3 +16,6 @@ __pycache__/
 .coverage
 htmlcov/
 working/
+
+# Local Atlassian/Jira pull artifacts (never commit — may contain internal content)
+pages-jira/
