@@ -48,6 +48,7 @@ jobs:
           ./test-skill-scorecard.sh
           ./test-skill-isolation.sh
           ./test-assistants-classify.sh
+          ./test-bootstrap-symlink.sh
 
   pytest:
     runs-on: ubuntu-latest

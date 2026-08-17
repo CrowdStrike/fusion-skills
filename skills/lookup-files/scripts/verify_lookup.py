@@ -29,13 +29,13 @@ import time
 # Import shared auth from the plugin-level common/scripts directory. Anchoring
 # to this file's own location (not the cwd) makes the import work regardless of
 # where the script is launched from.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "common", "scripts"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "common", "scripts"))
 import _bootstrap  # pylint: disable=wrong-import-position
 _bootstrap.ensure_deps(__file__)  # re-exec via managed venv if deps are missing
 from auth import get_ngsiem_client  # pylint: disable=wrong-import-position
 
 # Import create/delete helpers from sibling scripts.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from create_lookup import create_lookup  # pylint: disable=wrong-import-position
 from delete_lookup import delete_lookup  # pylint: disable=wrong-import-position
 

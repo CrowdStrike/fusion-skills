@@ -26,7 +26,7 @@ import os
 sys.path.insert(
     0,
     os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        os.path.dirname(os.path.realpath(__file__)),
         "..", "..", "..", "common", "scripts",
     ),
 )
@@ -39,7 +39,7 @@ from auth import get_client  # pylint: disable=wrong-import-position
 sys.path.insert(
     0,
     os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        os.path.dirname(os.path.realpath(__file__)),
         "..", "..", "authoring", "scripts",
     ),
 )
@@ -49,7 +49,7 @@ except ImportError:
     validate_file = None  # Validation unavailable; --skip-validate is implied.
 
 # query_workflows lives alongside this script in deployment/scripts.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from query_workflows import fetch_all_definitions  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding

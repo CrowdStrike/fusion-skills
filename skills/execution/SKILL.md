@@ -37,6 +37,8 @@ This skill runs Fusion workflows that are already deployed and released, watches
 
 An execution moves through states and ends in a **terminal** state. The terminal states are `Succeeded`, `Failed`, `Canceled`, `NonRecoverable`, and `ActionRequired`. (`ActionRequired` is terminal for polling: it waits on human input and will not progress on its own.) Anything else means the execution is still running.
 
+> **Outside Claude Code** `${CLAUDE_PLUGIN_ROOT}` is unset — run scripts by path instead, e.g. `python3 <plugin-root>/skills/<skill>/scripts/<name>.py` (the `~/.agents/skills/...` symlink path other assistants load from works too). Scripts self-bootstrap their venv, so no `python.sh` is needed.
+
 ## Prerequisites
 
 - **Python 3.13+**

@@ -69,6 +69,8 @@ This skill moves a finished Fusion workflow definition from a local YAML/JSON fi
 
 In Falcon Fusion, an imported definition is **disabled** until it is **released** (enabled). Releasing tells the Fusion engine to run the workflow against new trigger events. Keep the workflow disabled until you have tested it.
 
+> **Outside Claude Code** `${CLAUDE_PLUGIN_ROOT}` is unset — run scripts by path instead, e.g. `python3 <plugin-root>/skills/<skill>/scripts/<name>.py` (the `~/.agents/skills/...` symlink path other assistants load from works too). Scripts self-bootstrap their venv, so no `python.sh` is needed.
+
 ## Prerequisites
 
 - **Python 3.13+**

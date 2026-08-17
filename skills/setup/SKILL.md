@@ -46,6 +46,8 @@ the secret is entered through the user's own editor — never through the chat.
 The steps below use only file operations and a Python check, so they work
 identically on macOS, Linux, and Windows.
 
+> **Outside Claude Code** `${CLAUDE_PLUGIN_ROOT}` is unset — run the script by path instead, e.g. `python3 <plugin-root>/common/scripts/auth.py` (the `~/.agents/skills/...` symlink path other assistants load from works too). Scripts self-bootstrap their venv, so no `python.sh` is needed.
+
 ## Step 1 — Check for existing credentials
 
 Run the auth self-test. If it already succeeds, credentials are configured and you

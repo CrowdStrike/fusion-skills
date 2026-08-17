@@ -74,32 +74,26 @@ NOT import, release, execute, or monitor workflows — hand those off to the
 
 ---
 
+> **Outside Claude Code** `${CLAUDE_PLUGIN_ROOT}` is unset — run scripts by their path instead (e.g. `python3 <plugin-root>/skills/<skill>/scripts/<name>.py`); each self-bootstraps its venv. See AGENTS.md.
+
 ## Prerequisites
 
 - **Python 3.13+** with the `falconpy` SDK and `pyyaml` installed.
-- **CrowdStrike API credentials** (never hardcoded). The shared auth module
-  `common/scripts/auth.py` resolves them from the first source that supplies
-  both an ID and a secret:
-  1. Environment variables: `FALCON_CLIENT_ID`, `FALCON_CLIENT_SECRET`, and the
-     optional `FALCON_BASE_URL` (for CI and overrides).
-  2. TOML profile file `~/.cache/crowdstrike-falcon-fusion/credentials.toml`
-     (profile chosen by `FALCON_PROFILE` or the file's `default` key).
-
-  > Run `/crowdstrike-falcon-fusion:setup` to configure credentials interactively (writes the TOML profile).
+- **CrowdStrike API credentials** (never hardcoded) — `common/scripts/auth.py` resolves them from `FALCON_CLIENT_ID`/`FALCON_CLIENT_SECRET` (plus optional `FALCON_BASE_URL`) or a `~/.cache/crowdstrike-falcon-fusion/credentials.toml` profile (chosen by `FALCON_PROFILE` or the file's `default` key). Run `/crowdstrike-falcon-fusion:setup` to configure interactively.
 - **Workflow** API scope on the API client, with read access to
   the activities catalog and import (validate) permission.
 - Fusion access in the target CID.
 
 Test credentials before authoring:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/python.sh ../../common/scripts/auth.py     # self-test from authoring/scripts/
+${CLAUDE_PLUGIN_ROOT}/scripts/python.sh ../../common/scripts/auth.py
 ```
 
 ---
 
 ## Core Workflow
 
-Follow these steps in order. Do not skip discovery (steps 1–2).
+Follow these steps in order — do not skip discovery (steps 1–2).
 
 ### 1. Resolve action IDs (MANDATORY)
 

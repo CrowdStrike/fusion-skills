@@ -48,7 +48,7 @@ sys.path anchored to the importing file's own location, then import normally:
     sys.path.insert(
         0,
         os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
+            os.path.dirname(os.path.realpath(__file__)),
             "..", "..", "..", "common", "scripts",
         ),
     )
