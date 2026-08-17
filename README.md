@@ -362,6 +362,17 @@ Runs the canonical prompt end-to-end: the skill authors a workflow, validates it
 
 Two-phase verification that workflow YAML files actually work. Phase 1 (script-based) runs each workflow through validation, import, trigger, and monitoring using the fusion-skills Python scripts. Phase 2 (browser) drives the Falcon console to configure the VirusTotal credential, publish, and execute — the part the API cannot do — and runs by default, prompting for a console login. A workflow only passes if every phase that ran succeeds.
 
+### Multi-assistant smoke test
+
+```bash
+./test-assistants.sh                  # smoke-test every installed assistant in parallel
+./test-assistants.sh --include codex  # only these (comma-separated)
+./test-assistants.sh --e2e            # author, validate, and import for real
+./test-assistants.sh --judge          # confirm the last --e2e run against the tenant
+```
+
+Gives each installed assistant (Claude Code, Codex, Copilot CLI, Cursor, Antigravity CLI) the canonical prompt and reads back a fixed plain-text report — which skills loaded, which scripts ran, and any blocker — so a clean timeout is never mistaken for a pass. Before testing it isolates skill sources so results are unambiguous: it disables installed Fusion plugins where it can and moves every `~/.agents/skills/` symlink aside (restoring them on exit, including on Ctrl-C, via `scripts/skill-isolation.sh`). `--e2e` requires a real workflow definition id, and `--judge` confirms that id against the tenant with `query_workflows.py --list` and reads the authored YAML for each pipeline stage — it never trusts the transcript.
+
 ### A/B test (baseline vs local branch)
 
 ```bash
