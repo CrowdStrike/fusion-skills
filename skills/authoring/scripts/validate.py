@@ -86,6 +86,19 @@ RELEASE_BAD_REF_PATTERNS = [
      "http-actions.md."),
 ]
 
+# Output namespaces that appear only in the LONG-form data reference
+# ${data['<node>.<namespace>.<field>']}. When the producing action is PINNED
+# (version_constraint set), the platform addresses the collapsed
+# ${data['<node>.<field>']} output and release rejects the namespaced path as an
+# unknown variable (confirmed live, PR #34). An UNPINNED action legitimately
+# keeps the long form, so the guard fires only when the referenced node is
+# pinned. Maps the namespace prefix to the collapsed replacement hint.
+PINNED_COLLAPSE_NAMESPACES = {
+    "device.query": "devices",
+    "device.get_details": "<field>",
+    "logscale.query_event": "results",
+}
+
 # Trigger fields that resolve on the base `event: Investigatable` (multi-product
 # Detection) trigger but are REJECTED at release on the dedicated
 # `event: Investigatable/NGSIEM` trigger with `unknown variable "..."` (confirmed
@@ -930,6 +943,72 @@ def _validate_http_output_schema(data, file_path, issues):
             )
 
 
+def _collect_pinned_action_labels(data):
+    """Return the set of action labels that declare a ``version_constraint``.
+
+    Actions live under ``actions:`` but can also nest inside condition branches
+    and loops, so walk the whole structure. A real action node is a mapping that
+    carries an ``id``; its label is the key that maps to it.
+    """
+    pinned = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for label, value in node.items():
+                if (
+                    isinstance(value, dict)
+                    and "id" in value
+                    and "version_constraint" in value
+                ):
+                    pinned.add(label)
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(data)
+    return pinned
+
+
+def _validate_pinned_data_paths(data, file_path, issues):
+    """Flag long-form namespaced data refs to a PINNED action.
+
+    ``${data['<node>.<namespace>.<field>']}`` releases fine when <node> is
+    unpinned, but with a ``version_constraint`` the platform addresses the
+    collapsed ``${data['<node>.<field>']}`` output and release rejects the
+    namespaced path as an unknown variable (confirmed live, PR #34). Import and
+    api_validate both pass, so this only surfaces at release.
+    """
+    pinned = _collect_pinned_action_labels(data)
+    if not pinned:
+        return
+    try:
+        with open(file_path, encoding="utf-8") as handle:
+            content = handle.read()
+    except OSError:
+        return
+    seen = set()
+    for match in re.finditer(r"data\[\??'([^']+)'\]", content):
+        path = match.group(1)
+        node, _, rest = path.partition(".")
+        if node not in pinned or not rest or path in seen:
+            continue
+        lowered = rest.lower()
+        for namespace, collapsed in PINNED_COLLAPSE_NAMESPACES.items():
+            if lowered.startswith(namespace + "."):
+                seen.add(path)
+                issues.append(
+                    f"ERROR: '{node}' has version_constraint set but is "
+                    f"referenced with the long namespaced path "
+                    f"${{data['{path}']}}. A pinned action addresses its "
+                    f"collapsed output, so release rejects this as an unknown "
+                    f"variable. Drop the '{namespace}' namespace — "
+                    f"${{data['{node}.{collapsed}']}}. See "
+                    f"references/best-practices.md."
+                )
+                break
+
+
 def _validate_top_level_shape(data, issues):
     """Flag off-schema top-level keys and a missing ``actions:`` section.
 
@@ -1091,6 +1170,7 @@ def structural_check(file_path):
     _validate_data_refs(file_path, issues)
     _validate_http_output_schema(data, file_path, issues)
     _validate_ngsiem_trigger_fields(trigger, file_path, issues)
+    _validate_pinned_data_paths(data, file_path, issues)
 
     return issues
 

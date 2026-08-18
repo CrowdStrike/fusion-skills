@@ -2102,6 +2102,125 @@ actions:
         issues = validate.structural_check(str(f))
         assert any("cs.json.decode" in i and "output_stdout" in i for i in issues)
 
+    def test_pinned_long_namespace_path_flagged(self, tmp_path):
+        # A pinned action referenced with its output namespace left in the path
+        # (device.query) imports fine but release rejects it as an unknown
+        # variable. Confirmed live (PR #34).
+        f = tmp_path / "pinnedlong.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - DeviceQuery
+actions:
+  DeviceQuery:
+    id: 68ffa99af40c84b36462daa076f535d0
+    version_constraint: ~1
+    name: Device Query
+    next:
+      - Log
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        v: ${data['DeviceQuery.Device.query.devices']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any(
+            "DeviceQuery" in i and "version_constraint" in i and "ERROR" in i
+            for i in issues
+        )
+
+    def test_pinned_event_query_namespace_path_flagged(self, tmp_path):
+        f = tmp_path / "pinnedeq.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - Query
+actions:
+  Query:
+    id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+    class: Inline.QueryEvent
+    version_constraint: ~1
+    name: Workflow-specific event query
+    next:
+      - Log
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        v: ${data['Query.logscale.query_event.results']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any(
+            "Query" in i and "results" in i and "ERROR" in i for i in issues
+        )
+
+    def test_pinned_collapsed_path_passes(self, tmp_path):
+        # Correct collapsed form under a pin — no namespace segment.
+        f = tmp_path / "pinnedok.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - DeviceQuery
+actions:
+  DeviceQuery:
+    id: 68ffa99af40c84b36462daa076f535d0
+    version_constraint: ~1
+    name: Device Query
+    next:
+      - Log
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        v: ${data['DeviceQuery.devices']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("long namespaced path" in i for i in issues)
+
+    def test_unpinned_long_namespace_path_passes(self, tmp_path):
+        # Without version_constraint the long namespaced path is valid and
+        # releases fine (PR #34, Probe C), so the guard must not fire.
+        f = tmp_path / "unpinnedlong.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - DeviceQuery
+actions:
+  DeviceQuery:
+    id: 68ffa99af40c84b36462daa076f535d0
+    name: Device Query
+    next:
+      - Log
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        v: ${data['DeviceQuery.Device.query.devices']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("long namespaced path" in i for i in issues)
+
     def test_plain_output_stdout_ref_passes(self, tmp_path):
         f = tmp_path / "plainstdout.yaml"
         content = """\
