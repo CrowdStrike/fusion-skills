@@ -2447,6 +2447,56 @@ actions:
         issues = validate.structural_check(str(f))
         assert not any("Ngsiem.alert.id" in i and "zero rows" in i for i in issues)
 
+    def test_ngsiem_mitre_trigger_field_flagged(self, tmp_path):
+        """MitreAttack.Tactic/Technique are advertised by trigger discovery but
+        release rejects them on the NG-SIEM trigger (confirmed live)."""
+        f = tmp_path / "mitre_ngsiem.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: Signal
+  event: Investigatable/NGSIEM
+  next:
+    - Log
+actions:
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        tactic: ${data['Trigger.Detection.MitreAttack.Tactic']}
+        technique: ${data['Trigger.Detection.MitreAttack.Technique']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any("MitreAttack.Tactic" in i and "ERROR" in i for i in issues)
+        assert any("MitreAttack.Technique" in i and "ERROR" in i for i in issues)
+
+    def test_mitre_trigger_field_non_ngsiem_passes(self, tmp_path):
+        """The guard is scoped to the NG-SIEM trigger; the base Investigatable
+        (EPP) trigger is left alone."""
+        f = tmp_path / "mitre_epp.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: Signal
+  event: Investigatable/EPP
+  next:
+    - Log
+actions:
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        tactic: ${data['Trigger.Detection.MitreAttack.Tactic']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("MitreAttack" in i for i in issues)
+
     def test_event_query_detection_id_literal_not_flagged(self, tmp_path):
         """A non-?arg reference to detection.id (no hydration join) is not flagged."""
         f = tmp_path / "eq_literal.yaml"

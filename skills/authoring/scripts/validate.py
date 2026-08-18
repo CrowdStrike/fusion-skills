@@ -109,6 +109,16 @@ NGSIEM_REJECTED_TRIGGER_FIELDS = (
     "Trigger.Detection.Description",
 )
 
+# MITRE ATT&CK fields that trigger discovery (search_triggers, surfaced by
+# trigger_search.py --fields) advertises on the NG-SIEM Signal trigger, yet the
+# release validator rejects them as `unknown variable "..."` (confirmed live).
+# MITRE tactics/techniques are not on the NG-SIEM trigger payload at release
+# time; source them from the hydrated detection instead.
+NGSIEM_REJECTED_MITRE_FIELDS = (
+    "Trigger.Detection.MitreAttack.Tactic",
+    "Trigger.Detection.MitreAttack.Technique",
+)
+
 # The EPP-detection payload namespace. NG-SIEM detections (event:
 # Investigatable/NGSIEM) do NOT expose Trigger.Category.Investigatable.* — that
 # path resolves only on the base EPP trigger (event: Investigatable). Referencing
@@ -850,6 +860,16 @@ def _validate_ngsiem_trigger_fields(trigger, file_path, issues):
                 f"variable. It is available on the base 'event: Investigatable' "
                 f"trigger only. On the NG-SIEM trigger the product is fixed "
                 f"('NGSIEM'); use a static string instead. See "
+                f"references/trigger-types.md."
+            )
+    for field in NGSIEM_REJECTED_MITRE_FIELDS:
+        if field in content:
+            issues.append(
+                f"ERROR: '{field}' is advertised by trigger discovery but "
+                f"release rejects it as an unknown variable on the "
+                f"'{NGSIEM_EVENT}' trigger. MITRE tactics/techniques are not on "
+                f"the NG-SIEM trigger payload at release time — source them from "
+                f"the hydrated detection (Event Query results) or omit them. See "
                 f"references/trigger-types.md."
             )
     if NGSIEM_REJECTED_NAMESPACE in content:

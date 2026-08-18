@@ -236,6 +236,17 @@ def search_trigger_fields(category):
     ]
 
 
+# Fields the trigger API advertises but the release validator rejects as an
+# unknown variable (confirmed live). Keyed by category. validate.py carries the
+# matching guard (NGSIEM_REJECTED_MITRE_FIELDS) that flags a workflow using them.
+RELEASE_REJECTED_FIELDS = {
+    "Investigatable/NGSIEM": frozenset({
+        "Trigger.Detection.MitreAttack.Tactic",
+        "Trigger.Detection.MitreAttack.Technique",
+    }),
+}
+
+
 def _print_fields(category, as_json):
     """Print the payload field paths for a trigger category (from the API)."""
     fields = search_trigger_fields(category)
@@ -256,6 +267,7 @@ def _print_fields(category, as_json):
         "(e.g. for a URL or variable). '?' = inferred from a plural name;\n"
         "  the trigger API omits an explicit array flag.\n"
     )
+    rejected = RELEASE_REJECTED_FIELDS.get(category, frozenset())
     for field in fields:
         print(f"  ${{data['{field['path']}']}}")
         array_note = {
@@ -266,6 +278,11 @@ def _print_fields(category, as_json):
         line = (meta.strip() + array_note).strip()
         if line:
             print(f"      {line}")
+        if field["path"] in rejected:
+            print(
+                "      NOT release-valid: advertised here but release rejects it "
+                "as an unknown variable. Hydrate this from the detection instead."
+            )
     print()
 
 
