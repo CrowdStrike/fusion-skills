@@ -296,6 +296,40 @@ class TestTriggerFields:
             {"path": "Trigger.X", "type": "string", "display": ""}
         ]
 
+    def test_fields_flags_release_rejected_mitre_on_ngsiem(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            trigger_search,
+            "search_trigger_fields",
+            lambda cat: [
+                {"path": "Trigger.Detection.MitreAttack.Tactic",
+                 "type": "string", "display": "MitreAttack tactic"},
+            ],
+        )
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_search.py", "--fields", "Investigatable/NGSIEM"],
+        )
+        trigger_search.main()
+        out = capsys.readouterr().out
+        assert "NOT release-valid" in out
+
+    def test_fields_no_reject_note_off_ngsiem(self, monkeypatch, capsys):
+        # Same field path under a different category is not flagged.
+        monkeypatch.setattr(
+            trigger_search,
+            "search_trigger_fields",
+            lambda cat: [
+                {"path": "Trigger.Detection.MitreAttack.Tactic",
+                 "type": "string", "display": "MitreAttack tactic"},
+            ],
+        )
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_search.py", "--fields", "Investigatable/EPP"],
+        )
+        trigger_search.main()
+        assert "NOT release-valid" not in capsys.readouterr().out
+
     def test_fields_empty_shows_notice(self, monkeypatch, capsys):
         monkeypatch.setattr(trigger_search, "search_trigger_fields", lambda cat: [])
         monkeypatch.setattr(
