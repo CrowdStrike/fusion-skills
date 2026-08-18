@@ -598,6 +598,15 @@ classify() {
     grep -qi 'BLOCK' <<< "$status" && status=WORKING
   fi
 
+  # A model sometimes writes the NONE sentinel straight into an explanatory
+  # sentence with no separator ("NONEThe background job was stopped") — it meant
+  # NONE and merely broke the one-line contract. The glued capital letter is the
+  # signature; a genuine "None of the actions could be discovered" keeps its space
+  # and is left intact. Only when the model did not self-report BLOCKED.
+  if [[ "$raw_blocker" =~ ^[Nn][Oo][Nn][Ee][A-Za-z] ]] && ! grep -qi 'BLOCK' <<< "$status"; then
+    raw_blocker=NONE
+  fi
+
   # A real blocker is the result, whatever else the assistant managed to do.
   if grep -qi 'BLOCK' <<< "$status" || ! is_none "$raw_blocker"; then
     cat=$(blocker_category "$raw_blocker")

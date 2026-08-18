@@ -125,6 +125,24 @@ SKILLS: skills/authoring/SKILL.md
 COMMANDS: action_search.py => OK
 BLOCKER: ran out of time on the 60-second harness limit"
 
+# A model that writes the NONE sentinel glued straight into an explanatory
+# sentence ("NONEThe background job was stopped") meant NONE and merely broke the
+# one-line contract. The glued capital is the signature; a real "None of the
+# actions could be discovered" (with its space) stays a blocker.
+expect_verdict "NONE run straight into prose is not a blocker" 0 "PASS|ok" \
+"FUSION-REPORT
+STATUS: WORKING
+SKILLS: skills/authoring/SKILL.md
+COMMANDS: action_search.py => OK, action_search.py --search VirusTotal => FAIL: hung
+BLOCKER: NONEThe background action_search.py --search VirusTotal run was stopped after it hung"
+
+expect_verdict "a real None-prefixed blocker with a space still fails" 0 "FAIL|other" \
+"FUSION-REPORT
+STATUS: WORKING
+SKILLS: skills/authoring/SKILL.md
+COMMANDS: action_search.py => OK
+BLOCKER: None of the actions could be discovered from the tenant"
+
 expect_verdict "no report and a timeout rc is stalled" 124 "FAIL|stalled" \
 "I started reading the authoring skill and then"
 
