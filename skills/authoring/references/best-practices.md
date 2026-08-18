@@ -100,6 +100,28 @@ Import validation fails with an error like:
 version constraint required for activity class 'CreateVariable'
 ```
 
+That failure is specific to class-based actions. A non-class action such as Device
+Query imports and releases fine without a `version_constraint` — but read the next
+section before you decide to leave it off.
+
+### It also decides the shape of the action's output paths
+Pinning a version changes how you reference that action's output, and the two
+forms are mutually exclusive:
+
+| `version_constraint` | Reference form |
+|---|---|
+| omitted | `${data['DeviceQuery.Device.query.devices']}` — carries the action's namespace |
+| `~1` | `${data['DeviceQuery.devices']}` — node label plus field |
+
+The middle segment is the action's `Namespace` from `action_search.py --details`.
+Pin `~1` and keep the long path, and release fails with
+`property "..." contains unknown variable "DeviceQuery.Device.query.devices"`.
+
+**So adding a `version_constraint` to an existing workflow is a two-part edit:**
+add the pin *and* shorten every `${data['...']}` reference to that action. Doing
+only the first produces YAML that imports and then fails at release. Confirmed
+against a live tenant for Device Query, Get device details, and Event Query.
+
 ---
 
 ## YAML authoring gotchas

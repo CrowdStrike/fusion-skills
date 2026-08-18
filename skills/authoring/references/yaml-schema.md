@@ -437,8 +437,8 @@ output_fields:
 
 ## version_constraint
 
-Required for class-based actions (CreateVariable, UpdateVariable) and every other
-action as well. The value is the tilde range for the major component of the
+Required for class-based actions (CreateVariable, UpdateVariable), and wanted on
+every other action too. The value is the tilde range for the major component of the
 action's `semantic_version` (`~0` when it declares none), so read it from
 `action_search.py --details` rather than assuming `~1`:
 
@@ -446,4 +446,33 @@ action's `semantic_version` (`~0` when it declares none), so read it from
 version_constraint: ~1   # semantic_version 1.x.y; use ~0 for 0.x.y, ~2 for 2.x.y
 ```
 
-Omitting this on actions that require it causes import validation failures.
+Omitting this on a class-based action causes import validation failures. On a
+non-class action, import and release both succeed without it, but the action's
+output paths keep their older, longer form — see below.
+
+### It also decides the shape of the action's output paths
+
+Pinning a version is not only a compatibility guard. It changes how you reference
+that action's output, and the two forms are mutually exclusive:
+
+| `version_constraint` | Reference form |
+|---|---|
+| omitted | `${data['DeviceQuery.Device.query.devices']}` — carries the action's namespace |
+| `~1` | `${data['DeviceQuery.devices']}` — node label plus field |
+
+That middle segment is the action's `Namespace` as reported by
+`action_search.py --details` (`device.query` for Device Query,
+`device.get_details` for Get device details, `logscale.query_event` for Event
+Query). Pin `~1`, leave the long path in place, and **release fails**:
+
+```
+property "Script" contains unknown variable "DeviceQuery.Device.query.devices"
+```
+
+So when you add a `version_constraint` to an existing workflow, shorten every
+`${data['...']}` reference to that action in the same edit. Adding the pin alone
+produces YAML that imports and then fails at release.
+
+Confirmed against a live tenant for Device Query, Get device details, and Event
+Query: with `~1` the short form resolves and the long form is rejected at
+release; without it, the long form resolves.

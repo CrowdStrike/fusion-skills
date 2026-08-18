@@ -77,20 +77,48 @@ per item. Include the input value (e.g., `device_id`) so callers can correlate r
 ### When to use it
 - **Always** on `CreateVariable` and `UpdateVariable` (class-based actions)
 - **Always** when the action response from `action_search.py --details` includes `class`
-- **Sometimes** on catalog actions that have been versioned (check API response)
+- **Every** other action needs one too — it just isn't gated on having a `class`
 
 ### The correct value
+The value is the tilde range for the major component of the action's declared
+`semantic_version`, and `~0` when the action declares none:
+
 ```yaml
-version_constraint: ~1
+version_constraint: ~1   # action's semantic_version is 1.x.y
 ```
-This means "compatible with major version 1" (semver tilde range). All current
-CrowdStrike actions use major version 1.
+
+So an action at `1.0.4` takes `~1`, one at `0.0.100` (Charlotte AI, most Store
+plugins) takes `~0`, and one at `2.3.0` takes `~2`. Do not assume `~1`
+everywhere — plenty of actions sit at major version 0. Read the
+`semantic_version` from `action_search.py --details` and take its major component.
 
 ### What happens without it
 Import validation fails with an error like:
 ```
 version constraint required for activity class 'CreateVariable'
 ```
+
+That failure is specific to class-based actions. A non-class action such as Device
+Query imports and releases fine without a `version_constraint` — but read the next
+section before you decide to leave it off.
+
+### It also decides the shape of the action's output paths
+Pinning a version changes how you reference that action's output, and the two
+forms are mutually exclusive:
+
+| `version_constraint` | Reference form |
+|---|---|
+| omitted | `${data['DeviceQuery.Device.query.devices']}` — carries the action's namespace |
+| `~1` | `${data['DeviceQuery.devices']}` — node label plus field |
+
+The middle segment is the action's `Namespace` from `action_search.py --details`.
+Pin `~1` and keep the long path, and release fails with
+`property "..." contains unknown variable "DeviceQuery.Device.query.devices"`.
+
+**So adding a `version_constraint` to an existing workflow is a two-part edit:**
+add the pin *and* shorten every `${data['...']}` reference to that action. Doing
+only the first produces YAML that imports and then fails at release. Confirmed
+against a live tenant for Device Query, Get device details, and Event Query.
 
 ---
 
