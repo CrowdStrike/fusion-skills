@@ -111,6 +111,11 @@ BLOCKER: NONE"
 expect_verdict "account quota exhaustion is an environment skip" 1 "SKIP|account" \
 "Error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 75h."
 
+# A transient "servers are busy, try again" backend error is retryable and not a
+# skills fault — an environment SKIP, not a failure.
+expect_verdict "transient backend busy is an environment skip" 1 "SKIP|transient" \
+"Error: Our servers are experiencing high traffic right now, please try again in a minute."
+
 expect_verdict "self-reported blocker wins even with a script OK" 0 "FAIL|auth" \
 "FUSION-REPORT
 STATUS: WORKING
@@ -124,6 +129,24 @@ STATUS: WORKING
 SKILLS: skills/authoring/SKILL.md
 COMMANDS: action_search.py => OK
 BLOCKER: ran out of time on the 60-second harness limit"
+
+# A model that writes the NONE sentinel glued straight into an explanatory
+# sentence ("NONEThe background job was stopped") meant NONE and merely broke the
+# one-line contract. The glued capital is the signature; a real "None of the
+# actions could be discovered" (with its space) stays a blocker.
+expect_verdict "NONE run straight into prose is not a blocker" 0 "PASS|ok" \
+"FUSION-REPORT
+STATUS: WORKING
+SKILLS: skills/authoring/SKILL.md
+COMMANDS: action_search.py => OK, action_search.py --search VirusTotal => FAIL: hung
+BLOCKER: NONEThe background action_search.py --search VirusTotal run was stopped after it hung"
+
+expect_verdict "a real None-prefixed blocker with a space still fails" 0 "FAIL|other" \
+"FUSION-REPORT
+STATUS: WORKING
+SKILLS: skills/authoring/SKILL.md
+COMMANDS: action_search.py => OK
+BLOCKER: None of the actions could be discovered from the tenant"
 
 expect_verdict "no report and a timeout rc is stalled" 124 "FAIL|stalled" \
 "I started reading the authoring skill and then"
@@ -173,6 +196,19 @@ SKILLS: skills/deployment/SKILL.md
 COMMANDS: import_workflows.py => OK
 BLOCKER: NONE"
 
+# Cursor's stream-json emits a final `result` event whose report string closes with
+# `","session_id":...` (quote-comma) rather than `"}`/`"]`, so the body sed's tail
+# stripper misses it and the trailing JSON is glued onto the last report field. The
+# per-field strip in report_field must cut it, or a clean deploy reads as a blocker.
+expect_verdict "e2e report with a glued json result-event tail still deploys" 0 "PASS|deployed" \
+'FUSION-REPORT
+STATUS: DONE
+WORKFLOW: NG-SIEM Parallel Threat Intel Enrichment-agent
+DEFINITION: ee7a24ee80d7487abbd6185275123b29
+SKILLS: skills/deployment/SKILL.md
+COMMANDS: import_workflows.py => OK
+BLOCKER: NONE","session_id":"416af865-a95b-4451-9263-85e03611ef70","usage":{"outputTokens":10540}}'
+
 E2E=0
 
 echo "== report_field / blocker_category / is_none =="
@@ -188,6 +224,7 @@ blocker_category "No module named 'yaml'" | grep -qx deps; check "blocker_catego
 blocker_category "403 Forbidden from the API" | grep -qx auth; check "blocker_category: auth" $?
 blocker_category "CLAUDE_PLUGIN_ROOT was empty" | grep -qx root; check "blocker_category: root" $?
 blocker_category "workflow name already exists" | grep -qx dupname; check "blocker_category: dupname" $?
+blocker_category "import_workflows.py Internal Server Error: Please provide trace-id='abc' to support" | grep -qx api500; check "blocker_category: api500" $?
 
 is_none "NONE"; check "is_none treats NONE as nothing" $?
 is_none ""; check "is_none treats empty as nothing" $?

@@ -525,6 +525,11 @@ blocker_category() {
   # that ignored the slug suffix authored the same workflow name and churned the
   # tenant. Categorised separately so it cannot be read as an assistant problem.
   grep -qiE 'name already exists|already in use|duplicate (workflow|definition)'      <<< "$t" && { echo dupname; return; }
+  # A server-side 5xx from the import/release API (Internal Server Error, trace-id
+  # for support). The workflow validated locally; the tenant API failed the import
+  # itself. Categorised separately from a skills fault so a run of API 500s on
+  # complex workflows (a known platform behaviour) is legible and trackable.
+  grep -qiE 'internal server error|HTTP 50[0-9]\b|\b50[0-9] (internal server|bad gateway|service unavailable)|import failed.*(internal server|50[0-9])' <<< "$t" && { echo api500; return; }
   echo other
 }
 
@@ -541,19 +546,29 @@ blocker_category() {
 # there doing nothing", and it read a clean timeout as success.
 classify() {
   local log="$1" rc="$2" body status skills raw_cmds raw_blocker cmds detail cat
-  # Claude streams stream-json, so its report arrives inside an escaped JSON string.
-  # Expanding \n puts the labels and the blockquoted skill text back at line start,
-  # where the patterns below expect them. The second sed drops the JSON tail that
-  # follows the closing quote, which would otherwise be read as part of BLOCKER. No-ops
-  # on plain-text logs.
-  body=$(sed -e 's/\\n/\
-/g' -e 's/"[]}].*$//' "$log" 2>/dev/null | grep -v '^[[:space:]]*>')
+  # Claude and Cursor stream stream-json, so the report arrives inside an escaped
+  # JSON string. The first sed expands \n to restore line structure. The second, run
+  # as a separate process so it sees the already-split lines individually, drops the
+  # JSON structure that trails the closing quote: `"}]}` from a content array or `","`
+  # from a result-level string (Cursor's final `result` event closes the report with
+  # `","session_id":...`). A single sed with two -e expressions would apply the trim to
+  # the original long line before the split, matching the pervasive `","` in JSON prose
+  # and killing the whole report. No-ops on plain-text logs.
+  body=$(sed 's/\\n/\
+/g' "$log" 2>/dev/null | sed 's/"[]}),].*$//' | grep -v '^[[:space:]]*>')
 
   # An account-level block — quota or subscription exhausted — is not a skills or
   # harness fault and cannot be fixed by re-running, so treat it as an environment SKIP
   # (like a missing CLI), not a failure. Anchored on assistant billing phrasing so it
   # cannot match a skill doc's own "rate limit" guidance.
   grep -qiE "quota reached|quota exceeded|upgrade your subscription|subscription (required|expired|to increase)|insufficient (credits|quota)|out of (credits|quota)" <<< "$body" && { echo "SKIP|account|account quota/subscription limit reached||"; return; }
+
+  # A transient backend error — the assistant's own model service is momentarily
+  # busy ("Our servers are experiencing high traffic right now, please try again in
+  # a minute"). Not a skills or harness fault and it clears on a retry, so treat it
+  # as an environment SKIP like a quota block, not a failure. Anchored on
+  # backend-busy phrasing so it cannot match a skill doc's own throttling guidance.
+  grep -qiE "experiencing high traffic|our servers are (experiencing|busy|overloaded)|temporarily (unavailable|overloaded)|(server|service) is (busy|overloaded)|please try again in a (minute|moment|few)|overloaded_error" <<< "$body" && { echo "SKIP|transient|assistant backend busy — retryable||"; return; }
 
   # A Python traceback for a missing dependency is decisive: the venv was never built
   # (the SessionStart hook is Claude-only) or the script was run outside python.sh.
@@ -596,6 +611,15 @@ classify() {
   if grep -qiE 'time (budget|limit)|timed? (out|harness)|harness limit|ran out of time|60[- ]second' <<< "$raw_blocker"; then
     raw_blocker=NONE
     grep -qi 'BLOCK' <<< "$status" && status=WORKING
+  fi
+
+  # A model sometimes writes the NONE sentinel straight into an explanatory
+  # sentence with no separator ("NONEThe background job was stopped") — it meant
+  # NONE and merely broke the one-line contract. The glued capital letter is the
+  # signature; a genuine "None of the actions could be discovered" keeps its space
+  # and is left intact. Only when the model did not self-report BLOCKED.
+  if [[ "$raw_blocker" =~ ^[Nn][Oo][Nn][Ee][A-Za-z] ]] && ! grep -qi 'BLOCK' <<< "$status"; then
+    raw_blocker=NONE
   fi
 
   # A real blocker is the result, whatever else the assistant managed to do.
@@ -766,6 +790,11 @@ report_one() {   # name bin source rc elapsed
     local ebody; ebody=$(grep -v '^[[:space:]]*>' "$log" 2>/dev/null)
     rwf=$(clean "$(report_field WORKFLOW   <<< "$ebody")" 60)
     rdef=$(clean "$(report_field DEFINITION <<< "$ebody")" 60)
+    # Persist the claims so a standalone `--judge` — a separate process, where the
+    # in-memory RESULTS is gone — can still match by the authoritative definition id
+    # instead of falling back to the workflow name.
+    mkdir -p "$LOG_DIR/e2e/$bin"
+    printf '%s\t%s\n' "$rwf" "$rdef" > "$LOG_DIR/e2e/$bin/claim.tsv"
   fi
   RESULTS+=("$name|$status|$category|$detail|$elapsed|$source|$rskills|$rwf|$rdef")
   # An environment SKIP (account/quota) is "could not test", like a missing CLI — it is
@@ -893,6 +922,9 @@ judge_one() {   # name bin claimed_workflow claimed_definition
     JUDGED+=("$name|NOYAML|||"); return
   fi
   app_name=$(sed -n 's/^name:[[:space:]]*//p' "$wf" | head -1)
+  # Strip surrounding quotes so a quoted `name: '...'` still matches the tenant's
+  # plain name (the tenant stores the unquoted value).
+  app_name="${app_name#[\"\']}"; app_name="${app_name%[\"\']}"
   [ -n "$FOUND_OUTSIDE" ] && notes="authored outside its working directory: ${wf/#$HOME/\~}"
 
   # Pipeline-stage markers, read from the authored YAML.
@@ -947,6 +979,12 @@ run_judge() {
       [ "$rn" = "$name" ] && break
       rwf=""; rdef=""
     done
+    # Standalone --judge runs in a separate process from --e2e, so RESULTS is empty
+    # and the loop above found nothing. Reload the claims --e2e persisted to disk so
+    # the match can key on the authoritative definition id, not just the name.
+    if [ -z "$rdef" ] && [ -r "$LOG_DIR/e2e/$bin/claim.tsv" ]; then
+      IFS=$'\t' read -r rwf rdef < "$LOG_DIR/e2e/$bin/claim.tsv"
+    fi
     judge_one "$name" "$bin" "$rwf" "$rdef"
   done
 }
