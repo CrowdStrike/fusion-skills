@@ -787,6 +787,11 @@ report_one() {   # name bin source rc elapsed
     local ebody; ebody=$(grep -v '^[[:space:]]*>' "$log" 2>/dev/null)
     rwf=$(clean "$(report_field WORKFLOW   <<< "$ebody")" 60)
     rdef=$(clean "$(report_field DEFINITION <<< "$ebody")" 60)
+    # Persist the claims so a standalone `--judge` — a separate process, where the
+    # in-memory RESULTS is gone — can still match by the authoritative definition id
+    # instead of falling back to the workflow name.
+    mkdir -p "$LOG_DIR/e2e/$bin"
+    printf '%s\t%s\n' "$rwf" "$rdef" > "$LOG_DIR/e2e/$bin/claim.tsv"
   fi
   RESULTS+=("$name|$status|$category|$detail|$elapsed|$source|$rskills|$rwf|$rdef")
   # An environment SKIP (account/quota) is "could not test", like a missing CLI — it is
@@ -914,6 +919,9 @@ judge_one() {   # name bin claimed_workflow claimed_definition
     JUDGED+=("$name|NOYAML|||"); return
   fi
   app_name=$(sed -n 's/^name:[[:space:]]*//p' "$wf" | head -1)
+  # Strip surrounding quotes so a quoted `name: '...'` still matches the tenant's
+  # plain name (the tenant stores the unquoted value).
+  app_name="${app_name#[\"\']}"; app_name="${app_name%[\"\']}"
   [ -n "$FOUND_OUTSIDE" ] && notes="authored outside its working directory: ${wf/#$HOME/\~}"
 
   # Pipeline-stage markers, read from the authored YAML.
@@ -968,6 +976,12 @@ run_judge() {
       [ "$rn" = "$name" ] && break
       rwf=""; rdef=""
     done
+    # Standalone --judge runs in a separate process from --e2e, so RESULTS is empty
+    # and the loop above found nothing. Reload the claims --e2e persisted to disk so
+    # the match can key on the authoritative definition id, not just the name.
+    if [ -z "$rdef" ] && [ -r "$LOG_DIR/e2e/$bin/claim.tsv" ]; then
+      IFS=$'\t' read -r rwf rdef < "$LOG_DIR/e2e/$bin/claim.tsv"
+    fi
     judge_one "$name" "$bin" "$rwf" "$rdef"
   done
 }
