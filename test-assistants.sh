@@ -555,6 +555,13 @@ classify() {
   # cannot match a skill doc's own "rate limit" guidance.
   grep -qiE "quota reached|quota exceeded|upgrade your subscription|subscription (required|expired|to increase)|insufficient (credits|quota)|out of (credits|quota)" <<< "$body" && { echo "SKIP|account|account quota/subscription limit reached||"; return; }
 
+  # A transient backend error — the assistant's own model service is momentarily
+  # busy ("Our servers are experiencing high traffic right now, please try again in
+  # a minute"). Not a skills or harness fault and it clears on a retry, so treat it
+  # as an environment SKIP like a quota block, not a failure. Anchored on
+  # backend-busy phrasing so it cannot match a skill doc's own throttling guidance.
+  grep -qiE "experiencing high traffic|our servers are (experiencing|busy|overloaded)|temporarily (unavailable|overloaded)|(server|service) is (busy|overloaded)|please try again in a (minute|moment|few)|overloaded_error" <<< "$body" && { echo "SKIP|transient|assistant backend busy — retryable||"; return; }
+
   # A Python traceback for a missing dependency is decisive: the venv was never built
   # (the SessionStart hook is Claude-only) or the script was run outside python.sh.
   grep -qiE "ModuleNotFoundError|No module named '(falconpy|yaml|tomli)'" <<< "$body" && { echo "FAIL|deps|missing Python dependency (venv not built?)||"; return; }

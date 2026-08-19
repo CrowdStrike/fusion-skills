@@ -111,6 +111,11 @@ BLOCKER: NONE"
 expect_verdict "account quota exhaustion is an environment skip" 1 "SKIP|account" \
 "Error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 75h."
 
+# A transient "servers are busy, try again" backend error is retryable and not a
+# skills fault — an environment SKIP, not a failure.
+expect_verdict "transient backend busy is an environment skip" 1 "SKIP|transient" \
+"Error: Our servers are experiencing high traffic right now, please try again in a minute."
+
 expect_verdict "self-reported blocker wins even with a script OK" 0 "FAIL|auth" \
 "FUSION-REPORT
 STATUS: WORKING
