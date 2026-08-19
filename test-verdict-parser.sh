@@ -230,6 +230,35 @@ is_none "NONE"; check "is_none treats NONE as nothing" $?
 is_none ""; check "is_none treats empty as nothing" $?
 if is_none "something"; then rc=1; else rc=0; fi; check "is_none is false for real content" "$rc"
 
+echo "== unwrap_log: --e2e claim extraction from JSON-wrapped logs =="
+
+# The --e2e claim capture reads WORKFLOW/DEFINITION through unwrap_log(), the same as
+# classify(). These assert the claim survives the unwrap for a JSON-wrapped report
+# (Claude stream-json, cursor-agent) and a plain-text one (Codex, Copilot).
+claim_log="$WORK/claim.$$"
+
+# Claude stream-json: whole report inside one escaped JSON string.
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"FUSION-REPORT\nSTATUS: DONE\nWORKFLOW: ngsiem-detection-enrichment-claude\nDEFINITION: d5c0f4d664ac479db08a5a14e0ea2fe2\nBLOCKER: NONE"}]}}' > "$claim_log"
+got=$(unwrap_log "$claim_log" | report_field DEFINITION)
+check "unwrap_log: claude stream-json DEFINITION extracted" "$([ "$got" = "d5c0f4d664ac479db08a5a14e0ea2fe2" ] && echo 0 || echo 1)"
+got=$(unwrap_log "$claim_log" | report_field WORKFLOW)
+check "unwrap_log: claude stream-json WORKFLOW extracted" "$([ "$got" = "ngsiem-detection-enrichment-claude" ] && echo 0 || echo 1)"
+
+# Cursor's final result event closes the report string with `","session_id":...`, which
+# glues onto the last field (BLOCKER); the DEFINITION id must still come out clean.
+printf '%s\n' 'FUSION-REPORT\nSTATUS: DONE\nWORKFLOW: NG-SIEM Parallel Threat Intel Enrichment-agent\nDEFINITION: d75240236b8e451c8053730c6900b027\nBLOCKER: NONE","session_id":"416af865","usage":{"outputTokens":10540}}' > "$claim_log"
+got=$(unwrap_log "$claim_log" | report_field DEFINITION)
+check "unwrap_log: cursor glued-tail DEFINITION is not corrupted" "$([ "$got" = "d75240236b8e451c8053730c6900b027" ] && echo 0 || echo 1)"
+
+# Plain-text logs (Codex/Copilot) must keep working unchanged.
+printf '%s\n' 'FUSION-REPORT
+STATUS: DONE
+WORKFLOW: NGSIEM Threat Intelligence Enrichment-codex
+DEFINITION: 1d07b61417d045aa890d708082efa833
+BLOCKER: NONE' > "$claim_log"
+got=$(unwrap_log "$claim_log" | report_field DEFINITION)
+check "unwrap_log: plain-text DEFINITION still extracted" "$([ "$got" = "1d07b61417d045aa890d708082efa833" ] && echo 0 || echo 1)"
+
 echo ""
 echo "== $PASS passed, $FAIL failed =="
 [ "$FAIL" -eq 0 ]

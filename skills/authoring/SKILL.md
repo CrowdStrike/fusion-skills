@@ -10,8 +10,8 @@ description: >
   DO NOT TRIGGER when the request is for a Falcon Foundry app, a UI extension/page,
   an API integration, custom actions from a third-party API, or a manifest.yml —
   those are foundry-skills territory; advise foundry-skills instead of authoring a workflow.
-version: 1.0.1
-updated: 2026-08-07
+version: 1.1.0
+updated: 2026-08-19
 tags: [fusion, soar, workflows, authoring, yaml, validation]
 author: CrowdStrike
 license: MIT
