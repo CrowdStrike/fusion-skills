@@ -293,6 +293,31 @@ main() {
   mv /tmp/marketplace.json.tmp "$MARKETPLACE_JSON"
   printf "${GREEN}✓${RESET} Updated to v${NEXT_VERSION}\n"
 
+  printf "\n${BLUE}Step 1c: Update Agent Plugins manifests${RESET}\n"
+  # The root plugin.json (Agent Plugins spec) and .codex-plugin/plugin.json are
+  # separate manifests for the non-Claude assistants; CI enforces that all four
+  # manifests share one version. Bump them alongside .claude-plugin/.
+  ROOT_PLUGIN_JSON="$SCRIPT_DIR/plugin.json"
+  CODEX_PLUGIN_JSON="$SCRIPT_DIR/.codex-plugin/plugin.json"
+  for manifest in "$ROOT_PLUGIN_JSON" "$CODEX_PLUGIN_JSON"; do
+    if [[ -f "$manifest" ]]; then
+      jq --arg v "$NEXT_VERSION" '.version = $v' "$manifest" > /tmp/agent-plugin.json.tmp
+      mv /tmp/agent-plugin.json.tmp "$manifest"
+      printf "${GREEN}✓${RESET} %s → v${NEXT_VERSION}\n" "${manifest#"$SCRIPT_DIR"/}"
+    fi
+  done
+  # The Agent Plugins marketplace catalog pins the plugin to a release tag, so
+  # its source.ref must move to the new tag. CI checks that this ref matches the
+  # version, so a stale ref fails the build rather than drifting silently.
+  AGENTS_MARKETPLACE_JSON="$SCRIPT_DIR/.agents/plugins/marketplace.json"
+  if [[ -f "$AGENTS_MARKETPLACE_JSON" ]]; then
+    jq --arg ref "v$NEXT_VERSION" \
+      '(.plugins[] | select(.name == "crowdstrike-falcon-fusion").source.ref) = $ref' \
+      "$AGENTS_MARKETPLACE_JSON" > /tmp/agents-marketplace.json.tmp
+    mv /tmp/agents-marketplace.json.tmp "$AGENTS_MARKETPLACE_JSON"
+    printf "${GREEN}✓${RESET} .agents/plugins/marketplace.json ref → v${NEXT_VERSION}\n"
+  fi
+
   printf "\n${BLUE}Step 2: Update README badge${RESET}\n"
   # Use portable sed with temp file pattern (macOS and Linux compatible)
   sed 's/badge\/version-[0-9.]*-blue/badge\/version-'"$NEXT_VERSION"'-blue/' "$SCRIPT_DIR/README.md" > /tmp/README.md.tmp
@@ -323,7 +348,7 @@ main() {
   printf "\n${BLUE}Step 5: Commit and create PR${RESET}\n"
   local release_branch="release/v${NEXT_VERSION}"
   git checkout -b "$release_branch"
-  git add "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$SCRIPT_DIR/README.md" "$SCRIPT_DIR/skills"/*/SKILL.md "$SCRIPT_DIR/CHANGELOG.md" "$SCRIPT_DIR/release.sh"
+  git add "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$ROOT_PLUGIN_JSON" "$CODEX_PLUGIN_JSON" "$AGENTS_MARKETPLACE_JSON" "$SCRIPT_DIR/README.md" "$SCRIPT_DIR/skills"/*/SKILL.md "$SCRIPT_DIR/CHANGELOG.md" "$SCRIPT_DIR/release.sh"
   git commit -m "Release v${NEXT_VERSION}"
   printf "${GREEN}✓${RESET} Committed v${NEXT_VERSION}\n"
 

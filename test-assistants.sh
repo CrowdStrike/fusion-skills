@@ -504,6 +504,20 @@ report_field() {
     | sed -E "s/^[^A-Za-z]*${label}\**:\**[[:space:]]*//"
 }
 
+# Claude (--output-format stream-json) and Cursor (cursor-agent) emit the whole
+# self-report inside an escaped JSON string, so its lines arrive as literal \n
+# sequences in the middle of one very long line. Restore line structure (first sed),
+# then drop the JSON that trails the report's closing quote — `"}]}` from a content
+# array or a bare `","` from a result-level string, e.g. Cursor's `","session_id":...`
+# (second sed, a separate process so it sees the already-split lines, not the mega-line),
+# and finally drop quoted-context lines echoed back from the prompt. No-op on plain-text
+# logs. Every consumer of a log goes through here — classify() and the --e2e claim
+# capture both need the same shape, and two copies of the transform would drift.
+unwrap_log() {
+  sed 's/\\n/\
+/g' "$1" 2>/dev/null | sed 's/"[]}),].*$//' | grep -v '^[[:space:]]*>'
+}
+
 # Treat an empty, absent, or explicitly-nothing field as nothing.
 is_none() {
   local v="${1^^}"
@@ -546,16 +560,9 @@ blocker_category() {
 # there doing nothing", and it read a clean timeout as success.
 classify() {
   local log="$1" rc="$2" body status skills raw_cmds raw_blocker cmds detail cat
-  # Claude and Cursor stream stream-json, so the report arrives inside an escaped
-  # JSON string. The first sed expands \n to restore line structure. The second, run
-  # as a separate process so it sees the already-split lines individually, drops the
-  # JSON structure that trails the closing quote: `"}]}` from a content array or `","`
-  # from a result-level string (Cursor's final `result` event closes the report with
-  # `","session_id":...`). A single sed with two -e expressions would apply the trim to
-  # the original long line before the split, matching the pervasive `","` in JSON prose
-  # and killing the whole report. No-ops on plain-text logs.
-  body=$(sed 's/\\n/\
-/g' "$log" 2>/dev/null | sed 's/"[]}),].*$//' | grep -v '^[[:space:]]*>')
+  # Unwrap stream-json/cursor-agent JSON so a self-report inside an escaped string
+  # becomes real lines report_field can match (see unwrap_log). No-op on plain text.
+  body=$(unwrap_log "$log")
 
   # An account-level block — quota or subscription exhausted — is not a skills or
   # harness fault and cannot be fixed by re-running, so treat it as an environment SKIP
@@ -736,7 +743,10 @@ launch() {   # name bin source argv
   if [ "$E2E" -eq 1 ]; then
     # Its own directory, or assistants author on top of each other. The binary name
     # doubles as the workflow-name suffix — short, and already unique per assistant.
+    # Wipe it first so the judge never reads a YAML left by an earlier run (LOG_DIR
+    # persists across runs).
     work_dir="$LOG_DIR/e2e/$bin"
+    rm -rf "$work_dir"
     mkdir -p "$work_dir"
     tail_instructions=$(e2e_instructions "$bin")
   else
@@ -787,7 +797,9 @@ report_one() {   # name bin source rc elapsed
   # in the display string: --judge has to look them up on the tenant.
   local rwf="" rdef=""
   if [ "$E2E" -eq 1 ]; then
-    local ebody; ebody=$(grep -v '^[[:space:]]*>' "$log" 2>/dev/null)
+    # Same unwrap as classify(): Claude and Cursor wrap the report in JSON, so
+    # report_field needs real lines to read the WORKFLOW and DEFINITION claims.
+    local ebody; ebody=$(unwrap_log "$log")
     rwf=$(clean "$(report_field WORKFLOW   <<< "$ebody")" 60)
     rdef=$(clean "$(report_field DEFINITION <<< "$ebody")" 60)
     # Persist the claims so a standalone `--judge` — a separate process, where the
@@ -892,15 +904,22 @@ WF_PATH=""
 FOUND_OUTSIDE=""
 find_workflow_yaml() {   # bin
   local bin="$1" f
+  local -a cands=()
   WF_PATH=""; FOUND_OUTSIDE=""
   # A workflow YAML has a trigger and an actions/nodes block. Search the assistant's
-  # working directory first for the newest such file.
-  while IFS= read -r f; do
-    [ -f "$f" ] || continue
-    if grep -qiE '^(trigger|triggers):' "$f" 2>/dev/null && grep -qiE '^(actions|nodes):' "$f" 2>/dev/null; then
-      WF_PATH="$f"; return
-    fi
-  done < <(find "$LOG_DIR/e2e/$bin" -maxdepth 4 \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null)
+  # working directory, newest file first, and take the first that qualifies. The work
+  # dir is wiped at the start of each --e2e run, so this normally sees just the authored
+  # file; the mtime order is a guard for the case where more than one lands there.
+  while IFS= read -r f; do cands+=("$f"); done \
+    < <(find "$LOG_DIR/e2e/$bin" -maxdepth 4 \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null)
+  if [ "${#cands[@]}" -gt 0 ]; then
+    while IFS= read -r f; do
+      [ -f "$f" ] || continue
+      if grep -qiE '^(trigger|triggers):' "$f" 2>/dev/null && grep -qiE '^(actions|nodes):' "$f" 2>/dev/null; then
+        WF_PATH="$f"; return
+      fi
+    done < <(ls -1t "${cands[@]}" 2>/dev/null)
+  fi
   # Not where we put it. Fall back to whatever YAML path the transcript mentions.
   f=$(grep -oE '/[^ "]*\.(yml|yaml)' "$LOG_DIR/${bin}.log" 2>/dev/null | head -1)
   if [ -n "$f" ] && [ -f "$f" ]; then
@@ -917,7 +936,19 @@ judge_one() {   # name bin claimed_workflow claimed_definition
 
   find_workflow_yaml "$bin"; wf="$WF_PATH"
   if [ -z "$wf" ]; then
-    printf '  %s%-16s%s %s✘ NO YAML%s nothing on disk for this assistant\n' \
+    # Some CLIs author in a private session workspace we can't read afterward — Copilot
+    # writes to ~/.copilot/session-state/<id>/files/, and its transcript line-wraps the
+    # path so the log fallback can't recover it either. The deploy can still be real: if
+    # the claimed definition id is on the tenant, report ON-TENANT with the per-skill
+    # markers left unread, rather than a red failure for a workflow that actually shipped.
+    if [ -n "$TENANT_DEFS" ] && [ -n "$c_def" ] && ! is_none "$c_def" \
+       && printf '%s' "$TENANT_DEFS" | grep -q "$c_def"; then
+      printf '  %s%-16s%s %s%-9s%s %-26s %s%s%s\n' \
+        "$BOLD" "$name" "$RESET" "$GREEN$BOLD" "ON-TENANT" "$RESET" "${c_wf:-?}" \
+        "$DIM" "markers unread (YAML not on disk)" "$RESET"
+      JUDGED+=("$name|OK|$c_wf|ON-TENANT|"); return
+    fi
+    printf '  %s%-16s%s %s✘ NO YAML%s nothing on disk and no on-tenant definition\n' \
       "$BOLD" "$name" "$RESET" "$RED$BOLD" "$RESET"
     JUDGED+=("$name|NOYAML|||"); return
   fi

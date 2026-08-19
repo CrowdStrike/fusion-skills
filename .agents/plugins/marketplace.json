@@ -1,0 +1,21 @@
+{
+  "name": "fusion-marketplace",
+  "interface": {
+    "displayName": "CrowdStrike Falcon Fusion"
+  },
+  "plugins": [
+    {
+      "name": "crowdstrike-falcon-fusion",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/CrowdStrike/fusion-skills.git",
+        "ref": "v1.1.0"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

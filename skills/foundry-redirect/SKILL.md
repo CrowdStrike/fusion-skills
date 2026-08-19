@@ -8,8 +8,8 @@ description: >
   together existing actions. This skill declines Foundry-app requests and points to
   the crowdstrike-falcon-foundry plugin, so the redirect works even without Claude
   Code hooks; it yields to the real Foundry plugin when that plugin is also installed.
-version: 1.0.1
-updated: 2026-08-17
+version: 1.1.0
+updated: 2026-08-19
 tags: [fusion, foundry, redirect, routing]
 author: CrowdStrike
 license: MIT
