@@ -448,11 +448,17 @@ conditions:
             for i in issues
         )
 
-    def test_parallel_passthrough_with_default_passes(self, tmp_path):
-        # A fan-out pass-through condition marked 'default: true' is valid.
+    def test_bare_default_true_passthrough_fails(self, tmp_path):
+        # A bare 'default: true' pass-through condition (no expression, no else)
+        # is NOT release-valid. Verified live against the tenant: the release
+        # (enable) API does not honor a node-level 'default: true' and rejects the
+        # flow with "exclusive gateway ... has no condition set and is not marked
+        # as default" — even for the console-exported 'default_gateway_decision_*'
+        # shape. structural_check must flag it; the valid default mechanism is an
+        # 'else:' branch on the expression-bearing condition.
         content = """\
 # Header
-name: Fan-out pass-through
+name: Bare default passthrough
 trigger:
   type: On demand
   next:
@@ -469,7 +475,93 @@ conditions:
       - Start
     default: true
 """
-        f = tmp_path / "passthrough.yaml"
+        f = tmp_path / "bare_default.yaml"
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any(
+            "default_parallel_start" in i and "neither a match expression" in i
+            for i in issues
+        )
+
+    def test_console_default_gateway_decision_node_fails(self, tmp_path):
+        # The exact shape real console exports produce: an expression-bearing
+        # condition plus a sibling 'default_gateway_decision_<hex>' node marked
+        # 'default: true'. Live probe proved the release API rejects the default
+        # node's flow. The default node (not the expression sibling) must be the
+        # one flagged.
+        content = """\
+# Header
+name: Console default gateway
+trigger:
+  type: On demand
+  next:
+    - is_csv
+    - default_gateway_decision_ae829b82_ef89_45bf_85e8_8340bd76251
+actions:
+  MatchAction:
+    id: aabbccdd11223344aabbccdd11223344
+    name: Print data
+    properties:
+      text_data: hi
+  DefaultAction:
+    id: aabbccdd11223344aabbccdd11223344
+    name: Print data
+    properties:
+      text_data: bye
+conditions:
+  is_csv:
+    next:
+      - MatchAction
+    cel_expression: data['filename'].endsWith('.csv')
+  default_gateway_decision_ae829b82_ef89_45bf_85e8_8340bd76251:
+    next:
+      - DefaultAction
+    default: true
+"""
+        f = tmp_path / "console_default.yaml"
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        # The default node is flagged...
+        assert any(
+            "default_gateway_decision_ae829b82" in i
+            and "neither a match expression" in i
+            for i in issues
+        )
+        # ...and the expression-bearing sibling is NOT.
+        assert not any("'is_csv' has neither" in i for i in issues)
+
+    def test_condition_with_expression_and_else_is_the_valid_default(self, tmp_path):
+        # The release-valid replacement for a 'default: true' node: fold the
+        # default target into the expression-bearing condition's 'else:' branch.
+        # Verified live — converting the console 'default: true' shape to this
+        # form releases OK. Must NOT be flagged.
+        content = """\
+# Header
+name: If/else default
+trigger:
+  type: On demand
+  next:
+    - is_csv
+actions:
+  MatchAction:
+    id: aabbccdd11223344aabbccdd11223344
+    name: Print data
+    properties:
+      text_data: hi
+  DefaultAction:
+    id: aabbccdd11223344aabbccdd11223344
+    name: Print data
+    properties:
+      text_data: bye
+conditions:
+  is_csv:
+    next:
+      - MatchAction
+    else:
+      - DefaultAction
+    cel_expression: data['filename'].endsWith('.csv')
+"""
+        f = tmp_path / "ifelse_default.yaml"
         f.write_text(content)
         issues = validate.structural_check(str(f))
         assert not any("neither a match expression" in i for i in issues)
@@ -1855,6 +1947,7 @@ actions:
         assert not any("user_prompt" in i or "model_name" in i for i in issues)
 
     _SEND_EMAIL_ID = "07413ef9ba7c47bf5a242799f59902cc"
+    _REQUEST_HUMAN_INPUT_EMAIL_ID = "d6731c10b24834e2e0f4bd9d390a29c8"
 
     def test_send_email_empty_to_flagged(self, tmp_path):
         f = tmp_path / "email_empty.yaml"
@@ -1926,6 +2019,89 @@ actions:
         f.write_text(content)
         issues = validate.structural_check(str(f))
         assert not any("Send email" in i for i in issues)
+
+    def test_request_human_input_missing_to_flagged(self, tmp_path):
+        # The Request human input "send email" action requires a `to` recipient
+        # at release ('A value is required for the property "to"'), but
+        # validate_only misses it. structural_check must flag a missing `to`.
+        f = tmp_path / "rhi_missing.yaml"
+        content = f"""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - AskApproval
+actions:
+  AskApproval:
+    id: {self._REQUEST_HUMAN_INPUT_EMAIL_ID}
+    version_constraint: ~1
+    name: Request human input - send email
+    properties:
+      subject: Approve?
+      msg: Please approve
+      allowed_responses:
+        - Approve
+        - Decline
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any("Request human input" in i and "to:" in i for i in issues)
+
+    def test_request_human_input_fake_domain_flagged(self, tmp_path):
+        # A hardcoded fake domain dead-ends at runtime (no CID approves
+        # example.com), so it must be flagged for the RHI email action too.
+        f = tmp_path / "rhi_fake.yaml"
+        content = f"""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - AskApproval
+actions:
+  AskApproval:
+    id: {self._REQUEST_HUMAN_INPUT_EMAIL_ID}
+    version_constraint: ~1
+    name: Request human input - send email
+    properties:
+      subject: Approve?
+      msg: Please approve
+      allowed_responses:
+        - Approve
+      to: security-team@example.com
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any("placeholder recipient" in i for i in issues)
+
+    def test_request_human_input_variable_recipient_passes(self, tmp_path):
+        # A configurable variable recipient (the correct placeholder) is valid —
+        # non-empty and not a hardcoded fake domain. This is the shape the
+        # network-contain example uses.
+        f = tmp_path / "rhi_var.yaml"
+        content = f"""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - AskApproval
+actions:
+  AskApproval:
+    id: {self._REQUEST_HUMAN_INPUT_EMAIL_ID}
+    version_constraint: ~1
+    name: Request human input - send email
+    properties:
+      subject: Approve?
+      msg: Please approve
+      allowed_responses:
+        - Approve
+      to: ${{WorkflowCustomVariable.approver_email}}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("Request human input" in i for i in issues)
 
     def test_send_email_fake_domain_flagged(self, tmp_path):
         f = tmp_path / "email_fake.yaml"

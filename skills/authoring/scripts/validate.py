@@ -161,6 +161,15 @@ CHARLOTTE_LLM_ID_PREFIX = "bdfecafafdb44919a458fcf51d6b93a7_"
 # The built-in "Send email" action. It has no class and is referenced by id, so
 # match on the id. Its recipient list property is `to`.
 SEND_EMAIL_ID = "07413ef9ba7c47bf5a242799f59902cc"
+# The Request human input "send email" action also sends an email with a required
+# `to` recipient. Release rejects a missing `to` ('A value is required for the
+# property "to"'), but server-side validate_only does not — same recipient rules
+# as Send email, so it runs the same check.
+REQUEST_HUMAN_INPUT_EMAIL_ID = "d6731c10b24834e2e0f4bd9d390a29c8"
+EMAIL_RECIPIENT_ACTIONS = {
+    SEND_EMAIL_ID: "Send email",
+    REQUEST_HUMAN_INPUT_EMAIL_ID: "Request human input (send email)",
+}
 
 # Fake recipient domains a model invents instead of asking for a real address.
 # `yourcompany`/`yourorg`/`example`/`company` etc. look plausible but dead-end at
@@ -356,8 +365,9 @@ def _validate_action_properties(label, action, issues):
     # but the email reaches no one at runtime (the API ignores unknown keys), a
     # silent dead workflow. `to` is the only recipient field in the action's
     # catalog schema. Resolve the recipient (ask the user; org domain in CI).
-    if str(action.get("id", "")) == SEND_EMAIL_ID:
-        _validate_send_email(label, properties, issues)
+    email_action_label = EMAIL_RECIPIENT_ACTIONS.get(str(action.get("id", "")))
+    if email_action_label:
+        _validate_send_email(label, properties, issues, email_action_label)
 
     if action.get("class") == "Inline.QueryEvent":
         _validate_event_query_config(label, action, properties, issues)
@@ -506,39 +516,42 @@ def _check_alert_population_query(label, config, issues):
         )
 
 
-def _validate_send_email(label, properties, issues):
-    """Send email recipient checks: non-empty `to`, right field name, real address."""
+def _validate_send_email(label, properties, issues, action_label="Send email"):
+    """Email recipient checks (Send email / Request human input): non-empty `to`,
+    right field name, real address."""
     recipients = properties.get("to")
     if not recipients:
         if properties.get("recipients"):
             issues.append(
-                f"ERROR: Send email action '{label}' puts recipients under "
-                f"'recipients:', which is not a valid field — the Send email "
-                f"action's recipient field is 'to'. The email reaches no one "
-                f"at runtime. Rename 'recipients' to 'to'."
+                f"ERROR: {action_label} action '{label}' puts recipients under "
+                f"'recipients:', which is not a valid field — the recipient field "
+                f"is 'to'. The email reaches no one at runtime. Rename "
+                f"'recipients' to 'to'."
             )
         else:
             issues.append(
-                f"ERROR: Send email action '{label}' has an empty or missing "
-                f"'to:' recipient list. The email would be delivered to no "
-                f"one at runtime. Ask the user for a recipient (Send email "
-                f"only delivers to Falcon users and CID-approved domains)."
+                f"ERROR: {action_label} action '{label}' has an empty or missing "
+                f"'to:' recipient. Release validation rejects it ('A value is "
+                f"required for the property \"to\"'), and it delivers to no one at "
+                f"runtime. Set 'to' to a variable the user supplies (a trigger "
+                f"parameter, WorkflowCustomVariable, or a value from a prior step) "
+                f"— email only delivers to Falcon users and CID-approved domains."
             )
         return
     # A populated `to` can still be a fabricated stand-in
-    # (soc-team@yourcompany.com). It looks real, so nothing flags it — but it
-    # dead-ends at runtime. Force a real address or a data ref.
+    # (soc-team@yourcompany.com, x@example.com). It looks real, so nothing flags
+    # it — but it dead-ends at runtime (no CID approves example.com). Force a real
+    # address or, better, a variable/data reference.
     addrs = recipients if isinstance(recipients, list) else [recipients]
     for addr in addrs:
         if isinstance(addr, str) and FAKE_EMAIL_DOMAIN_PATTERN.search(addr):
             issues.append(
-                f"ERROR: Send email action '{label}' has a placeholder "
+                f"ERROR: {action_label} action '{label}' has a placeholder "
                 f"recipient '{addr}'. It looks real but is a fabricated "
-                f"stand-in that dead-ends at runtime. Ask the user for a "
-                f"real recipient (a Falcon user or CID-approved domain); "
-                f"do not invent a 'yourcompany.com'-style address. In "
-                f"headless/CI runs, use a plausible address on the org "
-                f"domain."
+                f"stand-in that dead-ends at runtime (no CID approves "
+                f"example.com/yourcompany.com-style domains). Use a variable the "
+                f"user supplies (trigger parameter or WorkflowCustomVariable) or a "
+                f"real CID-approved address; do not hardcode a fake domain."
             )
 
 
@@ -570,14 +583,21 @@ def _validate_next_refs(label, action, all_labels, issues):
 
 
 def _validate_conditions(conditions, issues):
-    """Check that each condition node routes via a rule or a default flow.
+    """Check that each condition node carries a match expression or an ``else``.
 
     Every entry under ``conditions`` is an exclusive-gateway outgoing flow. The
-    release-time validator rejects any node whose flow has neither a match
-    expression (``cel_expression`` / ``expression``) nor ``default: true`` —
-    the error reads "exclusive gateway ... has no condition set and is not
-    marked as default". Import and API validation do not catch this, so flag it
-    here to avoid a failed release.
+    release-time validator rejects any flow that has neither a match expression
+    (``cel_expression`` / ``expression``) nor an ``else`` branch — the error
+    reads "exclusive gateway ... has no condition set and is not marked as
+    default". Import and API validation do not catch this, so flag it here to
+    avoid a failed release.
+
+    A node-level ``default: true`` does NOT satisfy the requirement: the release
+    API does not honor it (verified live against the tenant — a bare
+    ``default: true`` pass-through node, including the console-exported
+    ``default_gateway_decision_*`` shape, fails release with the error above).
+    The gateway's default flow is expressed as the ``else`` branch of the
+    expression-bearing condition, not as a separate ``default: true`` node.
     """
     if not isinstance(conditions, dict):
         return
@@ -585,16 +605,18 @@ def _validate_conditions(conditions, issues):
         if not isinstance(cond, dict):
             continue
         has_expression = bool(cond.get("cel_expression") or cond.get("expression"))
-        is_default = cond.get("default") is True
-        if not has_expression and not is_default:
+        has_else = bool(cond.get("else"))
+        if not has_expression and not has_else:
             issues.append(
                 f"ERROR: Condition '{label}' has neither a match expression "
-                f"('cel_expression'/'expression') nor 'default: true'. Release "
+                f"('cel_expression'/'expression') nor an 'else:' branch. Release "
                 f"fails with \"exclusive gateway ... has no condition set and is "
-                f"not marked as default\". A gated branch needs a 'cel_expression' "
-                f"(its no-match fallthrough goes in 'else:'). Do not use a bare "
-                f"'default: true' pass-through to fan out — list branch targets "
-                f"directly in the source node's 'next:'."
+                f"not marked as default\". A node-level 'default: true' does NOT "
+                f"satisfy this — the release API does not honor it (a bare "
+                f"'default: true' pass-through node fails release). A gated branch "
+                f"needs a 'cel_expression'/'expression'; its no-match fallthrough "
+                f"goes in 'else:', which becomes the gateway's default flow. To "
+                f"fan out, list branch targets directly in the source node's 'next:'."
             )
 
 

@@ -160,13 +160,14 @@ actions:
         properties:
           enable_preventive_actions:
             type: boolean
+          approver_email:
+            type: string
         type: object
   DeviceQuery:
     id: 68ffa99af40c84b36462daa076f535d0
     name: Device Query
     next:
       - data_devicequery_device_query_devices_null_data_devicequery_
-      - default_gateway_decision_63c53687_1b30_4b66_ba86_f4692d189b2
     properties:
       hostnames:
         - ${Trigger.Detection.NGSIEM.HostNames}
@@ -185,6 +186,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow. </p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n  <li><strong>Host:</strong> ${data['Trigger.Detection.EPP.Sensor.Hostname']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.Detection.EPP.URL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Tactic:</strong> ${data['Trigger.Detection.EPP.Behavior.TacticName']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
       msg_type: html
       responders: []
+      to: ${WorkflowCustomVariable.approver_email}
       subject: Approve Containment for ${data['Trigger.Detection.SeverityDisplayName']} on ${data['Trigger.Detection.EPP.Sensor.Hostname']}
       user_input_timeout: 90m
   RequestHumanInputSendEmail2:
@@ -200,6 +202,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n  <li><strong>HostID:</strong> ${data['Trigger.Detection.QUICKSCANPRO.AgentID']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
       msg_type: html
       responders: []
+      to: ${WorkflowCustomVariable.approver_email}
       subject: 'Approve Containment for ${data[''Trigger.Detection.SeverityDisplayName'']} ${data[''Trigger.Detection.Product'']} Detection on HostID: ${data[''Trigger.Detection.QUICKSCANPRO.AgentID'']}'
       user_input_timeout: 90m
   RequestHumanInputSendEmail3:
@@ -217,6 +220,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n  <li><strong>HostID:</strong> ${data['Trigger.Detection.DataProtection.AgentID']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>"
       msg_type: html
       responders: []
+      to: ${WorkflowCustomVariable.approver_email}
       subject: 'Approve Containment for ${data[''Trigger.Detection.SeverityDisplayName'']} on HostID: ${data[''Trigger.Detection.DataProtection.AgentID'']}'
       user_input_timeout: 90m
   RequestHumanInputSendEmail5:
@@ -232,6 +236,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n<li><strong>Hostnames:</strong><br><pre style=\"font-family: inherit; margin: 5px 0; white-space: pre-wrap;\">${data['Trigger.Detection.NGSIEM.HostNames']}</pre></li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
       msg_type: html
       responders: []
+      to: ${WorkflowCustomVariable.approver_email}
       subject: Approve Containment for ${data['Trigger.Detection.SeverityDisplayName']} ${data['Trigger.Detection.Product']} Detection on host(s)
       user_input_timeout: 90m
   UpdateVariable:
@@ -241,7 +246,6 @@ actions:
     version_constraint: ~1
     next:
       - enable_preventive_actions_is_equal_to_true
-      - default_gateway_decision_0471ba1a_f139_4b22_b615_dd2263acf59
     properties:
       WorkflowCustomVariable:
         enable_preventive_actions: false
@@ -287,17 +291,11 @@ conditions:
   enable_preventive_actions_is_equal_to_true:
     next:
       - data_trigger_detection_product_epp_data_trigger_detection_ep
-      - data_trigger_detection_product_quickscanpro_data_trigger_det
-      - data_trigger_detection_product_data_protection_data_trigger_
-      - data_trigger_detection_product_ngsiem_data_trigger_detection
-      - default_product_is_equal_to_epp_detection
+    else:
+      - AddCommentToDetection
     expression: WorkflowCustomVariable.enable_preventive_actions:true
     display:
       - enable_preventive_actions is equal to True
-  default_gateway_decision_0471ba1a_f139_4b22_b615_dd2263acf59:
-    next:
-      - AddCommentToDetection
-    default: true
   product_is_equal_to_epp_detection_product_is_equal_to_quicks:
     next:
       - CreateVariable
@@ -313,13 +311,11 @@ conditions:
   data_devicequery_device_query_devices_null_data_devicequery_:
     next:
       - RequestHumanInputSendEmail5
+    else:
+      - AddCommentToDetection11
     cel_expression: data['DeviceQuery.Device.query.devices'] != null && data['DeviceQuery.Device.query.devices'].size() > 0
     display:
       - data[&#39;DeviceQuery.Device.query.devices&#39;] != null &amp;&amp; data[&#39;DeviceQuery.Device.query.devices&#39;].size() &gt; 0
-  default_gateway_decision_63c53687_1b30_4b66_ba86_f4692d189b2:
-    next:
-      - AddCommentToDetection11
-    default: true
   human_response_is_equal_to_approve:
     next:
       - ContainDevice3
@@ -371,31 +367,32 @@ conditions:
   data_trigger_detection_product_epp_data_trigger_detection_ep:
     next:
       - RequestHumanInputSendEmail
+    else_if: data_trigger_detection_product_quickscanpro_data_trigger_det
     cel_expression: data['Trigger.Detection.Product'] == 'EPP' && data['Trigger.Detection.EPP.Sensor.SensorID'].size()>0
     display:
       - data[&#39;Trigger.Detection.Product&#39;] == &#39;EPP&#39; &amp;&amp; data[&#39;Trigger.Detection.EPP.Sensor.SensorID&#39;].size()&gt;0
   data_trigger_detection_product_quickscanpro_data_trigger_det:
     next:
       - RequestHumanInputSendEmail2
+    else_if: data_trigger_detection_product_data_protection_data_trigger_
     cel_expression: data['Trigger.Detection.Product'] == 'QUICKSCANPRO' && data['Trigger.Detection.QUICKSCANPRO.AgentID'].size()>0
     display:
       - data[&#39;Trigger.Detection.Product&#39;] == &#39;QUICKSCANPRO&#39; &amp;&amp; data[&#39;Trigger.Detection.QUICKSCANPRO.AgentID&#39;].size()&gt;0
   data_trigger_detection_product_data_protection_data_trigger_:
     next:
       - RequestHumanInputSendEmail3
+    else_if: data_trigger_detection_product_ngsiem_data_trigger_detection
     cel_expression: data['Trigger.Detection.Product'] == 'DATA-PROTECTION' && data['Trigger.Detection.DataProtection.AgentID'].size()>0
     display:
       - data[&#39;Trigger.Detection.Product&#39;] == &#39;DATA-PROTECTION&#39; &amp;&amp; data[&#39;Trigger.Detection.DataProtection.AgentID&#39;].size()&gt;0
   data_trigger_detection_product_ngsiem_data_trigger_detection:
     next:
       - DeviceQuery
+    else:
+      - AddCommentToDetection2
     cel_expression: data['Trigger.Detection.Product'] == 'NGSIEM' && data['Trigger.Detection.NGSIEM.HostNames'].size() > 0
     display:
       - data[&#39;Trigger.Detection.Product&#39;] == &#39;NGSIEM&#39; &amp;&amp; data[&#39;Trigger.Detection.NGSIEM.HostNames&#39;].size() &gt; 0
-  default_product_is_equal_to_epp_detection:
-    next:
-      - AddCommentToDetection2
-    default: true
 loops:
   Loop:
     display: For each Sensor IDs; Concurrently
