@@ -546,13 +546,16 @@ blocker_category() {
 # there doing nothing", and it read a clean timeout as success.
 classify() {
   local log="$1" rc="$2" body status skills raw_cmds raw_blocker cmds detail cat
-  # Claude streams stream-json, so its report arrives inside an escaped JSON string.
-  # Expanding \n puts the labels and the blockquoted skill text back at line start,
-  # where the patterns below expect them. The second sed drops the JSON tail that
-  # follows the closing quote, which would otherwise be read as part of BLOCKER. No-ops
-  # on plain-text logs.
-  body=$(sed -e 's/\\n/\
-/g' -e 's/"[]}].*$//' "$log" 2>/dev/null | grep -v '^[[:space:]]*>')
+  # Claude and Cursor stream stream-json, so the report arrives inside an escaped
+  # JSON string. The first sed expands \n to restore line structure. The second, run
+  # as a separate process so it sees the already-split lines individually, drops the
+  # JSON structure that trails the closing quote: `"}]}` from a content array or `","`
+  # from a result-level string (Cursor's final `result` event closes the report with
+  # `","session_id":...`). A single sed with two -e expressions would apply the trim to
+  # the original long line before the split, matching the pervasive `","` in JSON prose
+  # and killing the whole report. No-ops on plain-text logs.
+  body=$(sed 's/\\n/\
+/g' "$log" 2>/dev/null | sed 's/"[]}),].*$//' | grep -v '^[[:space:]]*>')
 
   # An account-level block — quota or subscription exhausted — is not a skills or
   # harness fault and cannot be fixed by re-running, so treat it as an environment SKIP

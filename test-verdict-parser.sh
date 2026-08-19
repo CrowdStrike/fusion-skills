@@ -196,6 +196,19 @@ SKILLS: skills/deployment/SKILL.md
 COMMANDS: import_workflows.py => OK
 BLOCKER: NONE"
 
+# Cursor's stream-json emits a final `result` event whose report string closes with
+# `","session_id":...` (quote-comma) rather than `"}`/`"]`, so the body sed's tail
+# stripper misses it and the trailing JSON is glued onto the last report field. The
+# per-field strip in report_field must cut it, or a clean deploy reads as a blocker.
+expect_verdict "e2e report with a glued json result-event tail still deploys" 0 "PASS|deployed" \
+'FUSION-REPORT
+STATUS: DONE
+WORKFLOW: NG-SIEM Parallel Threat Intel Enrichment-agent
+DEFINITION: ee7a24ee80d7487abbd6185275123b29
+SKILLS: skills/deployment/SKILL.md
+COMMANDS: import_workflows.py => OK
+BLOCKER: NONE","session_id":"416af865-a95b-4451-9263-85e03611ef70","usage":{"outputTokens":10540}}'
+
 E2E=0
 
 echo "== report_field / blocker_category / is_none =="
