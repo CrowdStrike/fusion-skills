@@ -525,6 +525,11 @@ blocker_category() {
   # that ignored the slug suffix authored the same workflow name and churned the
   # tenant. Categorised separately so it cannot be read as an assistant problem.
   grep -qiE 'name already exists|already in use|duplicate (workflow|definition)'      <<< "$t" && { echo dupname; return; }
+  # A server-side 5xx from the import/release API (Internal Server Error, trace-id
+  # for support). The workflow validated locally; the tenant API failed the import
+  # itself. Categorised separately from a skills fault so a run of API 500s on
+  # complex workflows (a known platform behaviour) is legible and trackable.
+  grep -qiE 'internal server error|HTTP 50[0-9]\b|\b50[0-9] (internal server|bad gateway|service unavailable)|import failed.*(internal server|50[0-9])' <<< "$t" && { echo api500; return; }
   echo other
 }
 

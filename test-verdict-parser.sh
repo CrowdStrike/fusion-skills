@@ -211,6 +211,7 @@ blocker_category "No module named 'yaml'" | grep -qx deps; check "blocker_catego
 blocker_category "403 Forbidden from the API" | grep -qx auth; check "blocker_category: auth" $?
 blocker_category "CLAUDE_PLUGIN_ROOT was empty" | grep -qx root; check "blocker_category: root" $?
 blocker_category "workflow name already exists" | grep -qx dupname; check "blocker_category: dupname" $?
+blocker_category "import_workflows.py Internal Server Error: Please provide trace-id='abc' to support" | grep -qx api500; check "blocker_category: api500" $?
 
 is_none "NONE"; check "is_none treats NONE as nothing" $?
 is_none ""; check "is_none treats empty as nothing" $?
