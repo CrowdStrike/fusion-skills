@@ -1947,6 +1947,7 @@ actions:
         assert not any("user_prompt" in i or "model_name" in i for i in issues)
 
     _SEND_EMAIL_ID = "07413ef9ba7c47bf5a242799f59902cc"
+    _REQUEST_HUMAN_INPUT_EMAIL_ID = "d6731c10b24834e2e0f4bd9d390a29c8"
 
     def test_send_email_empty_to_flagged(self, tmp_path):
         f = tmp_path / "email_empty.yaml"
@@ -2018,6 +2019,89 @@ actions:
         f.write_text(content)
         issues = validate.structural_check(str(f))
         assert not any("Send email" in i for i in issues)
+
+    def test_request_human_input_missing_to_flagged(self, tmp_path):
+        # The Request human input "send email" action requires a `to` recipient
+        # at release ('A value is required for the property "to"'), but
+        # validate_only misses it. structural_check must flag a missing `to`.
+        f = tmp_path / "rhi_missing.yaml"
+        content = f"""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - AskApproval
+actions:
+  AskApproval:
+    id: {self._REQUEST_HUMAN_INPUT_EMAIL_ID}
+    version_constraint: ~1
+    name: Request human input - send email
+    properties:
+      subject: Approve?
+      msg: Please approve
+      allowed_responses:
+        - Approve
+        - Decline
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any("Request human input" in i and "to:" in i for i in issues)
+
+    def test_request_human_input_fake_domain_flagged(self, tmp_path):
+        # A hardcoded fake domain dead-ends at runtime (no CID approves
+        # example.com), so it must be flagged for the RHI email action too.
+        f = tmp_path / "rhi_fake.yaml"
+        content = f"""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - AskApproval
+actions:
+  AskApproval:
+    id: {self._REQUEST_HUMAN_INPUT_EMAIL_ID}
+    version_constraint: ~1
+    name: Request human input - send email
+    properties:
+      subject: Approve?
+      msg: Please approve
+      allowed_responses:
+        - Approve
+      to: security-team@example.com
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any("placeholder recipient" in i for i in issues)
+
+    def test_request_human_input_variable_recipient_passes(self, tmp_path):
+        # A configurable variable recipient (the correct placeholder) is valid —
+        # non-empty and not a hardcoded fake domain. This is the shape the
+        # network-contain example uses.
+        f = tmp_path / "rhi_var.yaml"
+        content = f"""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - AskApproval
+actions:
+  AskApproval:
+    id: {self._REQUEST_HUMAN_INPUT_EMAIL_ID}
+    version_constraint: ~1
+    name: Request human input - send email
+    properties:
+      subject: Approve?
+      msg: Please approve
+      allowed_responses:
+        - Approve
+      to: ${{WorkflowCustomVariable.approver_email}}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("Request human input" in i for i in issues)
 
     def test_send_email_fake_domain_flagged(self, tmp_path):
         f = tmp_path / "email_fake.yaml"

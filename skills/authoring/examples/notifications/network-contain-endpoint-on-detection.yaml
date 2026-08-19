@@ -160,6 +160,8 @@ actions:
         properties:
           enable_preventive_actions:
             type: boolean
+          approver_email:
+            type: string
         type: object
   DeviceQuery:
     id: 68ffa99af40c84b36462daa076f535d0
@@ -184,7 +186,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow. </p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n  <li><strong>Host:</strong> ${data['Trigger.Detection.EPP.Sensor.Hostname']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.Detection.EPP.URL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Tactic:</strong> ${data['Trigger.Detection.EPP.Behavior.TacticName']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
       msg_type: html
       responders: []
-      to: security-team@example.com
+      to: ${WorkflowCustomVariable.approver_email}
       subject: Approve Containment for ${data['Trigger.Detection.SeverityDisplayName']} on ${data['Trigger.Detection.EPP.Sensor.Hostname']}
       user_input_timeout: 90m
   RequestHumanInputSendEmail2:
@@ -200,7 +202,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n  <li><strong>HostID:</strong> ${data['Trigger.Detection.QUICKSCANPRO.AgentID']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
       msg_type: html
       responders: []
-      to: security-team@example.com
+      to: ${WorkflowCustomVariable.approver_email}
       subject: 'Approve Containment for ${data[''Trigger.Detection.SeverityDisplayName'']} ${data[''Trigger.Detection.Product'']} Detection on HostID: ${data[''Trigger.Detection.QUICKSCANPRO.AgentID'']}'
       user_input_timeout: 90m
   RequestHumanInputSendEmail3:
@@ -218,7 +220,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n  <li><strong>HostID:</strong> ${data['Trigger.Detection.DataProtection.AgentID']}</li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>"
       msg_type: html
       responders: []
-      to: security-team@example.com
+      to: ${WorkflowCustomVariable.approver_email}
       subject: 'Approve Containment for ${data[''Trigger.Detection.SeverityDisplayName'']} on HostID: ${data[''Trigger.Detection.DataProtection.AgentID'']}'
       user_input_timeout: 90m
   RequestHumanInputSendEmail5:
@@ -234,7 +236,7 @@ actions:
       msg: "<p>Hi Team</p>\n<p>A detection requires containment approval as per the <strong>${data['Workflow.Definition.Name']}</strong> workflow.</p>\n<p><strong>Detection Details:</strong></p>\n<ul>\n<li><strong>Product Type:</strong> ${data['Trigger.Detection.Product']}</li>\n<li><strong>Hostnames:</strong><br><pre style=\"font-family: inherit; margin: 5px 0; white-space: pre-wrap;\">${data['Trigger.Detection.NGSIEM.HostNames']}</pre></li>\n  <li><strong>Detection Name:</strong> <a href=\"${data['Trigger.SourceEventURL']}\">${data['Trigger.Detection.Name']}</a></li>\n  <li><strong>Severity:</strong> ${data['Trigger.Detection.SeverityDisplayName']}</li>\n  <li><strong>Description:</strong> ${data['Trigger.Detection.Description']}</li>\n</ul>\n<p><strong>Action Required:</strong><br>Please review the detection and approve/deny containment action.</p>\n"
       msg_type: html
       responders: []
-      to: security-team@example.com
+      to: ${WorkflowCustomVariable.approver_email}
       subject: Approve Containment for ${data['Trigger.Detection.SeverityDisplayName']} ${data['Trigger.Detection.Product']} Detection on host(s)
       user_input_timeout: 90m
   UpdateVariable:
