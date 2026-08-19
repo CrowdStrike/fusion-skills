@@ -7,7 +7,6 @@ description: Learn how to use lookup file actions from Fusion. This workflow use
 trigger:
   next:
     - data_filename_endswith_csv_true
-    - default_gateway_decision_a99962c3_9f64_4633_b4de_27f43ea4753
   name: On demand
   type: On demand
   parameters:
@@ -166,13 +165,11 @@ conditions:
   data_filename_endswith_csv_true:
     next:
       - GetLookupFileMetadata
+    else:
+      - PrintData2
     cel_expression: data['filename'].endsWith('.csv') == true
     display:
       - data[&#39;filename&#39;].endsWith(&#39;.csv&#39;) == true
-  default_gateway_decision_a99962c3_9f64_4633_b4de_27f43ea4753:
-    next:
-      - PrintData2
-    default: true
   lookup_file_exists_is_equal_to_false:
     next:
       - CreateANewLookupFileIfLookupFileDoesntExist

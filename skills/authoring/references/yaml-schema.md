@@ -266,10 +266,12 @@ actions:
     EnrichHash:   { id: ..., next: [SummarizeEnrichment], properties: {...} }
 ```
 
-Do **not** invent pass-through condition nodes (`default_parallel_*` with
-`default: true`) to model the fan-out. The console cannot build canvas edges from
-those synthetic nodes and the visual editor crashes on import — even though the
-workflow deploys and runs. List the real targets in `next:` instead.
+Do **not** invent pass-throughcondition nodes (`default_parallel_*` with
+`default: true`) to model the fan-out. Release rejects those synthetic nodes
+(`exclusive gateway ... has no condition set and is not marked as default`,
+confirmed live — the release API does not honor a node-level `default: true`),
+and the visual editor also crashes on import. List the real targets in `next:`
+instead.
 
 Do **not** model parallel work as a serial chain
 (`EnrichDomain → EnrichIP → EnrichHash`). A serial chain runs each call only
