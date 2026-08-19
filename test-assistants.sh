@@ -458,7 +458,7 @@ ASSISTANTS=(
   "Codex|codex|~/.agents/skills|exec %%PROMPT%% --skip-git-repo-check --json"
   "Copilot CLI|copilot|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --allow-all --output-format json"
   "Cursor|agent|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --force --trust --output-format stream-json"
-  "Antigravity CLI|agy|~/.agents/skills|-p %%PROMPT%% --dangerously-skip-permissions"
+  "Antigravity CLI|agy|~/.agents/skills|-p %%PROMPT%% --dangerously-skip-permissions --output-format stream-json"
 )
 
 want() {
