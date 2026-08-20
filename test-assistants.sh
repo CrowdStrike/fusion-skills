@@ -455,10 +455,10 @@ unlink_repo_skills() {
 # repo's symlinks present there. Cursor's CLI binary is `agent` (also installed as `cursor-agent`; both are the same executable).
 ASSISTANTS=(
   "Claude Code|claude|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --dangerously-skip-permissions --verbose --output-format stream-json"
-  "Codex|codex|~/.agents/skills|exec %%PROMPT%% --skip-git-repo-check"
-  "Copilot CLI|copilot|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --allow-all"
+  "Codex|codex|~/.agents/skills|exec %%PROMPT%% --skip-git-repo-check --json"
+  "Copilot CLI|copilot|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --allow-all --output-format json"
   "Cursor|agent|--plugin-dir|-p %%PROMPT%% --plugin-dir $REPO --force --trust --output-format stream-json"
-  "Antigravity CLI|agy|~/.agents/skills|-p %%PROMPT%% --dangerously-skip-permissions"
+  "Antigravity CLI|agy|~/.agents/skills|-p %%PROMPT%% --dangerously-skip-permissions --output-format stream-json"
 )
 
 want() {
