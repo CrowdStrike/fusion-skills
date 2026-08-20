@@ -1031,6 +1031,77 @@ def _validate_pinned_data_paths(data, file_path, issues):
                 break
 
 
+def _collect_declared_variables(data):
+    """Collect every WorkflowCustomVariable name the workflow declares.
+
+    A custom variable becomes real in one of two ways: a ``CreateVariable``
+    action declares it under ``properties.variable_schema.properties`` (its keys
+    are the names), or any action sets it through a ``properties.WorkflowCustomVariable``
+    block (its keys are the names). Recurses into loops so a variable created
+    inside a sub-model still counts.
+    """
+    declared = set()
+
+    def _scan(section):
+        if not isinstance(section, dict):
+            return
+        for action in section.values():
+            if not isinstance(action, dict):
+                continue
+            props = action.get("properties", {})
+            if isinstance(props, dict):
+                schema = props.get("variable_schema", {})
+                if isinstance(schema, dict):
+                    schema_props = schema.get("properties", {})
+                    if isinstance(schema_props, dict):
+                        declared.update(schema_props.keys())
+                setter = props.get("WorkflowCustomVariable", {})
+                if isinstance(setter, dict):
+                    declared.update(setter.keys())
+
+    _scan(data.get("actions", {}))
+    loops = data.get("loops", {})
+    if isinstance(loops, dict):
+        for loop_def in loops.values():
+            if isinstance(loop_def, dict):
+                declared.update(_collect_declared_variables(loop_def))
+    return declared
+
+
+def _validate_custom_variable_refs(data, file_path, issues):
+    """Flag ``WorkflowCustomVariable.<name>`` references to undeclared variables.
+
+    A reference to a custom variable that no ``CreateVariable``/``UpdateVariable``
+    declares imports and api_validates fine, then fails at release with
+    ``property "..." contains unknown variable "WorkflowCustomVariable.<name>"``.
+    Declared names come from the parsed workflow; references are found by scanning
+    the raw file, which catches every form uniformly: ``${data['WorkflowCustomVariable.x']}``,
+    ``${{WorkflowCustomVariable.x}}``, a bare ``WorkflowCustomVariable.x`` in a
+    condition expression or loop ``for.input``, and loop-item ``WorkflowCustomVariable.x.#``
+    (the name is the first segment). The pattern only matches dotted references, so
+    a ``WorkflowCustomVariable:`` setter block or a ``variable_schema`` declaration
+    is never mistaken for a reference.
+    """
+    try:
+        with open(file_path, encoding="utf-8") as handle:
+            content = handle.read()
+    except OSError:
+        return
+    referenced = {m.group(1) for m in re.finditer(r"WorkflowCustomVariable\.(\w+)", content)}
+    if not referenced:
+        return
+    declared = _collect_declared_variables(data)
+    for name in sorted(referenced - declared):
+        issues.append(
+            f"ERROR: reference to undefined WorkflowCustomVariable '{name}' — "
+            f"declare it in a CreateVariable action's variable_schema (or set it "
+            f"via UpdateVariable) before referencing it, or reference a prior "
+            f"action's output directly (e.g. ${{data['<Action>.results'][0].<field>}}). "
+            f"Release rejects an undeclared variable as an unknown variable. "
+            f"Declared: {sorted(declared)}."
+        )
+
+
 def _validate_top_level_shape(data, issues):
     """Flag off-schema top-level keys and a missing ``actions:`` section.
 
@@ -1193,6 +1264,7 @@ def structural_check(file_path):
     _validate_http_output_schema(data, file_path, issues)
     _validate_ngsiem_trigger_fields(trigger, file_path, issues)
     _validate_pinned_data_paths(data, file_path, issues)
+    _validate_custom_variable_refs(data, file_path, issues)
 
     return issues
 
