@@ -284,3 +284,36 @@ jobs:
           node-version: 22
       - name: Run markdownlint
         run: npx markdownlint-cli2 "**/*.md"
+      - name: Check relative markdown links resolve
+        # markdownlint checks link SYNTAX, not whether the target exists. This walks
+        # every relative link in a tracked .md and fails on any that does not resolve,
+        # so a moved file or a bad ../ path is caught here instead of only by the
+        # release-time bundle build. Root-relative (/foo) links resolve from the repo
+        # root, as GitHub renders them; external, mailto, and pure-anchor links are skipped.
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess, sys
+          files = subprocess.check_output(["git", "ls-files", "*.md"], text=True).split()
+          link_re = re.compile(r'\]\(\s*<?([^)>\s]+)')
+          bad = []
+          for f in files:
+              d = os.path.dirname(f)
+              with open(f, encoding="utf-8") as fh:
+                  text = fh.read()
+              for m in link_re.finditer(text):
+                  target = m.group(1)
+                  if target.startswith(("http://", "https://", "mailto:", "tel:", "#")):
+                      continue
+                  path = target.split("#")[0].split("?")[0]
+                  if not path:
+                      continue
+                  resolved = path.lstrip("/") if path.startswith("/") else os.path.join(d, path)
+                  if not os.path.exists(os.path.normpath(resolved)):
+                      bad.append(f"{f}: [{target}] -> {os.path.normpath(resolved)}")
+          if bad:
+              print("Broken relative markdown links:")
+              for b in bad:
+                  print("  " + b)
+              sys.exit(1)
+          print(f"OK: all relative markdown links resolve ({len(files)} files checked)")
+          PY
