@@ -26,7 +26,7 @@ AI coding assistant skills for building [CrowdStrike Falcon Fusion](https://www.
 | Cursor | `/add-plugin crowdstrike-falcon-fusion` | [Cursor](https://cursor.com/marketplace/crowdstrike) (pending) |
 | Antigravity CLI | `agy plugin install https://github.com/CrowdStrike/fusion-skills` | [Google](https://antigravity.google/docs/plugins) |
 
-In a live-tenant run, Claude Code, Codex, Copilot CLI, and Cursor each authored a valid workflow from the example prompt below and imported it to the tenant. Antigravity CLI loads the skills, but its weekly quota was exhausted before an end-to-end run.
+In a live-tenant run, all five assistants (Claude Code, Codex, Copilot CLI, Cursor, and Antigravity CLI) each authored a valid workflow from the example prompt below and imported it to the tenant.
 
 These skills follow the [Agent Plugins](https://agent-plugins.org) format, with a root `plugin.json` and a Codex `.codex-plugin/plugin.json` so the non-Claude assistants can discover them.
 
