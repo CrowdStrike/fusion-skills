@@ -1125,6 +1125,9 @@ loops:
       DoStuff:
         id: aabbccdd11223344aabbccdd11223344
         name: Do stuff
+        properties:
+          WorkflowCustomVariable:
+            my_items: []
 """
         f.write_text(content)
         issues = validate.structural_check(str(f))
@@ -1412,6 +1415,9 @@ actions:
   after:
     id: bbccddee22334455bbccddee22334455
     name: After loop
+    properties:
+      WorkflowCustomVariable:
+        items: []
 """
         f = tmp_path / "loop_reach.yaml"
         f.write_text(content)
@@ -2086,8 +2092,21 @@ name: Test
 trigger:
   type: On demand
   next:
-    - AskApproval
+    - InitApprover
 actions:
+  InitApprover:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - AskApproval
+    properties:
+      variable_schema:
+        properties:
+          approver_email:
+            type: string
+        type: object
   AskApproval:
     id: {self._REQUEST_HUMAN_INPUT_EMAIL_ID}
     version_constraint: ~1
@@ -3271,3 +3290,125 @@ class TestPreflightTriggerType:
         )
         issues = validate.preflight_check(str(f))
         assert not any("Invalid trigger type" in i for i in issues)
+
+
+class TestCustomVariableRefs:
+    """WorkflowCustomVariable.<name> references must resolve to a declared variable.
+
+    An undeclared reference imports and api_validates fine, then fails at release
+    with `unknown variable "WorkflowCustomVariable.<name>"`. These guard the
+    structural-tier check that catches it before deploy.
+    """
+
+    # A CreateVariable declaring `url_enrichment`, then an HTTP action that
+    # references it. `{ref}` is swapped per-test to the declared or an undeclared name.
+    _BASE = """\
+# Created by the CrowdStrike Falcon Fusion authoring skill
+name: Enrichment
+trigger:
+  type: On demand
+  name: On demand
+  next:
+    - InitVars
+actions:
+  InitVars:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - Enrich
+    properties:
+      variable_schema:
+        properties:
+          url_enrichment:
+            type: string
+        type: object
+  Enrich:
+    id: 1ba474f407d9228fc8fa02cdce8ae8ef
+    class: Inline.HTTPRequest
+    name: Cloud HTTP Request
+    version_constraint: ~1
+    properties:
+      http_transaction:
+        request_http_method: GET
+        request_url: "https://example.com/${data['WorkflowCustomVariable.{ref}']}"
+output_fields: []
+"""
+
+    def test_undefined_custom_variable_ref_flagged(self, tmp_path):
+        # Mirrors the real bug: reference url_indicator, which is never declared
+        # (InitVars declares url_enrichment).
+        f = tmp_path / "undef.yaml"
+        f.write_text(self._BASE.replace("{ref}", "url_indicator"))
+        issues = validate.structural_check(str(f))
+        assert any(
+            "url_indicator" in i and i.startswith("ERROR") for i in issues
+        ), issues
+
+    def test_declared_via_create_variable_passes(self, tmp_path):
+        # Referencing the declared name produces no undefined-variable error.
+        f = tmp_path / "declared.yaml"
+        f.write_text(self._BASE.replace("{ref}", "url_enrichment"))
+        issues = validate.structural_check(str(f))
+        assert not any("undefined WorkflowCustomVariable" in i for i in issues), issues
+
+    def test_declared_via_update_variable_setter_passes(self, tmp_path):
+        # A variable declared only by an UpdateVariable setter block (no
+        # CreateVariable) still counts as declared.
+        content = """\
+# Created by the CrowdStrike Falcon Fusion authoring skill
+name: Setter
+trigger:
+  type: On demand
+  name: On demand
+  next:
+    - SetVar
+actions:
+  SetVar:
+    id: 6c6eab39063fa3b72d98c82af60deb8a
+    class: UpdateVariable
+    name: Update variable
+    version_constraint: ~1
+    next:
+      - Email
+    properties:
+      WorkflowCustomVariable:
+        notify_email: soc@example.org
+  Email:
+    id: 07413ef9ba7c47bf5a242799f59902cc
+    name: Send email
+    version_constraint: ~1
+    properties:
+      to:
+        - ${data['WorkflowCustomVariable.notify_email']}
+      subject: Hi
+      msg: Body
+      msg_type: html
+output_fields: []
+"""
+        f = tmp_path / "setter.yaml"
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("undefined WorkflowCustomVariable" in i for i in issues), issues
+
+    def test_undefined_ref_listed_once(self, tmp_path):
+        # The same undeclared name referenced twice is reported once.
+        content = self._BASE.replace("{ref}", "url_indicator").replace(
+            "output_fields: []",
+            "  Enrich2:\n"
+            "    id: 1ba474f407d9228fc8fa02cdce8ae8ef\n"
+            "    class: Inline.HTTPRequest\n"
+            "    name: Cloud HTTP Request 2\n"
+            "    version_constraint: ~1\n"
+            "    properties:\n"
+            "      http_transaction:\n"
+            "        request_http_method: GET\n"
+            "        request_url: \"https://example.com/${data['WorkflowCustomVariable.url_indicator']}\"\n"
+            "output_fields: []",
+        )
+        f = tmp_path / "twice.yaml"
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        matches = [i for i in issues if "url_indicator" in i]
+        assert len(matches) == 1, matches

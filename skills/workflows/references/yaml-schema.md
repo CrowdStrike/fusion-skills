@@ -116,6 +116,13 @@ UpdateVariable:
     version_constraint: ~1
 ```
 
+**Every `WorkflowCustomVariable.<name>` you reference must be declared first** — by a
+`CreateVariable` action's `variable_schema.properties` (its keys are the names) or set by an
+`UpdateVariable` block. An undeclared name imports and validates fine, then fails at *release* with
+`property "..." contains unknown variable "WorkflowCustomVariable.<name>"`. To feed a hydrated
+indicator into an enrichment call, reference the producing action's output directly
+(`${data['HydrateDetection.results'][0].URL}`) rather than inventing a custom variable you never create.
+
 **Well-known fixed IDs**:
 - CreateVariable: `702d15788dbbffdf0b68d8e2f3599aa4`
 - UpdateVariable: `6c6eab39063fa3b72d98c82af60deb8a`
