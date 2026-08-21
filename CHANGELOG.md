@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- **CEL timestamp and time-math functions** in the CEL expressions reference — `cs.timestamp.parse(str, 'RFC3339')` plus the live-verified Unix-epoch-millisecond idiom (`int((… - timestamp('1970-01-01T00:00:00Z')).getMilliseconds())`) and `duration(...)` windowing. Includes a case-management pattern for building dynamic, time-scoped Event Search deep links from a detection's `Trigger.ObservedTime`.
+
 ### Fixed
 
 - **`validate.py` now flags `WorkflowCustomVariable.<name>` references to variables that nothing declares** — a release-only failure. A reference to a custom variable that no `CreateVariable` (or `UpdateVariable` setter) declares imports and validates cleanly, then fails at release with `property "..." contains unknown variable "WorkflowCustomVariable.<name>"`. The validator now collects declared variable names and reports an undeclared reference before you deploy.

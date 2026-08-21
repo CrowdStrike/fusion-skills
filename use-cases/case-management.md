@@ -55,6 +55,30 @@ The Charlotte AI LLM Completion action referenced in step 4 is **not** in the ex
 discover its ID with `action_search.py` (Charlotte AI ships at a low semantic version, so expect
 `version_constraint: ~0`, but verify). Never invent an ID.
 
+## Linking a case to Event Search
+
+Instead of copying query results into the case, you can drop a **dynamic, time-scoped Event Search
+deep link** into the case comment or the body of an external ticket (Jira, ServiceNow). The link
+opens Advanced Event Search pre-scoped to the detection's own time window, rather than to whenever
+the analyst happens to click it.
+
+The Event Search URL carries the CQL query URL-encoded, and `setTimeInterval()` takes epoch-millisecond
+`start`/`end`. Compute those inline with CEL from the detection time (`Trigger.ObservedTime`) — see the
+timestamp section of the CEL expressions reference for the verified epoch-millisecond idiom — and splice
+the pills into the encoded string, between the `%22` (`"`) that wrap each value (`%3D` is `=`, `%2C` is `,`):
+
+```
+...setTimeInterval(end%3D%22${int((cs.timestamp.parse(data['Trigger.ObservedTime'], 'RFC3339') - timestamp('1970-01-01T00:00:00Z')).getMilliseconds())}%22%2Cstart%3D%22${int((cs.timestamp.parse(data['Trigger.ObservedTime'], 'RFC3339') - duration('1h') - timestamp('1970-01-01T00:00:00Z')).getMilliseconds())}%22)...
+```
+
+To build the encoded URL, run the query in Event Search with `start`, `end`, and any pivot field
+(e.g. `User.Name`) left empty, copy the resulting URL out of the address bar, paste it into the action
+body, then insert the CEL pills between the `%22`s. Other dynamic values inject the same way.
+
+Trade-off: a link stays small but goes dead once the events age out of your retention window. If the
+case needs to outlive that, embed the results directly instead (`Add events to case`, or format them
+with `cs.table.markdown()`). This technique was shared in the CrowdStrike Fusion SOAR Developer Community.
+
 ## When to Route Elsewhere
 
 Keep case population in the workflow when the query feeds the case attachment directly. Build a

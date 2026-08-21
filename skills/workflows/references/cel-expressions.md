@@ -92,6 +92,22 @@ Test if a field exists (not null).
 has(data['optional_field'])
 ```
 
+### `cs.timestamp.parse(string, layout)` → timestamp
+Parse a time string into a timestamp. Use `'RFC3339'` for the ISO-8601 times Fusion emits, such as the detection time in `Trigger.ObservedTime`.
+```
+cs.timestamp.parse(data['Trigger.ObservedTime'], 'RFC3339')
+```
+
+Combine it with standard CEL `timestamp()` and `duration()` for time math. To get **Unix epoch milliseconds** — what CQL's `setTimeInterval()` and many external APIs expect — subtract the epoch and take the total milliseconds of the resulting duration, then cast to `int`:
+```
+int((cs.timestamp.parse(data['Trigger.ObservedTime'], 'RFC3339') - timestamp('1970-01-01T00:00:00Z')).getMilliseconds())
+```
+Subtract a `duration(...)` to shift the window — e.g. one hour before the detection:
+```
+int((cs.timestamp.parse(data['Trigger.ObservedTime'], 'RFC3339') - duration('1h') - timestamp('1970-01-01T00:00:00Z')).getMilliseconds())
+```
+`.getMilliseconds()` on a duration returns the **total** milliseconds, not a 0–999 component. Verified live: an `ObservedTime` of `2026-08-21T12:00:00Z` yields `1787313600000` (end) and `1787310000000` (start, one hour earlier).
+
 ---
 
 ## YAML quoting rules — critical gotchas
