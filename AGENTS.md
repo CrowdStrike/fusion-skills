@@ -68,7 +68,7 @@ The skills are markdown instructions plus Python scripts — no plugin runtime i
 1. **Read the SKILL.md** for the task you are doing (e.g., `skills/authoring/SKILL.md` to write a workflow).
 2. **Run the scripts directly** with `python <skill>/scripts/<script>.py --help` to see flags. Any absolute or `~/.agents/skills/...` symlink path works — each script resolves its own location and bootstraps its managed Python venv, so `${CLAUDE_PLUGIN_ROOT}` (set only by Claude Code) is not required.
 3. **Follow the discipline rules**, which are not optional:
-   - Always discover real action IDs with `action_search.py` — never guess. IDs are 32-char hex.
+   - Always discover real action IDs with `action_search.py` — never guess. IDs are opaque catalog identifiers.
    - Never write `PLACEHOLDER_*` values. Resolve every ID before authoring.
    - Every action needs a `version_constraint`: `~<major>` of its `semantic_version` (`~0` when it declares none).
    - Validate after authoring (`validate.py`) and again as a deploy pre-flight.
@@ -88,7 +88,7 @@ Carry the artifacts forward: authoring produces a validated YAML file, deploymen
 
 These rules apply to every task and are not optional:
 
-- **Discover real action IDs — never invent them.** Run `skills/authoring/scripts/action_search.py` against the live activities catalog to resolve a real 32-char hex ID for every action. Guessing an ID, or shipping a `PLACEHOLDER_*` value, produces a workflow that fails to import or wires the wrong action into a response.
+- **Discover real action IDs — never invent them.** Run `skills/authoring/scripts/action_search.py` against the live activities catalog to resolve a real ID for every action. Guessing an ID, or shipping a `PLACEHOLDER_*` value, produces a workflow that fails to import or wires the wrong action into a response.
 - **Validate before deploy.** Run `skills/authoring/scripts/validate.py` after authoring, and again as a deploy pre-flight (`skills/deployment/scripts/import_workflows.py` does this by default). Catch schema, action-ID, and `version_constraint` errors locally instead of at the API.
 - **Standalone-workflow-first.** Produce a standalone Fusion workflow that runs directly against a CID. Reach for a Foundry app (`manifest.yml`, UI, functions, collections) only when the request genuinely needs one — then route to `foundry-skills`.
 - **Resolve credential config IDs; do not invent them.** HTTP Actions and plugin actions reference a `config_id` created in the Falcon console and specific to the CID. Discover an existing one or ask the user where to find it — a fabricated config ID fails at runtime.
@@ -147,7 +147,7 @@ Re-importing a name that already exists is flagged by the duplicate check; renam
 Quality matters more than speed. Specifically:
 
 - **Validate everything.** Run `validate.py` after authoring and rely on the import pre-flight; do not push unvalidated YAML to the API.
-- **No placeholders.** Every action `id` must be a real 32-char hex value resolved via `action_search.py`. A `PLACEHOLDER_*` string in output YAML means a step was skipped — go back and resolve it.
+- **No placeholders.** Every action `id` must be a real value resolved via `action_search.py`. A `PLACEHOLDER_*` string in output YAML means a step was skipped — go back and resolve it.
 - **Test before declaring done.** A returned `definition_id` means imported, not working. Release it, trigger it with real parameters, and confirm the execution reached a terminal `Succeeded` state with `monitor_execution.py` before calling the task complete.
 - **Read each skill's Common Pitfalls section** before working in that phase.
 

@@ -48,7 +48,7 @@ metadata:
 > connector-dependent and silently returns nothing on many tenants. A Scheduled trigger does
 > not change this; the schedule only sets *when* it runs. (Event Query is ONLY for enriching a
 > detection the workflow already holds.) See `references/event-query-vs-api.md`.
-> 2. Resolve a real 32-char hex ID for **every** action BEFORE writing any YAML:
+> 2. Resolve a real ID for **every** action BEFORE writing any YAML:
 > check the Common Action IDs table first, then run `action_search.py --search`
 > only for actions the table does not cover.
 > 3. Run `trigger_search.py` to confirm the trigger type.
@@ -97,7 +97,7 @@ Follow these steps in order — do not skip discovery (steps 1–2).
 
 ### 1. Resolve action IDs (MANDATORY)
 
-Every action needs a real 32-char hex `id` before you write any YAML. Resolve
+Every action needs a real `id` from the catalog before you write any YAML. Resolve
 them **table-first**: check the Common Action IDs table below, and only run
 `action_search.py` for the actions it does not cover. Guessing an ID or shipping
 a `PLACEHOLDER_*` is never acceptable — but a verified ID from the table is
@@ -146,7 +146,7 @@ biggest time sink.
 ../../scripts/python.sh scripts/action_search.py --details <action_id>
 ```
 
-For each action you discover, record: `id` (32-char hex), `name`, input
+For each action you discover, record: `id` (an opaque catalog identifier), `name`, input
 fields/types, its `version_constraint` (nearly all have one), `class` if any,
 and whether it is a plugin action (needs a `config_id`).
 
@@ -243,7 +243,7 @@ force an immediate refresh so newly shipped action types are never hidden.
 | "I'll write the YAML, then fill in action IDs later." | STOP. Resolve every ID first — from the Common Action IDs table, or `action_search.py`. "Later" never happens — placeholders ship. |
 | "I'll search for the Event Query / HTTP / Send email / Charlotte AI action." | DON'T. Those are in the Common Action IDs table — use the row directly. |
 | "I'll run `action_search.py \"event query\"` to search." | WRONG FLAG. A bare term prints usage and finds nothing. Use `action_search.py --search \"event query\"`. |
-| "I can guess the action ID format." | WRONG. IDs are 32-char hex, only discoverable via the table or the live API. |
+| "I can guess the action ID format." | WRONG. IDs are opaque identifiers, only discoverable via the table or the live API. |
 | "The template has `PLACEHOLDER_RAN_006`, I'll copy it." | NEVER. Templates are structural guides. Substitute a real value before saving. |
 | "Validation can wait until deploy." | NO. Validate after authoring — `validate.py` catches PLACEHOLDERs, bad IDs, and schema errors locally. |
 | "Only class-based actions need `version_constraint`." | WRONG. Not class-specific — nearly every action has a `version_constraint`. |

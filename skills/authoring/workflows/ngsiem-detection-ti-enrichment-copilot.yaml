@@ -1,0 +1,413 @@
+# This is an exported workflow.
+# Workflow: NG-SIEM Detection Threat Intel Enrichment - copilot
+# Category: threat-intel / ngsiem-detection-response
+#
+# Fires on any Next-Gen SIEM detection (Signal trigger, event:
+# Investigatable/NGSIEM), hydrates the full detection context with an Event
+# Query (joined on Ngsiem.alert.id, dropping the correlation-rule meta-event),
+# extracts user/host/domain/url/file-hash/ip indicators, and fans out
+# VirusTotal Cloud HTTP Request enrichment for domain, URL, file hash, and IP
+# in parallel (gated on each indicator being present). VirusTotal is used for
+# every indicator type here; DomainTools Iris Investigate is a Store *plugin*
+# action (compound id, requires a console-configured config_id) and can be
+# swapped in for the domain branch once that credential exists in the target
+# CID - see the comment on DomainHTTPRequest below. User and host names are
+# extracted and carried into the summary directly since neither VirusTotal
+# nor DomainTools offer a username/hostname reputation lookup.
+#
+# All four HTTP actions are authored credential-less (Authentication = "None")
+# per the console-credential boundary - attach a VirusTotal API key to each
+# after import: action -> Authentication -> Create new -> API key -> Header ->
+# x-apikey -> Test -> Schema builder -> Save.
+name: NG-SIEM Detection Threat Intel Enrichment - copilot
+description: Triggers on a Next-Gen SIEM detection, hydrates it with an Event Query, extracts user/host/domain/url/file-hash/ip indicators, enriches domain/url/file-hash/ip in parallel via VirusTotal Cloud HTTP Requests, summarizes all findings with Charlotte AI, and emails an HTML report.
+trigger:
+    next:
+        - InitEnrichmentVariable
+    name: NG-SIEM Detection
+    event: Investigatable/NGSIEM
+    type: Signal
+actions:
+    InitEnrichmentVariable:
+        id: 702d15788dbbffdf0b68d8e2f3599aa4
+        class: CreateVariable
+        name: Create variable - Initialize enrichment context
+        next:
+            - HydrateDetection
+        properties:
+            variable_schema:
+                type: object
+                properties:
+                    user_name:
+                        type: string
+                    host_name:
+                        type: string
+                    domain_name:
+                        type: string
+                    url:
+                        type: string
+                    file_hash:
+                        type: string
+                    ip_address:
+                        type: string
+                    domain_enrichment:
+                        type: string
+                    url_enrichment:
+                        type: string
+                    hash_enrichment:
+                        type: string
+                    ip_enrichment:
+                        type: string
+        version_constraint: ~1
+    HydrateDetection:
+        id: cdf5c3e0d69f156eaaf56c1f5d3f1b66
+        class: Inline.QueryEvent
+        name: Query event - Hydrate NG-SIEM detection
+        next:
+            - ExtractIndicators
+        properties:
+            detection_id: ${data['Trigger.Detection.DetectionID']}
+            logscale_search_start_time: 7 days
+            output_files_only: false
+            workflow_csv_header_fields: []
+            workflow_export_event_query_results_to_csv: false
+        inline_configuration:
+            config:
+                description: Hydrate the full NG-SIEM detection context by its composite detection ID, dropping the correlation-rule meta-event.
+                end: now
+                repo_or_view: search-all
+                search_name: Hydrate NG-SIEM detection
+                search_query: "#repo=xdr_indicatorsrepo Ngsiem.alert.id=?detection_id | xdr_type != correlation-rule-detection | report_name != *"
+                search_query_args:
+                    detection_id: '*'
+                start: 7d
+                tags: []
+            input_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                type: object
+                description: Generated request schema
+                required:
+                    - detection_id
+                properties:
+                    detection_id:
+                        type: string
+                        title: Detection ID
+                        default: '*'
+        version_constraint: ~1
+    ExtractIndicators:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Extract indicators from hydrated detection
+        next:
+            - domain_present
+            - url_present
+            - hash_present
+            - ip_present
+        properties:
+            WorkflowCustomVariable:
+                user_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].UserName.orValue('') : ''}"
+                host_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].HostName.orValue('') : ''}"
+                domain_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].DomainName.orValue('') : ''}"
+                url: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].Url.orValue('') : ''}"
+                file_hash: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].FileHash.orValue('') : ''}"
+                ip_address: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].IpAddress.orValue('') : ''}"
+        version_constraint: ~1
+    DomainHTTPRequest:
+        id: 1ba474f407d9228fc8fa02cdce8ae8ef
+        class: Inline.HTTPRequest
+        name: Cloud HTTP Request - VirusTotal Domain Enrichment
+        next:
+            - UpdateDomainEnrichment
+        inline_configuration:
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                type: object
+                properties:
+                    data:
+                        type: object
+                        properties:
+                            id:
+                                type: string
+                            attributes:
+                                type: object
+                                properties:
+                                    reputation:
+                                        type: integer
+                                    categories:
+                                        type: object
+                                    last_analysis_stats:
+                                        type: object
+                                        properties:
+                                            malicious:
+                                                type: integer
+                                            suspicious:
+                                                type: integer
+                                            harmless:
+                                                type: integer
+                                            undetected:
+                                                type: integer
+        properties:
+            http_transaction:
+                request_http_method: GET
+                request_url: "https://www.virustotal.com/api/v3/domains/${data['WorkflowCustomVariable.domain_name']}"
+                request_content_type: NONE
+                request_headers: {}
+                request_body: '{}'
+                _cs_inline_output_schema: '{"$schema":"https://json-schema.org/draft-07/schema","type":"object","properties":{"data":{"type":"object","properties":{"id":{"type":"string"},"attributes":{"type":"object","properties":{"reputation":{"type":"integer"},"categories":{"type":"object"},"last_analysis_stats":{"type":"object","properties":{"malicious":{"type":"integer"},"suspicious":{"type":"integer"},"harmless":{"type":"integer"},"undetected":{"type":"integer"}}}}}}}}}'
+        version_constraint: ~1
+    UpdateDomainEnrichment:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Store domain enrichment
+        next:
+            - SummarizeEnrichment
+        properties:
+            WorkflowCustomVariable:
+                domain_enrichment: "Domain: ${data['WorkflowCustomVariable.domain_name']} | Reputation: ${data['DomainHTTPRequest.data.attributes.reputation']} | Malicious: ${data['DomainHTTPRequest.data.attributes.last_analysis_stats.malicious']} | Suspicious: ${data['DomainHTTPRequest.data.attributes.last_analysis_stats.suspicious']}"
+        version_constraint: ~1
+    HashHTTPRequest:
+        id: 1ba474f407d9228fc8fa02cdce8ae8ef
+        class: Inline.HTTPRequest
+        name: Cloud HTTP Request - VirusTotal File Hash Enrichment
+        next:
+            - UpdateHashEnrichment
+        inline_configuration:
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                type: object
+                properties:
+                    data:
+                        type: object
+                        properties:
+                            id:
+                                type: string
+                            attributes:
+                                type: object
+                                properties:
+                                    reputation:
+                                        type: integer
+                                    type_description:
+                                        type: string
+                                    meaningful_name:
+                                        type: string
+                                    last_analysis_stats:
+                                        type: object
+                                        properties:
+                                            malicious:
+                                                type: integer
+                                            suspicious:
+                                                type: integer
+                                            harmless:
+                                                type: integer
+                                            undetected:
+                                                type: integer
+        properties:
+            http_transaction:
+                request_http_method: GET
+                request_url: "https://www.virustotal.com/api/v3/files/${data['WorkflowCustomVariable.file_hash']}"
+                request_content_type: NONE
+                request_headers: {}
+                request_body: '{}'
+                _cs_inline_output_schema: '{"$schema":"https://json-schema.org/draft-07/schema","type":"object","properties":{"data":{"type":"object","properties":{"id":{"type":"string"},"attributes":{"type":"object","properties":{"reputation":{"type":"integer"},"type_description":{"type":"string"},"meaningful_name":{"type":"string"},"last_analysis_stats":{"type":"object","properties":{"malicious":{"type":"integer"},"suspicious":{"type":"integer"},"harmless":{"type":"integer"},"undetected":{"type":"integer"}}}}}}}}}'
+        version_constraint: ~1
+    UpdateHashEnrichment:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Store file hash enrichment
+        next:
+            - SummarizeEnrichment
+        properties:
+            WorkflowCustomVariable:
+                hash_enrichment: "File hash: ${data['WorkflowCustomVariable.file_hash']} | Name: ${data['HashHTTPRequest.data.attributes.meaningful_name']} | Type: ${data['HashHTTPRequest.data.attributes.type_description']} | Malicious: ${data['HashHTTPRequest.data.attributes.last_analysis_stats.malicious']} | Suspicious: ${data['HashHTTPRequest.data.attributes.last_analysis_stats.suspicious']}"
+        version_constraint: ~1
+    IPHTTPRequest:
+        id: 1ba474f407d9228fc8fa02cdce8ae8ef
+        class: Inline.HTTPRequest
+        name: Cloud HTTP Request - VirusTotal IP Enrichment
+        next:
+            - UpdateIPEnrichment
+        inline_configuration:
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                type: object
+                properties:
+                    data:
+                        type: object
+                        properties:
+                            id:
+                                type: string
+                            attributes:
+                                type: object
+                                properties:
+                                    reputation:
+                                        type: integer
+                                    country:
+                                        type: string
+                                    as_owner:
+                                        type: string
+                                    last_analysis_stats:
+                                        type: object
+                                        properties:
+                                            malicious:
+                                                type: integer
+                                            suspicious:
+                                                type: integer
+                                            harmless:
+                                                type: integer
+                                            undetected:
+                                                type: integer
+        properties:
+            http_transaction:
+                request_http_method: GET
+                request_url: "https://www.virustotal.com/api/v3/ip_addresses/${data['WorkflowCustomVariable.ip_address']}"
+                request_content_type: NONE
+                request_headers: {}
+                request_body: '{}'
+                _cs_inline_output_schema: '{"$schema":"https://json-schema.org/draft-07/schema","type":"object","properties":{"data":{"type":"object","properties":{"id":{"type":"string"},"attributes":{"type":"object","properties":{"reputation":{"type":"integer"},"country":{"type":"string"},"as_owner":{"type":"string"},"last_analysis_stats":{"type":"object","properties":{"malicious":{"type":"integer"},"suspicious":{"type":"integer"},"harmless":{"type":"integer"},"undetected":{"type":"integer"}}}}}}}}}'
+        version_constraint: ~1
+    UpdateIPEnrichment:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Store IP enrichment
+        next:
+            - SummarizeEnrichment
+        properties:
+            WorkflowCustomVariable:
+                ip_enrichment: "IP: ${data['WorkflowCustomVariable.ip_address']} | Owner: ${data['IPHTTPRequest.data.attributes.as_owner']} | Country: ${data['IPHTTPRequest.data.attributes.country']} | Reputation: ${data['IPHTTPRequest.data.attributes.reputation']} | Malicious: ${data['IPHTTPRequest.data.attributes.last_analysis_stats.malicious']} | Suspicious: ${data['IPHTTPRequest.data.attributes.last_analysis_stats.suspicious']}"
+        version_constraint: ~1
+    URLSubmitHTTPRequest:
+        id: 1ba474f407d9228fc8fa02cdce8ae8ef
+        class: Inline.HTTPRequest
+        name: Cloud HTTP Request - VirusTotal URL Submission
+        next:
+            - URLAnalysisHTTPRequest
+        inline_configuration:
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                type: object
+                properties:
+                    data:
+                        type: object
+                        properties:
+                            id:
+                                type: string
+        properties:
+            http_transaction:
+                request_http_method: POST
+                request_url: https://www.virustotal.com/api/v3/urls
+                request_content_type: JSON
+                request_headers: {}
+                request_body: "{\"url\": \"${data['WorkflowCustomVariable.url']}\"}"
+                _cs_inline_output_schema: '{"$schema":"https://json-schema.org/draft-07/schema","type":"object","properties":{"data":{"type":"object","properties":{"id":{"type":"string"}}}}}'
+        version_constraint: ~1
+    URLAnalysisHTTPRequest:
+        id: 1ba474f407d9228fc8fa02cdce8ae8ef
+        class: Inline.HTTPRequest
+        name: Cloud HTTP Request - VirusTotal URL Analysis Result
+        next:
+            - UpdateURLEnrichment
+        inline_configuration:
+            output_schema:
+                $schema: https://json-schema.org/draft-07/schema
+                type: object
+                properties:
+                    data:
+                        type: object
+                        properties:
+                            attributes:
+                                type: object
+                                properties:
+                                    status:
+                                        type: string
+                                    stats:
+                                        type: object
+                                        properties:
+                                            malicious:
+                                                type: integer
+                                            suspicious:
+                                                type: integer
+                                            harmless:
+                                                type: integer
+                                            undetected:
+                                                type: integer
+        properties:
+            http_transaction:
+                request_http_method: GET
+                request_url: "https://www.virustotal.com/api/v3/analyses/${data['URLSubmitHTTPRequest.data.id']}"
+                request_content_type: NONE
+                request_headers: {}
+                request_body: '{}'
+                _cs_inline_output_schema: '{"$schema":"https://json-schema.org/draft-07/schema","type":"object","properties":{"data":{"type":"object","properties":{"attributes":{"type":"object","properties":{"status":{"type":"string"},"stats":{"type":"object","properties":{"malicious":{"type":"integer"},"suspicious":{"type":"integer"},"harmless":{"type":"integer"},"undetected":{"type":"integer"}}}}}}}}}'
+        version_constraint: ~1
+    UpdateURLEnrichment:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Store URL enrichment
+        next:
+            - SummarizeEnrichment
+        properties:
+            WorkflowCustomVariable:
+                url_enrichment: "URL: ${data['WorkflowCustomVariable.url']} | Status: ${data['URLAnalysisHTTPRequest.data.attributes.status']} | Malicious: ${data['URLAnalysisHTTPRequest.data.attributes.stats.malicious']} | Suspicious: ${data['URLAnalysisHTTPRequest.data.attributes.stats.suspicious']}"
+        version_constraint: ~1
+    SummarizeEnrichment:
+        id: bdfecafafdb44919a458fcf51d6b93a7_98dec86072334d24b37dd798098cfd63
+        name: Charlotte AI - LLM Completion - Summarize threat intel enrichment
+        next:
+            - SendEmail
+        properties:
+            data_to_include:
+                - "Detection: ${data['Trigger.Detection.Name']} (ID ${data['Trigger.Detection.DetectionID']}), Severity ${data['Trigger.Detection.Severity']}"
+                - "User: ${data['WorkflowCustomVariable.user_name']}"
+                - "Host: ${data['WorkflowCustomVariable.host_name']}"
+                - "Domain enrichment: ${data['WorkflowCustomVariable.domain_enrichment']}"
+                - "URL enrichment: ${data['WorkflowCustomVariable.url_enrichment']}"
+                - "File hash enrichment: ${data['WorkflowCustomVariable.hash_enrichment']}"
+                - "IP enrichment: ${data['WorkflowCustomVariable.ip_enrichment']}"
+            model_name: Claude Sonnet 4
+            temperature: 0
+            user_prompt: "You are a CrowdStrike threat analyst. Summarize this NG-SIEM detection and its threat intelligence enrichment results across all providers (VirusTotal domain/URL/file-hash/IP lookups). Call out the affected user and host, note which indicators were malicious/suspicious versus clean, and give an overall risk assessment with recommended next steps. Be concise and actionable. Respond with raw HTML only (headings, lists, bold) - do NOT wrap the response in markdown code fences such as ```html."
+        version_constraint: ~0
+    SendEmail:
+        id: 07413ef9ba7c47bf5a242799f59902cc
+        name: Send email - NG-SIEM detection threat intel summary
+        properties:
+            to:
+                - soc-team@crowdstrike.com
+            subject: "[Falcon Fusion] NG-SIEM Detection Threat Intel Summary - ${data['Trigger.Detection.Name']}"
+            msg: "<html><body>${data['SummarizeEnrichment.FaaS.nlpassistantapi.llminvocator_handler.completion']}</body></html>"
+            msg_type: html
+        version_constraint: ~1
+conditions:
+    domain_present:
+        next:
+            - DomainHTTPRequest
+        cel_expression: "data['WorkflowCustomVariable.domain_name'] != null && data['WorkflowCustomVariable.domain_name'] != ''"
+        display:
+            - Domain indicator present
+        else:
+            - SummarizeEnrichment
+    url_present:
+        next:
+            - URLSubmitHTTPRequest
+        cel_expression: "data['WorkflowCustomVariable.url'] != null && data['WorkflowCustomVariable.url'] != ''"
+        display:
+            - URL indicator present
+        else:
+            - SummarizeEnrichment
+    hash_present:
+        next:
+            - HashHTTPRequest
+        cel_expression: "data['WorkflowCustomVariable.file_hash'] != null && data['WorkflowCustomVariable.file_hash'] != ''"
+        display:
+            - File hash indicator present
+        else:
+            - SummarizeEnrichment
+    ip_present:
+        next:
+            - IPHTTPRequest
+        cel_expression: "data['WorkflowCustomVariable.ip_address'] != null && data['WorkflowCustomVariable.ip_address'] != ''"
+        display:
+            - IP indicator present
+        else:
+            - SummarizeEnrichment
+output_fields: []
