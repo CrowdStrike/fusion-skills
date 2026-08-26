@@ -158,7 +158,7 @@ hooks/          intent routing + cross-plugin advisories
 
 A workflow goes from idea to running in five steps. The orchestrator coordinates them; here is the shape:
 
-1. **Discover actions** — find real 32-char-hex action IDs from the live catalog:
+1. **Discover actions** — find real action IDs from the live catalog:
    ```bash
    python skills/authoring/scripts/action_search.py --search "contain"
    ```

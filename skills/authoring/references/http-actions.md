@@ -22,7 +22,7 @@ Every HTTP Action carries an `http_transaction` map under `properties`:
 
 ```yaml
 MyRequest:
-  id: <32-char hex from action_search.py>
+  id: <action id from action_search.py>
   class: Inline.HTTPRequest
   name: Cloud HTTP Request - VirusTotal IP
   version_constraint: ~1

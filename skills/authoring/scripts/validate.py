@@ -29,7 +29,18 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 REQUIRED_KEYS = {"name", "trigger"}
 PLACEHOLDER_PATTERN = re.compile(r"PLACEHOLDER_[A-Z_]+")
-ACTION_ID_PATTERN = re.compile(r"^[0-9a-f]{32}([_~][0-9a-f]{32})?$")
+# An action id from the catalog is an opaque token: one or more segments of
+# lowercase letters and digits, joined by '_' or '~'. Do NOT assume a fixed
+# length or hex-only alphabet — real catalog ids vary by action type. Live
+# examples from the platform:
+#   ad9b77de3da84531b79740e5b4076571                             (32 hex, plain)
+#   089012345678abcdef9012a3b4c5d6e7f8                           (34 hex, RTR)
+#   01gvk6e58p1815t6gz84000001_18df367939034f1bb97e336c5cd14de4  (26-char ULID _ 32 hex, custom IOC / API integration)
+#   96915a3748b64a079458e21f1fdf4b8c_<longer second segment>     (event query, unequal halves)
+# The lowercase-only alphabet still rejects UPPER_SNAKE placeholders
+# (PLACEHOLDER_*, VIRUSTOTAL_CONFIG_ID) and anything with punctuation or spaces,
+# which is what this check is really guarding against.
+ACTION_ID_PATTERN = re.compile(r"^[0-9a-z]+([_~][0-9a-z]+)*$")
 # A real credential config id (HTTP action definition_id) is exactly 32 hex
 # chars, e.g. 7227ab386bd646c18b27716e8fff8d26. Anything else — an
 # ALL_CAPS_UNDERSCORE token or a PLACEHOLDER_* — is a placeholder that imports
@@ -278,7 +289,8 @@ def _validate_action(label, action, issues):
     elif not ACTION_ID_PATTERN.match(str(action["id"])):
         issues.append(
             f"ERROR: Action '{label}' has invalid id '{action['id']}' "
-            f"(must be 32-char hex, or a compound plugin id '<hex>_<hex>' / '<hex>~<hex>')"
+            f"(not a catalog identifier — expected lowercase letters and digits, "
+            f"optionally joined by '_' or '~'. Run action_search.py to get the real ID)"
         )
     elif len(set(str(action["id"]))) == 1:
         issues.append(

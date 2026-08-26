@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Fixed
 
 - **`validate.py` now flags `WorkflowCustomVariable.<name>` references to variables that nothing declares** — a release-only failure. A reference to a custom variable that no `CreateVariable` (or `UpdateVariable` setter) declares imports and validates cleanly, then fails at release with `property "..." contains unknown variable "WorkflowCustomVariable.<name>"`. The validator now collects declared variable names and reports an undeclared reference before you deploy.
+- **`validate.py` no longer rejects valid action IDs that aren't 32-char hex.** The action-ID check assumed every ID was a 32-character hex string (or a `<hex>_<hex>` / `<hex>~<hex>` compound), but real catalog actions carry other shapes — a 26-character ULID joined to a hex id (custom IOC / API-integration actions), unequal compound halves (event query actions), and longer hex strings (RTR actions). Those imported fine yet were flagged as invalid locally. IDs are now treated as opaque catalog identifiers, so the check still rejects placeholders (UPPER_SNAKE tokens, punctuation, all-same-character) without blocking real IDs. Docs updated to describe action IDs as identifiers you look up rather than "32-char hex".
 
 ## [1.1.0] - 2026-08-19
 

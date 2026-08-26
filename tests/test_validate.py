@@ -146,15 +146,28 @@ conditions:
         issues = validate.structural_check(str(f))
         assert any("invalid id" in i.lower() for i in issues)
 
-    def test_invalid_action_id_wrong_length(self, tmp_path):
-        f = tmp_path / "short_id.yaml"
+    def test_uppercase_placeholder_id_rejected(self, tmp_path):
+        """An UPPER_SNAKE token (the common placeholder shape) is still rejected."""
+        f = tmp_path / "placeholder_id.yaml"
         f.write_text(
             VALID_WORKFLOW.replace(
-                "aabbccdd11223344aabbccdd11223344", "aabbccdd1122"
+                "aabbccdd11223344aabbccdd11223344", "VIRUSTOTAL_CONFIG_ID"
             )
         )
         issues = validate.structural_check(str(f))
         assert any("invalid id" in i.lower() for i in issues)
+
+    def test_long_hex_action_id_accepted(self, tmp_path):
+        """A real id longer than 32 hex (e.g. an RTR action) is accepted."""
+        f = tmp_path / "long_id.yaml"
+        f.write_text(
+            VALID_WORKFLOW.replace(
+                "aabbccdd11223344aabbccdd11223344",
+                "089012345678abcdef9012a3b4c5d6e7f8",  # 34 hex, live RTR action
+            )
+        )
+        issues = validate.structural_check(str(f))
+        assert not any("invalid id" in i.lower() for i in issues)
 
     def test_fake_all_same_character_id(self, tmp_path):
         f = tmp_path / "fake_id.yaml"
@@ -190,17 +203,25 @@ conditions:
         issues = validate.structural_check(str(f))
         assert not any("invalid id" in i.lower() for i in issues)
 
-    def test_malformed_compound_id_fails(self, tmp_path):
-        """A compound id with a wrong-length half is still rejected."""
-        f = tmp_path / "bad_compound.yaml"
-        f.write_text(
-            VALID_WORKFLOW.replace(
-                "aabbccdd11223344aabbccdd11223344",
-                "aabbccdd11223344aabbccdd11223344_deadbeef",
+    def test_compound_id_unequal_segments_accepted(self, tmp_path):
+        """Real catalog ids join segments of differing kinds/lengths.
+
+        Event query and API-integration actions carry ids like '<32hex>_<longer>'
+        or '<26-char ULID>_<32hex>'. These must NOT be flagged — the segments are
+        not both 32-char hex, and that is legitimate.
+        """
+        for real_id in (
+            "01gvk6e58p1815t6gz84000001_18df367939034f1bb97e336c5cd14de4",  # ULID _ hex, custom IOC
+            "96915a3748b64a079458e21f1fdf4b8c_96915a3748b64a079458e21f1fdf4b8caa",  # hex _ longer, event query
+        ):
+            f = tmp_path / f"unequal_{real_id[:6]}.yaml"
+            f.write_text(
+                VALID_WORKFLOW.replace("aabbccdd11223344aabbccdd11223344", real_id)
             )
-        )
-        issues = validate.structural_check(str(f))
-        assert any("invalid id" in i.lower() for i in issues)
+            issues = validate.structural_check(str(f))
+            assert not any(
+                "invalid id" in i.lower() for i in issues
+            ), f"{real_id} wrongly flagged: {issues}"
 
     def test_missing_action_id(self, tmp_path):
         f = tmp_path / "no_id.yaml"

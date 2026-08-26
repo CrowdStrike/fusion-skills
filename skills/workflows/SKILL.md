@@ -239,7 +239,7 @@ These thoughts mean STOP — you are about to skip a step the lifecycle requires
 | Thought | Reality |
 |---------|---------|
 | "I'll just write the YAML without searching actions" | STOP. Invoke the authoring skill. It runs `action_search.py` first. No exceptions. |
-| "I can guess the action ID format" | WRONG. IDs are 32-char hex, only discoverable via API. |
+| "I can guess the action ID format" | WRONG. IDs are opaque identifiers, only discoverable via API. |
 | "I'll use a placeholder for now" | NEVER. Resolve every ID before writing YAML. No `PLACEHOLDER_*` values. |
 | "Validation can wait until deploy" | NO. Authoring validates; deployment validates again as a pre-flight. Both happen. |
 | "This is basically a Foundry app" | CHECK. Does it need UI/functions/collections? If not, it's a standalone workflow. |

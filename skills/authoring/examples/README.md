@@ -69,8 +69,8 @@ own automations. The structure follows the documented Fusion workflow YAML schem
 a `trigger` that starts the workflow, `actions` (and `loops` / `conditions`) that do
 the work, and `output_fields` that surface results to the caller.
 
-**All action IDs are real values from the CrowdStrike platform.** The 32-character
-hex IDs (such as `702d15788dbbffdf0b68d8e2f3599aa4` for Create variable) are global
+**All action IDs are real values from the CrowdStrike platform.** These IDs
+(such as `702d15788dbbffdf0b68d8e2f3599aa4` for Create variable) are global
 and work across clouds. CrowdStrike-native actions import directly; third-party
 actions (Slack, Zscaler, PAN NGFW) reference plugin instances that are specific to
 your CID and need to be configured before the workflow will run.

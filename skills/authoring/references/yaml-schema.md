@@ -71,7 +71,7 @@ Each action is a named node with a unique label (PascalCase recommended).
 ```yaml
 actions:
     ContainDevice:                  # Node label — referenced by next/conditions
-        id: bec9fbeb...            # 32-char hex from the action catalog (global, not per-CID)
+        id: bec9fbeb...            # opaque id from the action catalog (global, not per-CID)
         name: Contain device        # Display label — defaults to the catalog name, but you can rename it freely (next:/conditions resolve by node key and id, not this label)
         next:                       # Next node(s) to execute
             - UpdateVariable

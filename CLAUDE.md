@@ -17,7 +17,7 @@ The skills enforce discipline to prevent common failures. When you catch yoursel
 
 | Thought | Reality |
 |---------|---------|
-| "I'll write the YAML without searching actions" | STOP. Run `action_search.py` first — action IDs are 32-char hex, only discoverable via API |
+| "I'll write the YAML without searching actions" | STOP. Run `action_search.py` first — action IDs are opaque catalog identifiers, only discoverable via API |
 | "I'll use a placeholder ID for now" | NEVER. Resolve every action ID before writing YAML. No `PLACEHOLDER_*` values |
 | "version_constraint is optional" | WRONG. Every action requires it: `~<major>` of its `semantic_version` (`~0` when none, e.g. Charlotte AI at `0.0.100`) |
 | "Validation can wait until deploy" | NO. Authoring validates; deployment validates again as a pre-flight |
