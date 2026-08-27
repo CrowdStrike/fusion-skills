@@ -235,3 +235,11 @@ entry/limiter fail; calls against existing ones keep working.
 third-party (Palo Alto) detection is deduplicated on a sha1 key over a 24h window:
 new detections create a case and record its ID as metadata; duplicates wait for
 that metadata and comment on the original case.
+
+This is the same pattern the CrowdStrike "Workflow Wednesday — Taming Noisy Alerts
+with Deduplication" post walks through (25 phishing detections collapsed into one
+case): a `cs.hash.sha1` key over Detection Name + Sender + Subject, Workflow scope,
+an 86400-second (24h) period, branch on `duplicate`, `Set Deduplicate Entry
+Metadata` to store the Case ID, and `Wait for Deduplicate Entry Metadata` on the
+duplicate path to handle the create-vs-read race.
+See <https://www.reddit.com/r/crowdstrike/comments/1vn01u6/20260812_workflow_wednesday_taming_noisy_alerts/>.
