@@ -35,6 +35,8 @@
       "Automate a CrowdStrike response",
       "Troubleshoot a Fusion workflow"
     ],
-    "brandColor": "#E01F3D"
+    "brandColor": "#E01F3D",
+    "composerIcon": "./assets/crowdstrike-logo.png",
+    "logo": "./assets/crowdstrike-logo.png"
   }
 }
