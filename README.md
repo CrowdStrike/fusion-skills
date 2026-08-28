@@ -21,10 +21,13 @@ AI coding assistant skills for building [CrowdStrike Falcon Fusion](https://www.
 | Assistant | Command | Marketplace |
 |-----------|---------|-------------|
 | Claude Code | `/plugin install crowdstrike-falcon-fusion` | [Anthropic](https://github.com/anthropics/claude-plugins-official) |
-| Codex | `codex plugin add crowdstrike-falcon-fusion` | [OpenAI](https://chatgpt.com/plugins) (pending) |
+| Codex | `codex plugin add crowdstrike-falcon-fusion@openai-api-curated` | [OpenAI](https://chatgpt.com/plugins) |
 | Copilot CLI | `copilot plugin install CrowdStrike/fusion-skills` | [GitHub](https://awesome-copilot.github.com/plugin/crowdstrike-falcon-fusion/) |
 | Cursor | `/plugins` (CLI) or `/add-plugin crowdstrike-falcon-fusion` (IDE) | [Cursor](https://cursor.com/marketplace/crowdstrike/crowdstrike-falcon-fusion) |
 | Antigravity CLI | `agy plugin install https://github.com/CrowdStrike/fusion-skills` | [Google](https://antigravity.google/docs/plugins) |
+
+> [!NOTE]
+> **Codex** has two install paths depending on how you signed in. The command above installs from the curated CLI marketplace, which **API-key and Amazon Bedrock** sessions load. If you authenticated Codex with a **ChatGPT** account, that marketplace isn't loaded — instead run `/plugins` inside Codex, search for `crowdstrike`, and install from the results.
 
 In a live-tenant run, all five assistants (Claude Code, Codex, Copilot CLI, Cursor, and Antigravity CLI) each authored a valid workflow from the example prompt below and imported it to the tenant.
 
