@@ -30,7 +30,7 @@ AI coding assistant skills for building [CrowdStrike Falcon Fusion](https://www.
 > **Codex** uses a different marketplace depending on how you signed in, so no single command works across both today:
 >
 > - **API-key / Amazon Bedrock** — the command above (`crowdstrike-falcon-fusion@openai-api-curated`).
-> - **ChatGPT-authenticated** — run `/plugins` and search for `crowdstrike` (the `openai-curated` CLI marketplace does not list these plugins yet).
+> - **ChatGPT-authenticated** — run `/plugins` and search for `crowdstrike`.
 
 In a live-tenant run, all five assistants (Claude Code, Codex, Copilot CLI, Cursor, and Antigravity CLI) each authored a valid workflow from the example prompt below and imported it to the tenant.
 
