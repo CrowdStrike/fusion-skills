@@ -27,10 +27,7 @@ AI coding assistant skills for building [CrowdStrike Falcon Fusion](https://www.
 | Antigravity CLI | `agy plugin install https://github.com/CrowdStrike/fusion-skills` | [Google](https://antigravity.google/docs/plugins) |
 
 > [!NOTE]
-> **Codex** uses a different marketplace depending on how you signed in, so no single command works across both today:
->
-> - **API-key / Amazon Bedrock** — the command above (`crowdstrike-falcon-fusion@openai-api-curated`).
-> - **ChatGPT-authenticated** — run `/plugins` and search for `crowdstrike`.
+> **Codex** has two install paths depending on how you signed in. The command above installs from the curated CLI marketplace, which **API-key and Amazon Bedrock** sessions load. If you authenticated Codex with a **ChatGPT** account, that marketplace isn't loaded — instead run `/plugins` inside Codex, search for `crowdstrike`, and install from the results.
 
 In a live-tenant run, all five assistants (Claude Code, Codex, Copilot CLI, Cursor, and Antigravity CLI) each authored a valid workflow from the example prompt below and imported it to the tenant.
 
