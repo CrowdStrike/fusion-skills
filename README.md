@@ -31,7 +31,7 @@ AI coding assistant skills for building [CrowdStrike Falcon Fusion](https://www.
 
 In a live-tenant run, all five assistants (Claude Code, Codex, Copilot CLI, Cursor, and Antigravity CLI) each authored a valid workflow from the example prompt below and imported it to the tenant.
 
-These skills follow the [Agent Plugins](https://agent-plugins.org) format, with a root `plugin.json` and a Codex `.codex-plugin/plugin.json` so the non-Claude assistants can discover them.
+These skills follow the [Agent Plugins](https://agent-plugins.org) format, with a root `plugin.json` and a Codex `.codex-plugin/plugin.json` so the non-Claude assistants can discover them. See the [blog post](https://www.crowdstrike.com/tech-hub/ng-siem/build-falcon-fusion-workflows-with-claude-code/) for a full walkthrough.
 
 <details>
 <summary><strong>Install from a local clone</strong> (for development or testing a branch)</summary>
