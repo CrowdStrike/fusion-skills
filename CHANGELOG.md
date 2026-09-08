@@ -4,10 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0] - TBD
 
 ### Added
 
+- **Installable from the OpenAI/Codex, Cursor, and GitHub Copilot marketplaces.** Beyond the Anthropic marketplace, the plugin is now published to the OpenAI/Codex curated CLI marketplace (`codex plugin add crowdstrike-falcon-fusion@openai-api-curated`; ChatGPT-authenticated Codex installs via `/plugins`), the Cursor marketplace, and the GitHub Copilot (awesome-copilot) directory. The skills-only bundle now ships the square interface icon the OpenAI directory requires, and the README install table links each live listing plus the Falcon Fusion workflows walkthrough.
 - **CEL timestamp and time-math functions** in the CEL expressions reference — `cs.timestamp.parse(str, 'RFC3339')` plus the live-verified Unix-epoch-millisecond idiom (`int((… - timestamp('1970-01-01T00:00:00Z')).getMilliseconds())`) and `duration(...)` windowing. Includes a case-management pattern for building dynamic, time-scoped Event Search deep links from a detection's `Trigger.ObservedTime`.
 
 ### Fixed
@@ -77,7 +78,3 @@ First public release of Falcon Fusion Skills — AI coding assistant skills for 
 ### Editor and CLI Support
 
 - Tested with Claude Code. Experimental setup instructions for Codex, Copilot CLI, Cursor, and Antigravity CLI, written from each tool's own documentation but not yet verified end to end. The skills are plain markdown, so any assistant that reads local files can use them.
-
-[1.1.0]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.1.0
-[1.0.1]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.0.1
-[1.0.0]: https://github.com/CrowdStrike/fusion-skills/releases/tag/v1.0.0
