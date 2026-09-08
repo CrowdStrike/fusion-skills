@@ -52,7 +52,7 @@ cannot do, and uses the API for everything deterministic:
 | Render-test (Signal/Scheduled/SubModel) | **Browser** | No API reports "did the canvas draw" — open the editor and watch the console |
 | Configure an HTTP-action credential | **Browser** | Fusion has no API to create an HTTP-action credential |
 | Execute an On-demand workflow | **API** | `trigger_workflow.py --wait` triggers it |
-| Determine success | **API** | `get_execution_results.py` checks `status == succeeded` — no UI eyeballing |
+| Determine success | **API** | `get_execution_results.py` treats `succeeded` or `completed` as success — no UI eyeballing |
 
 So a credential-gated On-demand workflow is handled in two steps: the browser
 configures the VirusTotal credential and publishes it, then the harness executes
