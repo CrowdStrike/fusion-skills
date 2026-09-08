@@ -34,8 +34,12 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 # Terminal statuses returned by the execution-results API. The API returns
 # capitalized values; callers should match case-insensitively. "ActionRequired"
 # is terminal for polling purposes — it waits on human input and won't progress
-# on its own.
-TERMINAL_STATUSES = {"succeeded", "failed", "canceled", "nonrecoverable", "actionrequired"}
+# on its own. Live testing confirmed a normal successful execution reports
+# "Completed" (not "Succeeded") at the top level — both are treated as success
+# below via SUCCESS_STATUSES; "succeeded" is kept for forward/back compat in
+# case another execution path ever returns it.
+TERMINAL_STATUSES = {"succeeded", "completed", "failed", "canceled", "nonrecoverable", "actionrequired"}
+SUCCESS_STATUSES = {"succeeded", "completed"}
 
 
 def fetch_results(execution_id):

@@ -2,9 +2,9 @@
 Monitor a CrowdStrike Fusion workflow execution until it completes.
 
 Polls the execution-results API at a fixed interval until the execution reaches
-a terminal state (succeeded, failed, canceled, nonrecoverable, actionrequired)
-or the timeout elapses. Status updates are printed to stderr so the final
-result on stdout stays clean for piping.
+a terminal state (succeeded, completed, failed, canceled, nonrecoverable,
+actionrequired) or the timeout elapses. Status updates are printed to stderr so
+the final result on stdout stays clean for piping.
 
 Usage:
     python monitor_execution.py --execution-id <exec_id>
@@ -21,7 +21,7 @@ import os
 # fetch_results and TERMINAL_STATUSES live alongside this script; they own the
 # auth client and API-response parsing, so this script needs no direct client.
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from get_execution_results import fetch_results, TERMINAL_STATUSES  # pylint: disable=wrong-import-position
+from get_execution_results import fetch_results, TERMINAL_STATUSES, SUCCESS_STATUSES  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -98,7 +98,7 @@ def main():
             print(f"  Output:\n{json.dumps(output, indent=4)}")
 
     # Non-zero exit for non-successful terminal states so callers/CI can react.
-    sys.exit(0 if status.lower() == "succeeded" else 1)
+    sys.exit(0 if status.lower() in SUCCESS_STATUSES else 1)
 
 
 if __name__ == "__main__":
