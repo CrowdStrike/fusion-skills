@@ -9,7 +9,7 @@
       "source": {
         "source": "url",
         "url": "https://github.com/CrowdStrike/fusion-skills.git",
-        "ref": "v1.1.0"
+        "ref": "v1.2.0"
       },
       "policy": {
         "installation": "INSTALLED_BY_DEFAULT",
