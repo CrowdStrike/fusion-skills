@@ -6,8 +6,8 @@ description: >
   or needs help with CQL match() function.
   DO NOT TRIGGER for Fusion workflows, action discovery, or workflow deployment —
   use the workflows/authoring/deployment skills.
-version: 1.1.0
-updated: 2026-08-19
+version: 1.2.0
+updated: 2026-09-08
 tags: [falcon, ngsiem, siem, lookup-files, cql, threat-hunting]
 author: CrowdStrike
 license: MIT
