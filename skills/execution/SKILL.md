@@ -35,7 +35,9 @@ metadata:
 
 This skill runs Fusion workflows that are already deployed and released, watches them to completion, retrieves their output, and helps debug failures. Writing the YAML happens in the **authoring** skill; importing and releasing happens in the **deployment** skill.
 
-An execution moves through states and ends in a **terminal** state. The terminal states are `Succeeded`, `Failed`, `Canceled`, `NonRecoverable`, and `ActionRequired`. (`ActionRequired` is terminal for polling: it waits on human input and will not progress on its own.) Anything else means the execution is still running.
+An execution moves through states and ends in a **terminal** state. The terminal states are `Succeeded`, `Completed`, `Failed`, `Canceled`, `NonRecoverable`, and `ActionRequired`. (`ActionRequired` is terminal for polling: it waits on human input and will not progress on its own.) Anything else means the execution is still running.
+
+> **`Succeeded` vs `Completed`.** Live testing against the execution-results API found that a normal successful execution reports its top-level `status` as `Completed`, not `Succeeded` — the scripts in this skill treat both as success (see `SUCCESS_STATUSES` in `get_execution_results.py`). Don't assume `Succeeded` is the only success value when reading raw API output yourself.
 
 > **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py` (a sibling skill's script is `../<skill>/scripts/<name>.py`). For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/execution"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/execution`). The wrapper bootstraps its own Python venv.
 
@@ -145,7 +147,7 @@ Parameters come from `--params` (a JSON string) or interactive prompts derived f
 ../../scripts/python.sh scripts/monitor_execution.py --execution-id <exec_id> --interval 10 --timeout 600 --json
 ```
 
-Defaults: `--interval 5`, `--timeout 300`. Prints status updates to stderr and the final result to stdout. Exits `0` only when the execution `Succeeded`; non-zero on any other terminal state or timeout, so CI can react.
+Defaults: `--interval 5`, `--timeout 300`. Prints status updates to stderr and the final result to stdout. Exits `0` only on a successful terminal state (`Succeeded` or `Completed`); non-zero on any other terminal state or timeout, so CI can react.
 
 ### get_execution_results.py
 

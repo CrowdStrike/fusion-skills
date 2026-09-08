@@ -26,6 +26,21 @@ class TestMonitor:
         assert result is not None
         assert result["status"] == "Succeeded"
 
+    def test_monitor_returns_on_completed(self, monkeypatch):
+        """Regression: a terminal "Completed" status (the real API's success
+        value) must also end the loop immediately, not run to the timeout."""
+        mock_client = MagicMock()
+        mock_client.execution_results.return_value = {
+            "status_code": 200,
+            "body": {"resources": [{"status": "Completed"}], "errors": []},
+            "headers": {},
+        }
+        monkeypatch.setattr(get_execution_results, "get_client", lambda: mock_client)
+        monkeypatch.setattr(monitor_execution.time, "sleep", lambda _s: None)
+        result = monitor_execution.monitor("exec_123", interval=0.1, timeout=5)
+        assert result is not None
+        assert result["status"] == "Completed"
+
     def test_monitor_in_progress_then_complete(self, monkeypatch):
         """The loop keeps polling while non-terminal, then returns on completion."""
         statuses = ["Running", "Running", "Succeeded"]
@@ -118,6 +133,25 @@ class TestMain:
         out = capsys.readouterr().out
         assert "Succeeded" in out
         assert "done" in out
+
+    def test_main_completed_exits_0(self, monkeypatch, capsys):
+        """Regression: the real API's "Completed" success status must exit 0,
+        not fall through to the non-zero branch like it did before this fix
+        (which misreported every successful run as a failure)."""
+        monkeypatch.setattr(
+            "sys.argv",
+            ["monitor_execution.py", "--execution-id", "exec_123"],
+        )
+        monkeypatch.setattr(
+            monitor_execution,
+            "monitor",
+            lambda *_a, **_k: {"status": "Completed", "output": {"done": True}},
+        )
+        with pytest.raises(SystemExit) as exc:
+            monitor_execution.main()
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert "Completed" in out
 
     def test_main_failed_exits_1(self, monkeypatch):
         """A non-succeeded terminal state exits non-zero for CI."""
