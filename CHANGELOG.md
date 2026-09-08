@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- **`monitor_execution.py` and `trigger_workflow.py --wait` no longer misreport a successful execution as a failure/timeout.** Both polled only for a `Succeeded` terminal status, but live testing against the execution-results API showed a normal successful execution reports `Completed` — so every successful run polled to its full timeout and exited non-zero. `get_execution_results.py`'s shared `TERMINAL_STATUSES` now includes `completed`, and a new `SUCCESS_STATUSES` set (both scripts' single source of truth for the exit-code decision) treats `succeeded` and `completed` as success.
 - **`validate.py` now flags `WorkflowCustomVariable.<name>` references to variables that nothing declares** — a release-only failure. A reference to a custom variable that no `CreateVariable` (or `UpdateVariable` setter) declares imports and validates cleanly, then fails at release with `property "..." contains unknown variable "WorkflowCustomVariable.<name>"`. The validator now collects declared variable names and reports an undeclared reference before you deploy.
 
 ## [1.1.0] - 2026-08-19

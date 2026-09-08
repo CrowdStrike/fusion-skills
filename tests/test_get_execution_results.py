@@ -91,6 +91,29 @@ class TestTerminalStatuses:
         """The documented terminal states are covered."""
         assert {"succeeded", "failed", "canceled"} <= get_execution_results.TERMINAL_STATUSES
 
+    def test_completed_is_terminal(self):
+        """Live testing showed the API reports "Completed" (not "Succeeded")
+        for a normal successful execution — it must be terminal or pollers
+        run to their full timeout on every successful run."""
+        assert "completed" in get_execution_results.TERMINAL_STATUSES
+
+
+class TestSuccessStatuses:
+    """Guard the success subset used to decide exit codes."""
+
+    def test_success_statuses_lowercase(self):
+        """All entries are lowercase so case-insensitive matching works."""
+        for status in get_execution_results.SUCCESS_STATUSES:
+            assert status == status.lower()
+
+    def test_success_statuses_are_terminal(self):
+        """Every success status must also be a terminal status."""
+        assert get_execution_results.SUCCESS_STATUSES <= get_execution_results.TERMINAL_STATUSES
+
+    def test_succeeded_and_completed_are_success(self):
+        """Both observed success values are treated as success."""
+        assert {"succeeded", "completed"} <= get_execution_results.SUCCESS_STATUSES
+
 
 class TestMain:
     """Test the CLI entry point and exit codes."""

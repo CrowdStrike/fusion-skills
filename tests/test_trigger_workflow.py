@@ -398,6 +398,23 @@ class TestPollResults:
         assert result["status"] == "Succeeded"
         assert result["output"] == {"key": "value"}
 
+    def test_poll_completed_returns_result(self, monkeypatch):
+        """Regression: live testing showed a normal successful execution
+        reports "Completed", not "Succeeded" — before this fix, poll_results
+        never recognized it as terminal and ran to the full timeout on every
+        successful --wait run."""
+        mock_client = MagicMock()
+        mock_client.execution_results.return_value = {
+            "status_code": 200,
+            "body": {"resources": [{"status": "Completed", "output": {"key": "value"}}]},
+            "headers": {},
+        }
+        monkeypatch.setattr(get_execution_results, "get_client", lambda: mock_client)
+        monkeypatch.setattr(trigger_workflow.time, "sleep", lambda _s: None)
+        result = trigger_workflow.poll_results("fake_id", timeout=5, interval=0.1)
+        assert result is not None
+        assert result["status"] == "Completed"
+
     def test_poll_failed_returns_result(self, monkeypatch):
         """Verify capitalized Failed status is terminal (not retried forever)."""
         mock_client = MagicMock()
