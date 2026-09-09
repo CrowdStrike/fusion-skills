@@ -42,6 +42,10 @@ products, each with its own approval-then-contain branch.
    "Request human input - Send Slack message" action (id `1ecc2f19f3deb1c607c07a2d755eb538`) that is
    not used in this workflow; discover and confirm it in your CID with
    `action_search.py --search "request human input"` before swapping it in.
+   **Entra ID auth:** the recipient responds through an authenticated prompt, so
+   Request Human Input requires the responder to authenticate with Entra ID —
+   including a business user who is not a Falcon administrator. Confirm the
+   approvers can sign in with Entra ID before relying on this gate.
 5. **Condition on the response.** An FQL condition
    `RequestHumanInputSendEmail.RequestHumanInput.SendEmail.result.user_response:'Approve'` creates
    the true branch. A companion condition matches `Decline` or `Timed out` and routes to a comment

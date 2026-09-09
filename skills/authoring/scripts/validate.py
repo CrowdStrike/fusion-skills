@@ -83,12 +83,6 @@ RELEASE_BAD_REF_PATTERNS = [
      "a Charlotte AI reference with lowercase '.faas.'. Field names are "
      "case-sensitive; release rejects it — use '.FaaS.nlpassistantapi..."
      "'. See references/charlotte-ai-action.md."),
-    (re.compile(r"cs\.json\.decode\(\s*data\['[^']*\.output_stdout'\]\s*\)"),
-     "a cs.json.decode() wrapper around an Inline.Python 'output_stdout' "
-     "reference. Release rejects this as 'invalid or missing variable "
-     "definitions'. Read the source directly instead — e.g. an Event Query's "
-     "${data['<Action>.results'][0].Field} — rather than parsing Python stdout. "
-     "See references/inline-python-action.md and event-query-action.md."),
     (re.compile(r"data\['[^']*\.\d+\.[^']*'\]"),
      "a numeric array index inside the data['...'] quotes (e.g. "
      "'.results.0.field'). Release rejects it as 'not found' — the index goes "
