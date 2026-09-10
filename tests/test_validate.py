@@ -2296,7 +2296,14 @@ actions:
         issues = validate.structural_check(str(f))
         assert any("case-sensitive" in i for i in issues)
 
-    def test_release_ref_cs_json_decode_stdout_flagged(self, tmp_path):
+    def test_cs_json_decode_stdout_not_flagged(self, tmp_path):
+        # Consuming Inline.Python JSON output with cs.json.decode() and
+        # dot-indexing a field is VALID — release accepts it and it resolves at
+        # runtime (live-verified: on-demand probe released and executed clean,
+        # shallow .risk_level and the nested LLM-completion form in
+        # analyze-enrich-epp-detection-llm.yaml both work). Matches the official
+        # SOAR guidance (print(json.dumps(result)) -> cs.json.decode(STDOUT)).
+        # This test guards against re-adding the old false-positive guard.
         f = tmp_path / "jsondecode.yaml"
         content = """\
 # Header
@@ -2316,7 +2323,7 @@ actions:
 """
         f.write_text(content)
         issues = validate.structural_check(str(f))
-        assert any("cs.json.decode" in i and "output_stdout" in i for i in issues)
+        assert not any("cs.json.decode" in i for i in issues)
 
     def test_pinned_long_namespace_path_flagged(self, tmp_path):
         # A pinned action referenced with its output namespace left in the path

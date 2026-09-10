@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - TBD
+
+### Added
+
+- **`.transformList()` in the CEL reference** — the index-aware list transform (`list.transformList(i, v, expr)`) is now documented alongside `.map()`/`.filter()`, with guidance to prefer it over a workflow Loop when reshaping an array in a single action (e.g. adding multiple events/detections to a case, or building a delimited string with `.join(...)`).
+- **Request Human Input Entra ID note** — the human-in-the-loop use case now records that the responder authenticates through Entra ID (including business users who are not Falcon administrators), so approvers must be able to sign in with Entra ID for the approval gate to work.
+
+### Fixed
+
+- **`validate.py` no longer blocks the supported way to consume Inline.Python JSON output.** The validator flagged `${cs.json.decode(data['<action>.output_stdout']).field}` as a release-time failure, but a live probe (released and executed clean) confirmed the platform accepts it — matching the official SOAR guidance to `print(json.dumps(result))` and decode downstream with `cs.json.decode(...)`. The false-positive guard is removed and `inline-python-action.md` now documents the decode-and-dot-index pattern (guard with `cs.json.valid(...)` when stdout may be non-JSON).
+
 ## [1.2.0] - 2026-09-08
 
 ### Added

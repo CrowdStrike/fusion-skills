@@ -20,12 +20,16 @@ run_script:
   must `print(...)` its result to stdout.
 - **Outputs:** `output_stdout`, `output_stderr`, `exit_code`, `error`. Read
   stdout downstream as `${data['run_script.output_stdout']}` — never `$(...)`.
-  **Read stdout as a plain string; do NOT wrap it in `cs.json.decode(...)` and
-  dot-index the result** (`${cs.json.decode(data['run_script.output_stdout']).field}`).
-  That form does not resolve at release ("invalid or missing variable
-  definitions"). If a downstream step needs structured fields, prefer reading the
-  source directly (e.g. an Event Query's `results[0].Field`) over parsing Python
-  stdout — see `event-query-action.md`.
+  **For structured output, `print(json.dumps(result))` and decode it downstream
+  with `cs.json.decode(...)`**, dot-indexing the field you need:
+  `${cs.json.decode(data['run_script.output_stdout']).field}`. This resolves at
+  release and at runtime (live-verified — a released on-demand probe executed
+  clean, and the nested form ships in `examples/threat-intel/analyze-enrich-epp-detection-llm.yaml`).
+  It matches the official SOAR guidance (`print(json.dumps(result))` →
+  `cs.json.decode(STDOUT)`). Guard with `cs.json.valid(...)` before decoding if
+  the script can print plain text on some paths. When the value you need already
+  exists on a prior action's output (e.g. an Event Query's `results[0].Field`),
+  reference it directly rather than routing it through Python.
 - **`version_constraint: ~1`.**
 - **Limits:** 60s execution, 256 MB memory, 50,000-char script, input+output
   ≤ 1024 KB, pre-installed packages only.

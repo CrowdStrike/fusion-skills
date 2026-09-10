@@ -34,6 +34,7 @@ and YAML quoting rules learned from building our 30 production workflows.
 
 ```
 list.map(item, expr)         # Transform: [1,2,3].map(x, x * 2) → [2,4,6]
+list.transformList(i, v, expr)  # Transform with index — reshape an array in ONE action (no loop)
 list.filter(item, cond)      # Filter:    [1,2,3].filter(x, x > 1) → [2,3]
 list.exists(item, cond)      # Any match: [1,2,3].exists(x, x > 2) → true
 list.all(item, cond)         # All match: [1,2,3].all(x, x > 0) → true
@@ -43,6 +44,16 @@ list.exists_one(item, cond)  # Exactly one match
 **Real example** (from RAN-004 — extracting host IDs from ThreatGraph results):
 ```
 ${data['GetDevicesIPv4.Connections'].map(item, item.HostID)}
+```
+
+**Prefer `.transformList()` over a workflow Loop for array reshaping.** When you
+need to reshape an array before handing it to an action — e.g. adding multiple
+events or detections to a case, or building a delimited string —
+`.transformList(idx, item, expr)` maps the whole array in a single action instead
+of a Loop node processing one element at a time. Chain `.join('...')` to collapse
+the result to a string:
+```
+${data['MyQuery.results'].transformList(i, e, e.id).join(',')}
 ```
 
 ---
