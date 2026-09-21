@@ -118,23 +118,26 @@ python skills/deployment/scripts/release_workflow.py --id <definition_id>
 python skills/execution/scripts/trigger_workflow.py --id <definition_id> --params '{"device_id":"abc123"}' --wait
 ```
 
-Pick the trigger type with `skills/authoring/scripts/trigger_search.py --list` (valid types: On demand, Signal, Scheduled, SubModel).
+Pick the trigger type with `skills/authoring/scripts/trigger_search.py --list`. `trigger.type` accepts five values: On demand, Signal, Scheduled, SubModel, and **Inbound webhook** — an unrecognized one is rejected at import. Inbound webhook is the structural odd one out: no `event:` field, a `webhook_config` block (payload schema, authentication, optional caller-IP allowlist), and a URL that Fusion generates server-side and that isn't part of the exported definition.
 
 ### Working with an Existing Workflow
 
-There is **no export script** — the Workflows API (via FalconPy) exposes no workflow-download endpoint. Treat the local YAML as the source of truth:
+Export a deployed definition back to YAML with `skills/deployment/scripts/export_workflow.py <definition_id>` (strips authoring metadata and PII by default). Treat your local YAML as the source of truth for edits — a re-import creates a new definition rather than updating one in place:
 
 ```bash
 # Find the deployed definition and confirm its state
 python skills/deployment/scripts/query_workflows.py --search "contain"
 python skills/deployment/scripts/query_workflows.py --check-name "Contain Host on Detection"
 
+# Export a deployed definition back to YAML (e.g. to recover one authored in the console)
+python skills/deployment/scripts/export_workflow.py <definition_id> -o workflow.yaml
+
 # Edit the local YAML, re-validate, and re-import
 python skills/authoring/scripts/validate.py workflow.yaml
 python skills/deployment/scripts/import_workflows.py workflow.yaml
 ```
 
-Re-importing a name that already exists is flagged by the duplicate check; rename in the YAML or delete the existing definition in the console first. A re-imported definition is disabled until you release it again. To stop a running execution, use `skills/execution/scripts/monitor_execution.py` and `get_execution_results.py` to inspect status.
+Re-importing a name that already exists is flagged by the duplicate check; rename in the YAML, delete the existing definition with `skills/deployment/scripts/delete_workflow.py`, or re-import with `import_workflows.py --replace` (deletes the same-name definition, then imports). A re-imported definition is disabled until you release it again. To stop a running execution, use `skills/execution/scripts/monitor_execution.py` and `get_execution_results.py` to inspect status.
 
 ### Common Scenarios
 
@@ -148,7 +151,7 @@ Quality matters more than speed. Specifically:
 
 - **Validate everything.** Run `validate.py` after authoring and rely on the import pre-flight; do not push unvalidated YAML to the API.
 - **No placeholders.** Every action `id` must be a real value resolved via `action_search.py`. A `PLACEHOLDER_*` string in output YAML means a step was skipped — go back and resolve it.
-- **Test before declaring done.** A returned `definition_id` means imported, not working. Release it, trigger it with real parameters, and confirm the execution reached a terminal `Succeeded` state with `monitor_execution.py` before calling the task complete.
+- **Test before declaring done.** A returned `definition_id` means imported, not working. Release it, trigger it with real parameters, and confirm the execution reached a terminal success state (`Succeeded` or `Completed`) with `monitor_execution.py` before calling the task complete.
 - **Read each skill's Common Pitfalls section** before working in that phase.
 
 ## Security Considerations
