@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Fixed
 
 - **`validate.py` no longer blocks the supported way to consume Inline.Python JSON output.** The validator flagged `${cs.json.decode(data['<action>.output_stdout']).field}` as a release-time failure, but a live probe (released and executed clean) confirmed the platform accepts it — matching the official SOAR guidance to `print(json.dumps(result))` and decode downstream with `cs.json.decode(...)`. The false-positive guard is removed and `inline-python-action.md` now documents the decode-and-dot-index pattern (guard with `cs.json.valid(...)` when stdout may be non-JSON).
+- **`validate.py` recognizes `Inbound webhook` as a valid trigger type.** Fusion added a fifth `trigger.type` value alongside On demand, Signal, Scheduled, and SubModel, but the validator's allowlist still had only four — so a valid webhook-triggered workflow was rejected with `Invalid trigger type ... Must be one of`. The type is now accepted (it carries a `webhook_config` block and no `event` field), and the trigger-type references document its shape.
 
 ## [1.2.0] - 2026-09-08
 

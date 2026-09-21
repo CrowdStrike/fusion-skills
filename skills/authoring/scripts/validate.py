@@ -47,7 +47,7 @@ ACTION_ID_PATTERN = re.compile(r"^[0-9a-z]+([_~][0-9a-z]+)*$")
 # as a broken reference.
 CREDENTIAL_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 DATA_REF_PATTERN = re.compile(r"\$\{data\[")
-VALID_TRIGGER_TYPES = {"On demand", "Signal", "Scheduled", "SubModel"}
+VALID_TRIGGER_TYPES = {"On demand", "Signal", "Scheduled", "SubModel", "Inbound webhook"}
 
 # Wrong ways to reference runtime data that a weaker model reaches for. The
 # correct forms are ${data['<node>.<field>']} and the null-safe
