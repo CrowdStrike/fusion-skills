@@ -492,11 +492,11 @@ fi
 # workflow by trigger type, because Fusion has no API to create an HTTP-action
 # credential and Signal workflows cannot be triggered without a real event:
 #
-#   * Signal / Scheduled / SubModel  -> RENDER-TEST: open the workflow in the
-#     console editor and confirm the graph draws on the canvas with zero console
-#     errors (the #62 "Can not create edge ... nonexistant source" failure). No
-#     credential, no execution — the render is the check, exactly as verify-apps
-#     render-tests Foundry workflows that need credentialed integrations.
+#   * Signal / Scheduled / SubModel / Inbound webhook  -> RENDER-TEST: open the
+#     workflow in the console editor and confirm the graph draws on the canvas with
+#     zero console errors (the #62 "Can not create edge ... nonexistant source"
+#     failure). No credential, no execution — the render is the check, exactly as
+#     verify-apps render-tests Foundry workflows that need credentialed integrations.
 #   * On demand  -> EXECUTE: configure the VirusTotal credential (browser-only),
 #     publish, run the workflow, and confirm it succeeds.
 #
@@ -538,7 +538,7 @@ if [ "$BROWSER_VERIFY" = "1" ] && [ "$JSON_ONLY" != "1" ]; then
       RENDER_LIST="$(printf '%s' "$DEPLOYED_RENDER" | sed 's/^/  - /')"
       ONDEMAND_LIST="$(printf '%s' "$DEPLOYED_ONDEMAND" | sed 's/^/  - /')"
 
-      say "${BLUE}  Phase 2 (browser): render-testing Signal workflows, executing On-demand…${RESET}"
+      say "${BLUE}  Phase 2 (browser): render-testing event/webhook workflows, executing On-demand…${RESET}"
       [ -n "$DEPLOYED_RENDER" ]   && say "  Render-test: $(printf '%s' "$DEPLOYED_RENDER" | tr '\n' ' ')"
       [ -n "$DEPLOYED_ONDEMAND" ] && say "  Execute:     $(printf '%s' "$DEPLOYED_ONDEMAND" | tr '\n' ' ')"
       say "  A browser opens at the Falcon console — log in if prompted."
@@ -559,7 +559,7 @@ $( [ -n "$LOGIN_EMAIL" ] && printf -- '- Sign in yourself: take a browser_snapsh
 ## Browser guidelines
 - Use browser_snapshot (not screenshots) for element discovery. Wait for page loads between steps.
 
-## RENDER-TEST these workflows (Signal/Scheduled/SubModel — fire on real events, so NOT executable here):
+## RENDER-TEST these workflows (Signal/Scheduled/SubModel/Inbound webhook — triggered by real events or an external webhook POST, so NOT executable here):
 ${RENDER_LIST:-  (none)}
 
 For EACH render-test workflow:
