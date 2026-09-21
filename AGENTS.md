@@ -118,7 +118,7 @@ python skills/deployment/scripts/release_workflow.py --id <definition_id>
 python skills/execution/scripts/trigger_workflow.py --id <definition_id> --params '{"device_id":"abc123"}' --wait
 ```
 
-Pick the trigger type with `skills/authoring/scripts/trigger_search.py --list`. `trigger.type` accepts five values: On demand, Signal, Scheduled, SubModel, and **Inbound webhook** — an unrecognized one is rejected at import. Inbound webhook is the structural odd one out: no `event:` field, a `webhook_config` block (payload schema, authentication, optional caller-IP allowlist), and a URL that Fusion generates server-side and that isn't part of the exported definition.
+Pick the trigger type with `skills/authoring/scripts/trigger_search.py --list`. `trigger.type` accepts five values: On demand, Signal, Scheduled, SubModel, and Inbound webhook — an unrecognized one is rejected at import. Inbound webhook is the structural odd one out: no `event:` field, a `webhook_config` block (payload schema, authentication, optional caller-IP allowlist), and a URL that Fusion generates server-side and that isn't part of the exported definition.
 
 ### Working with an Existing Workflow
 
