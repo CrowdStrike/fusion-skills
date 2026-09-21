@@ -74,7 +74,7 @@ The trigger defines what event starts the workflow.
 | `id` | string | Yes | Unique identifier from the triggers catalog |
 | `name` | string | Yes | Display name of the trigger |
 | `outgoing_flow` | string | Yes | Reference to the first flow node ID |
-| `trigger_type` | string | Yes | Type: `"Signal"`, `"On demand"`, `"Scheduled"`, `"SubModel"` |
+| `trigger_type` | string | Yes | Type: `"Signal"`, `"On demand"`, `"Scheduled"`, `"SubModel"`, `"Inbound webhook"` |
 | `version_constraint` | string | Yes | Semantic version constraint (e.g., `"~1"`) |
 | `parameters` | object | No | JSON Schema for on-demand trigger parameters |
 | `timer_event_definition` | object | No | Schedule configuration for scheduled triggers |
@@ -85,6 +85,7 @@ The trigger defines what event starts the workflow.
 - **On demand** - Manual execution with optional parameters
 - **Scheduled** - Cron-based recurring execution
 - **SubModel** - Internal trigger for loop iterations
+- **Inbound webhook** - Started by an external POST to a Fusion-generated URL; carries a `webhook_config` block instead of an `event`
 
 ### Scheduled Trigger (timer_event_definition)
 

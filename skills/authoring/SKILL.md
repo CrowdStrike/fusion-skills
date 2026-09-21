@@ -163,7 +163,7 @@ and whether it is a plugin action (needs a `config_id`).
 ../../scripts/python.sh scripts/trigger_search.py --fields Investigatable/EPP   # payload field paths
 ```
 
-Valid trigger types: **On demand**, **Signal**, **Scheduled**, **SubModel**.
+Valid trigger types: **On demand**, **Signal**, **Scheduled**, **SubModel**, **Inbound webhook**.
 For most automation, use **On demand** (callable via API and the Falcon UI).
 
 A **Signal** trigger MUST carry an `event:` field (the trigger category, e.g.

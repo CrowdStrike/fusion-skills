@@ -383,6 +383,46 @@ passing parameters that become available as trigger data.
 
 ---
 
+## Inbound webhook
+
+Started when an external system POSTs JSON to a URL that Fusion generates for the
+workflow. Use it to drive a workflow from a SIEM, ticketing system, or threat feed
+outside Falcon. It is the structural odd one out among trigger types: no `event:`
+field, and a `webhook_config` block instead.
+
+**FQL trigger.type value**: `Inbound webhook`
+
+Create it in the console — the URL is generated there and is **not** part of the
+exported/importable definition. A console export looks like this:
+
+```yaml
+trigger:
+    next:
+        - FirstAction
+    name: Inbound webhook
+    type: Inbound webhook
+    version_constraint: 0.0.2
+    webhook_config:
+        name: My Webhook
+        webhook_schema:
+            $schema: https://json-schema.org/draft-07/schema
+            type: object
+        auth_config:
+            auth_type: basic_auth        # basic_auth | hmac | api_key
+            basic_auth_config:
+                username: <username>
+        response_config:
+            status_code: 200
+        ip_mask: {}                      # optional allowed-caller CIDR ranges
+```
+
+Limits and notes: authentication is required (Basic, HMAC, or API key); a workflow
+can have only one webhook trigger; the payload must be raw JSON up to 1 MB; failed
+requests are not retried. Read the payload downstream from the `InboundWebhook`
+namespace (e.g. `${data['InboundWebhook.Data']}`).
+
+---
+
 ## Execution notes
 
 - **On demand** workflows can be executed via:

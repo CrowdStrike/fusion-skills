@@ -331,8 +331,8 @@ actions:
         assert any("missing a 'type'" in i for i in issues)
 
     def test_valid_trigger_types_accepted(self, tmp_path):
-        for trigger_type in ("Signal", "Scheduled", "SubModel"):
-            f = tmp_path / f"trigger_{trigger_type}.yaml"
+        for trigger_type in ("Signal", "Scheduled", "SubModel", "Inbound webhook"):
+            f = tmp_path / f"trigger_{trigger_type.replace(' ', '_')}.yaml"
             content = VALID_WORKFLOW.replace("type: On demand", f"type: {trigger_type}")
             # Signal and Scheduled triggers must also carry an 'event' field, so
             # add one when exercising those types or the (correct) missing-event
@@ -349,6 +349,25 @@ actions:
             issues = validate.structural_check(str(f))
             assert not any("invalid trigger type" in i.lower() for i in issues)
             assert not any("missing an 'event'" in i for i in issues)
+
+    def test_inbound_webhook_trigger_accepted(self, tmp_path):
+        # Inbound webhook is the fifth valid trigger.type. It has no 'event'
+        # field and carries a webhook_config block instead; the validator must
+        # not reject it as an invalid type or demand an event.
+        f = tmp_path / "inbound_webhook.yaml"
+        content = VALID_WORKFLOW.replace(
+            "type: On demand",
+            "type: Inbound webhook\n"
+            "  version_constraint: 0.0.2\n"
+            "  webhook_config:\n"
+            "    name: My Webhook\n"
+            "    auth_config:\n"
+            "      auth_type: basic_auth",
+        )
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("invalid trigger type" in i.lower() for i in issues)
+        assert not any("missing an 'event'" in i for i in issues)
 
     def test_signal_trigger_missing_event(self, tmp_path):
         # A Signal trigger with no 'event' field must fail — without it the
