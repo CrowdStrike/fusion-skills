@@ -5,7 +5,7 @@ Queries the API for trigger activities and supplements with a built-in
 catalog of trigger type YAML structures.
 
 Usage:
-    python trigger_search.py --list                  # Show the 4 trigger types
+    python trigger_search.py --list                  # Show the built-in trigger types
     python trigger_search.py --type "On demand"      # YAML structure for a type
     python trigger_search.py --events                # All Signal event values (API)
     python trigger_search.py --events detection      # Filter event values by text
@@ -108,6 +108,36 @@ trigger:
             - my_param
         type: object
     type: SubModel""",
+    },
+    "Inbound webhook": {
+        "description": (
+            "Fires when an external system POSTs JSON to a URL that Fusion "
+            "generates for the workflow. Use it to drive a workflow from a SIEM, "
+            "ticketing system, or threat feed outside Falcon. It has no 'event' "
+            "field; instead it carries a 'webhook_config' block (payload schema, "
+            "authentication, optional caller-IP allowlist). The URL is generated "
+            "server-side and is not part of the exported definition, so create "
+            "and manage this trigger in the console."
+        ),
+        "yaml_example": """\
+trigger:
+    next:
+        - FirstActionName
+    name: Inbound webhook
+    type: Inbound webhook
+    version_constraint: 0.0.2
+    webhook_config:
+        name: My Webhook
+        webhook_schema:
+            $schema: https://json-schema.org/draft-07/schema
+            type: object
+        auth_config:
+            auth_type: basic_auth        # basic_auth | hmac | api_key
+            basic_auth_config:
+                username: <username>
+        response_config:
+            status_code: 200
+        ip_mask: {}                      # optional allowed-caller CIDR ranges""",
     },
 }
 
@@ -287,7 +317,7 @@ def _print_fields(category, as_json):
 
 
 def list_all_triggers():
-    """Return the built-in catalog of the four trigger types."""
+    """Return the built-in catalog of trigger types."""
     return {name: info.copy() for name, info in TRIGGER_CATALOG.items()}
 
 

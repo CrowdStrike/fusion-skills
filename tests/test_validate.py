@@ -331,8 +331,10 @@ actions:
         assert any("missing a 'type'" in i for i in issues)
 
     def test_valid_trigger_types_accepted(self, tmp_path):
-        for trigger_type in ("Signal", "Scheduled", "SubModel", "Inbound webhook"):
-            f = tmp_path / f"trigger_{trigger_type.replace(' ', '_')}.yaml"
+        # Inbound webhook is covered separately by test_inbound_webhook_trigger_accepted
+        # (it has a distinct webhook_config shape and no event field).
+        for trigger_type in ("Signal", "Scheduled", "SubModel"):
+            f = tmp_path / f"trigger_{trigger_type}.yaml"
             content = VALID_WORKFLOW.replace("type: On demand", f"type: {trigger_type}")
             # Signal and Scheduled triggers must also carry an 'event' field, so
             # add one when exercising those types or the (correct) missing-event

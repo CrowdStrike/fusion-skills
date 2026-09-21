@@ -211,10 +211,10 @@ extract_name() {
 
 # Extract the trigger type from a workflow YAML's trigger block. Returns the
 # value of the trigger's `type:` field (e.g. "Signal", "On demand", "Scheduled",
-# "SubModel"), or empty if none is found.
+# "SubModel", "Inbound webhook"), or empty if none is found.
 extract_trigger_type() {
   sed -n -E "s/^[[:space:]]+type:[[:space:]]*['\"]?([A-Za-z ]+).*/\1/p" "$1" 2>/dev/null \
-    | grep -m1 -E 'Signal|On demand|Scheduled|SubModel' \
+    | grep -m1 -E 'Signal|On demand|Scheduled|SubModel|Inbound webhook' \
     | sed -E "s/[[:space:]]+$//"
 }
 
@@ -325,8 +325,9 @@ for wf_file in "${YAML_FILES[@]}"; do
   elif [ -n "$WF_TRIGGER_TYPE" ] && [ "$WF_TRIGGER_TYPE" != "On demand" ]; then
     # Only On demand workflows can be run via the execute API with empty params.
     # Signal triggers fire on real CrowdStrike events, Scheduled run on a cron,
-    # SubModel are invoked by a parent workflow — none can be triggered here
-    # without a real/mock event, so this is a SKIP, not a FAIL.
+    # SubModel are invoked by a parent workflow, and Inbound webhook fires on an
+    # external POST to its generated URL — none can be triggered here without a
+    # real/mock event, so this is a SKIP, not a FAIL.
     E_STATUS="SKIP"
     NOTES="${NOTES:+$NOTES; }execute: ${WF_TRIGGER_TYPE} trigger — not API-executable without a real event"
     say "  execute:   ${YELLOW}SKIP${RESET} (${WF_TRIGGER_TYPE} trigger — needs a real event)"
