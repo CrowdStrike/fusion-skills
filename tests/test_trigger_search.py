@@ -84,9 +84,15 @@ class TestSearchEventTriggers:
 class TestListAllTriggers:
     """Test the built-in trigger catalog listing."""
 
-    def test_includes_the_four_builtins(self):
+    def test_includes_the_builtins(self):
         result = trigger_search.list_all_triggers()
-        assert set(result.keys()) == {"On demand", "Signal", "Scheduled", "SubModel"}
+        assert set(result.keys()) == {
+            "On demand",
+            "Signal",
+            "Scheduled",
+            "SubModel",
+            "Inbound webhook",
+        }
 
     def test_signal_example_requires_event(self):
         # The Signal example must teach the event: field, not a hex id.
@@ -111,7 +117,7 @@ class TestMainCli:
         monkeypatch.setattr("sys.argv", ["trigger_search.py", "--list"])
         trigger_search.main()
         out = capsys.readouterr().out
-        assert "Trigger types (4)" in out
+        assert "Trigger types (5)" in out
         assert "On demand" in out
         assert "Signal" in out
         # A truncated description line is printed under the name.
@@ -128,7 +134,13 @@ class TestMainCli:
         trigger_search.main()
         out = capsys.readouterr().out
         data = json.loads(out)
-        assert set(data.keys()) == {"On demand", "Signal", "Scheduled", "SubModel"}
+        assert set(data.keys()) == {
+            "On demand",
+            "Signal",
+            "Scheduled",
+            "SubModel",
+            "Inbound webhook",
+        }
         assert data["On demand"]["description"]
         # JSON list mode only exposes descriptions, not YAML examples.
         assert "yaml_example" not in data["On demand"]

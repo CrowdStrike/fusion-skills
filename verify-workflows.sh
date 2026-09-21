@@ -211,10 +211,10 @@ extract_name() {
 
 # Extract the trigger type from a workflow YAML's trigger block. Returns the
 # value of the trigger's `type:` field (e.g. "Signal", "On demand", "Scheduled",
-# "SubModel"), or empty if none is found.
+# "SubModel", "Inbound webhook"), or empty if none is found.
 extract_trigger_type() {
   sed -n -E "s/^[[:space:]]+type:[[:space:]]*['\"]?([A-Za-z ]+).*/\1/p" "$1" 2>/dev/null \
-    | grep -m1 -E 'Signal|On demand|Scheduled|SubModel' \
+    | grep -m1 -E 'Signal|On demand|Scheduled|SubModel|Inbound webhook' \
     | sed -E "s/[[:space:]]+$//"
 }
 
@@ -325,8 +325,9 @@ for wf_file in "${YAML_FILES[@]}"; do
   elif [ -n "$WF_TRIGGER_TYPE" ] && [ "$WF_TRIGGER_TYPE" != "On demand" ]; then
     # Only On demand workflows can be run via the execute API with empty params.
     # Signal triggers fire on real CrowdStrike events, Scheduled run on a cron,
-    # SubModel are invoked by a parent workflow — none can be triggered here
-    # without a real/mock event, so this is a SKIP, not a FAIL.
+    # SubModel are invoked by a parent workflow, and Inbound webhook fires on an
+    # external POST to its generated URL — none can be triggered here without a
+    # real/mock event, so this is a SKIP, not a FAIL.
     E_STATUS="SKIP"
     NOTES="${NOTES:+$NOTES; }execute: ${WF_TRIGGER_TYPE} trigger — not API-executable without a real event"
     say "  execute:   ${YELLOW}SKIP${RESET} (${WF_TRIGGER_TYPE} trigger — needs a real event)"
@@ -491,11 +492,11 @@ fi
 # workflow by trigger type, because Fusion has no API to create an HTTP-action
 # credential and Signal workflows cannot be triggered without a real event:
 #
-#   * Signal / Scheduled / SubModel  -> RENDER-TEST: open the workflow in the
-#     console editor and confirm the graph draws on the canvas with zero console
-#     errors (the #62 "Can not create edge ... nonexistant source" failure). No
-#     credential, no execution — the render is the check, exactly as verify-apps
-#     render-tests Foundry workflows that need credentialed integrations.
+#   * Signal / Scheduled / SubModel / Inbound webhook  -> RENDER-TEST: open the
+#     workflow in the console editor and confirm the graph draws on the canvas with
+#     zero console errors (the #62 "Can not create edge ... nonexistant source"
+#     failure). No credential, no execution — the render is the check, exactly as
+#     verify-apps render-tests Foundry workflows that need credentialed integrations.
 #   * On demand  -> EXECUTE: configure the VirusTotal credential (browser-only),
 #     publish, run the workflow, and confirm it succeeds.
 #
@@ -537,7 +538,7 @@ if [ "$BROWSER_VERIFY" = "1" ] && [ "$JSON_ONLY" != "1" ]; then
       RENDER_LIST="$(printf '%s' "$DEPLOYED_RENDER" | sed 's/^/  - /')"
       ONDEMAND_LIST="$(printf '%s' "$DEPLOYED_ONDEMAND" | sed 's/^/  - /')"
 
-      say "${BLUE}  Phase 2 (browser): render-testing Signal workflows, executing On-demand…${RESET}"
+      say "${BLUE}  Phase 2 (browser): render-testing event/webhook workflows, executing On-demand…${RESET}"
       [ -n "$DEPLOYED_RENDER" ]   && say "  Render-test: $(printf '%s' "$DEPLOYED_RENDER" | tr '\n' ' ')"
       [ -n "$DEPLOYED_ONDEMAND" ] && say "  Execute:     $(printf '%s' "$DEPLOYED_ONDEMAND" | tr '\n' ' ')"
       say "  A browser opens at the Falcon console — log in if prompted."
@@ -558,7 +559,7 @@ $( [ -n "$LOGIN_EMAIL" ] && printf -- '- Sign in yourself: take a browser_snapsh
 ## Browser guidelines
 - Use browser_snapshot (not screenshots) for element discovery. Wait for page loads between steps.
 
-## RENDER-TEST these workflows (Signal/Scheduled/SubModel — fire on real events, so NOT executable here):
+## RENDER-TEST these workflows (Signal/Scheduled/SubModel/Inbound webhook — triggered by real events or an external webhook POST, so NOT executable here):
 ${RENDER_LIST:-  (none)}
 
 For EACH render-test workflow:
