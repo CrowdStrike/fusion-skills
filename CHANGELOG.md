@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- **Event Query 200-row default cap documented.** The event-query reference and use case now note that a CQL `table(...)` returns at most 200 rows unless you pass a `limit` (`table(fields=[...], limit=max)` or a specific number) — the console warns *"Output capped at 200 elements by default."* Includes the disguise to watch for: a workflow that accumulates query results into a `WorkflowCustomVariable` (e.g. before a lookup-file write) can look stuck near 200 rows, and the cause is this query cap, not a variable-size limit.
 - **`.transformList()` in the CEL reference** — the index-aware list transform (`list.transformList(i, v, expr)`) is now documented alongside `.map()`/`.filter()`, with guidance to prefer it over a workflow Loop when reshaping an array in a single action (e.g. adding multiple events/detections to a case, or building a delimited string with `.join(...)`).
 - **Request Human Input Entra ID note** — the human-in-the-loop use case now records that the responder authenticates through Entra ID (including business users who are not Falcon administrators), so approvers must be able to sign in with Entra ID for the approval gate to work.
 
