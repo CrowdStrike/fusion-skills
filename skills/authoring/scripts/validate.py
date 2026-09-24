@@ -1093,7 +1093,7 @@ def _validate_custom_variable_refs(data, file_path, issues):
             content = handle.read()
     except OSError:
         return
-    referenced = {m.group(1) for m in re.finditer(r"WorkflowCustomVariable\.(\w+)", content)}
+    referenced = {m.group(1) for m in re.finditer(r"WorkflowCustomVariable\.([\w-]+)", content)}
     if not referenced:
         return
     declared = _collect_declared_variables(data)
