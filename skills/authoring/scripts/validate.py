@@ -186,15 +186,16 @@ FAKE_EMAIL_DOMAIN_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# The only keys a Fusion workflow may have at the top level. `disconnected_nodes`
-# and `output_fields` appear in real console exports; the rest are the documented
-# schema. Any other top-level key means the model invented an off-schema shape
-# (e.g. `nodes`/`edges`/`steps`, or bare action labels dumped at the root instead
-# of nested under `actions:`). Such files import as an empty workflow and then
-# fail release, yet slip past every check keyed on `data.get("actions")`.
+# The only keys a Fusion workflow may have at the top level. `disconnected_nodes`,
+# `output_fields`, and `summary` appear in real console exports; the rest are the
+# documented schema. Any other top-level key means the model invented an
+# off-schema shape (e.g. `nodes`/`edges`/`steps`, or bare action labels dumped at
+# the root instead of nested under `actions:`). Such files import as an empty
+# workflow and then fail release, yet slip past every check keyed on
+# `data.get("actions")`.
 ALLOWED_TOP_LEVEL_KEYS = {
     "name", "description", "trigger", "actions",
-    "conditions", "loops", "output_fields", "disconnected_nodes",
+    "conditions", "loops", "output_fields", "disconnected_nodes", "summary",
 }
 
 

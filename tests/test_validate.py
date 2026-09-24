@@ -1594,6 +1594,29 @@ disconnected_nodes: []
         issues = validate.structural_check(str(f))
         assert not any("Unknown top-level key" in i for i in issues)
 
+    def test_summary_key_allowed(self, tmp_path):
+        """`summary` (the console execution-summary template) appears in real
+        console exports and is allowed. Confirmed against 39 already-shipped
+        production workflows across multiple fusion-workflows packages."""
+        content = """\
+# Header
+name: Export shape with summary
+trigger:
+  type: On demand
+  next:
+    - a
+actions:
+  a:
+    id: aabbccdd11223344aabbccdd11223344
+    name: A
+summary: |-
+    ${data['WorkflowCustomVariable.workflow-result']}
+"""
+        f = tmp_path / "summary.yaml"
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("Unknown top-level key" in i for i in issues)
+
 
 class TestApiValidate:
     """Test the API dry-run validation boundary with a mocked client."""
