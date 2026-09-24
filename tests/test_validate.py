@@ -3461,3 +3461,28 @@ output_fields: []
         issues = validate.structural_check(str(f))
         matches = [i for i in issues if "url_indicator" in i]
         assert len(matches) == 1, matches
+
+    def test_hyphenated_variable_name_declared_passes(self, tmp_path):
+        # A hyphenated name (e.g. `resolved-user-id`) must not be truncated at
+        # the first `-` and false-flagged as undeclared. Real-world precedent:
+        # `parentFolderId-old`/`parentFolderId-new` in an already-shipped
+        # production workflow (FC - Microsoft Exchange Online - Soft Delete
+        # Message.yaml).
+        f = tmp_path / "hyphenated.yaml"
+        f.write_text(self._BASE.replace("{ref}", "url_enrichment").replace(
+            "url_enrichment:\n            type: string",
+            "resolved-user-id:\n            type: string",
+        ).replace("url_enrichment']}", "resolved-user-id']}"))
+        issues = validate.structural_check(str(f))
+        assert not any("undefined WorkflowCustomVariable" in i for i in issues), issues
+
+    def test_hyphenated_variable_name_undeclared_flagged(self, tmp_path):
+        # The hyphenated name must still be caught in full (not just its
+        # pre-hyphen prefix) when genuinely undeclared.
+        f = tmp_path / "hyphenated_undef.yaml"
+        f.write_text(self._BASE.replace("{ref}", "resolved-user-id"))
+        issues = validate.structural_check(str(f))
+        assert any(
+            "resolved-user-id" in i and i.startswith("ERROR") for i in issues
+        ), issues
+
