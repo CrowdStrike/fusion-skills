@@ -85,6 +85,14 @@ query_ngsiem_logs:
   `${data['<ActionLabel>.results'].size()}`, or filter with CEL list ops (the
   shipped `close-duplicate-detections.yaml` uses
   `data['...results'].filter(e, e.alerted_before == true)[0].previous_alert_id`).
+- **Results cap at 200 rows by default.** A CQL `table(...)` — and event-query
+  output generally — returns at most 200 rows unless you pass a `limit`:
+  `table(fields=[...], limit=max)` or a specific number. The console query builder
+  warns _"Output capped at 200 elements by default. Try providing a specific value
+  for the 'limit' parameter to get more results."_ Watch for the disguise: if a
+  workflow that accumulates query results into a `WorkflowCustomVariable` (e.g.
+  before a lookup-file write) looks stuck near 200 rows, the cause is this query
+  cap, not a variable-size limit — add `limit` to the query.
 - **Read results directly — do NOT route them through an inline Python
   extractor.** It is tempting to add an `Inline.Python` step that JSON-parses the
   query results and re-emits indicators, then read them back with
