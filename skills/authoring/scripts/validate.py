@@ -1087,13 +1087,26 @@ def _validate_custom_variable_refs(data, file_path, issues):
     (the name is the first segment). The pattern only matches dotted references, so
     a ``WorkflowCustomVariable:`` setter block or a ``variable_schema`` declaration
     is never mistaken for a reference.
+
+    A name segment may itself contain a hyphen (e.g. ``resolved-user-id``) — but
+    a hyphen only extends the match when
+    the character right after it is a letter or underscore, not a digit. This
+    keeps a declared name like ``retries`` from swallowing an adjacent, unspaced
+    CEL subtraction (a bare ``WorkflowCustomVariable.retries-1``, i.e. "retries
+    minus 1") into one bogus token ``retries-1``. The one accepted trade-off: a
+    declared name whose segment starts with a digit right after a hyphen (e.g.
+    ``retry-1-status``) still truncates at the hyphen — narrower than fully
+    permissive, but far rarer than the arithmetic case it guards against.
     """
     try:
         with open(file_path, encoding="utf-8") as handle:
             content = handle.read()
     except OSError:
         return
-    referenced = {m.group(1) for m in re.finditer(r"WorkflowCustomVariable\.(\w+)", content)}
+    referenced = {
+        m.group(1)
+        for m in re.finditer(r"WorkflowCustomVariable\.(\w+(?:-[A-Za-z_]\w*)*)", content)
+    }
     if not referenced:
         return
     declared = _collect_declared_variables(data)

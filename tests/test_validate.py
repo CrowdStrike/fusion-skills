@@ -3461,3 +3461,64 @@ output_fields: []
         issues = validate.structural_check(str(f))
         matches = [i for i in issues if "url_indicator" in i]
         assert len(matches) == 1, matches
+
+    def test_hyphenated_variable_name_declared_passes(self, tmp_path):
+        # A hyphenated name (e.g. `resolved-user-id`) must not be truncated at
+        # the first `-` and false-flagged as undeclared.
+        f = tmp_path / "hyphenated.yaml"
+        f.write_text(self._BASE.replace("{ref}", "url_enrichment").replace(
+            "url_enrichment:\n            type: string",
+            "resolved-user-id:\n            type: string",
+        ).replace("url_enrichment']}", "resolved-user-id']}"))
+        issues = validate.structural_check(str(f))
+        assert not any("undefined WorkflowCustomVariable" in i for i in issues), issues
+
+    def test_hyphenated_variable_name_undeclared_flagged(self, tmp_path):
+        # The hyphenated name must still be caught in full (not just its
+        # pre-hyphen prefix) when genuinely undeclared.
+        f = tmp_path / "hyphenated_undef.yaml"
+        f.write_text(self._BASE.replace("{ref}", "resolved-user-id"))
+        issues = validate.structural_check(str(f))
+        assert any(
+            "resolved-user-id" in i and i.startswith("ERROR") for i in issues
+        ), issues
+
+    def test_hyphen_before_digit_does_not_swallow_arithmetic(self, tmp_path):
+        # A hyphen immediately followed by a digit is CEL subtraction, not part
+        # of the name — `WorkflowCustomVariable.retries-1` (no spaces) means
+        # "retries minus 1". If `retries` is declared, this must NOT be
+        # false-flagged as an undeclared `retries-1`.
+        content = """\
+# Created by the CrowdStrike Falcon Fusion authoring skill
+name: Retry gate
+trigger:
+  type: On demand
+  name: On demand
+  next:
+    - InitVars
+actions:
+  InitVars:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - Gate
+    properties:
+      variable_schema:
+        properties:
+          retries:
+            type: integer
+        type: object
+conditions:
+  Gate:
+    cel_expression: WorkflowCustomVariable.retries-1 > 0
+    next:
+      - InitVars
+output_fields: []
+"""
+        f = tmp_path / "arithmetic.yaml"
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("undefined WorkflowCustomVariable" in i for i in issues), issues
+
