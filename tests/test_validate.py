@@ -1596,16 +1596,28 @@ disconnected_nodes: []
 
     def test_summary_key_allowed(self, tmp_path):
         """`summary` (the console execution-summary template) appears in real
-        console exports and is allowed. Confirmed against 39 already-shipped
-        production workflows across multiple fusion-workflows packages."""
+        console exports and is allowed."""
         content = """\
 # Header
 name: Export shape with summary
 trigger:
   type: On demand
   next:
-    - a
+    - InitVars
 actions:
+  InitVars:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - a
+    properties:
+      variable_schema:
+        properties:
+          workflow-result:
+            type: string
+        type: object
   a:
     id: aabbccdd11223344aabbccdd11223344
     name: A
@@ -1615,7 +1627,11 @@ summary: |-
         f = tmp_path / "summary.yaml"
         f.write_text(content)
         issues = validate.structural_check(str(f))
-        assert not any("Unknown top-level key" in i for i in issues)
+        # Assert no errors at all, not just the absence of the specific
+        # top-level-key error — a fixture meant to demonstrate a valid shape
+        # should be fully clean, or a different, unrelated defect in it (e.g.
+        # an undeclared variable) could slip through unnoticed.
+        assert not any(i.startswith("ERROR") for i in issues), issues
 
 
 class TestApiValidate:
