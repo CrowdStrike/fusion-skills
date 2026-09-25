@@ -123,6 +123,13 @@ UpdateVariable:
 indicator into an enrichment call, reference the producing action's output directly
 (`${data['HydrateDetection.results'][0].URL}`) rather than inventing a custom variable you never create.
 
+**Don't seed a variable with a placeholder value you can't source.** When a variable holds something
+the user must supply — a recipient email, an approver — do NOT default it to a fabricated
+`approver@example.com`. That address dead-ends at runtime (no CID delivers to `example.com`-style
+domains), and routing it through a variable hides it from the Send email recipient check. Declare the
+variable with no `default:` (configured in the console) or bind it from a trigger parameter —
+`validate.py` flags a fake-domain email assigned to a `CreateVariable` default or `UpdateVariable` setter.
+
 **Well-known fixed IDs**:
 - CreateVariable: `702d15788dbbffdf0b68d8e2f3599aa4`
 - UpdateVariable: `6c6eab39063fa3b72d98c82af60deb8a`
