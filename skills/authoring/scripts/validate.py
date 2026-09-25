@@ -1159,6 +1159,47 @@ def _validate_top_level_shape(data, issues):
         )
 
 
+def _validate_fake_variable_emails(data, issues):
+    """Flag a fabricated ``@example.com``-style email seeded into a WorkflowCustomVariable
+    (a ``CreateVariable`` schema ``default`` or an ``UpdateVariable`` setter value).
+    Routed through a variable it dead-ends at runtime like a hardcoded recipient, but
+    referencing it in a Send email ``to:`` hides it from the recipient check. Recurses
+    into loops."""
+
+    def _check(name, value):
+        if isinstance(value, str) and FAKE_EMAIL_DOMAIN_PATTERN.search(value):
+            issues.append(
+                f"ERROR: WorkflowCustomVariable '{name}' is seeded with a placeholder "
+                f"email '{value}'. It dead-ends at runtime (no CID delivers to "
+                f"example.com/yourcompany.com-style domains) and, referenced in a Send "
+                f"email 'to:', slips past the recipient check. Leave it without a "
+                f"hardcoded default (set it in the console or from a trigger parameter), "
+                f"or use a real CID-approved address."
+            )
+
+    actions = data.get("actions")
+    if isinstance(actions, dict):
+        for action in actions.values():
+            props = action.get("properties", {}) if isinstance(action, dict) else {}
+            if not isinstance(props, dict):
+                continue
+            schema = props.get("variable_schema")
+            schema_props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+            if isinstance(schema_props, dict):
+                for name, spec in schema_props.items():
+                    if isinstance(spec, dict):
+                        _check(name, spec.get("default"))
+            setter = props.get("WorkflowCustomVariable")
+            if isinstance(setter, dict):
+                for name, value in setter.items():
+                    _check(name, value)
+    loops = data.get("loops")
+    if isinstance(loops, dict):
+        for loop_def in loops.values():
+            if isinstance(loop_def, dict):
+                _validate_fake_variable_emails(loop_def, issues)
+
+
 def structural_check(file_path):
     """
     Validate YAML structure against workflow schema rules.
@@ -1285,6 +1326,7 @@ def structural_check(file_path):
     _validate_ngsiem_trigger_fields(trigger, file_path, issues)
     _validate_pinned_data_paths(data, file_path, issues)
     _validate_custom_variable_refs(data, file_path, issues)
+    _validate_fake_variable_emails(data, issues)
 
     return issues
 

@@ -3561,3 +3561,147 @@ output_fields: []
         issues = validate.structural_check(str(f))
         assert not any("undefined WorkflowCustomVariable" in i for i in issues), issues
 
+
+
+class TestFakeVariableEmail:
+    """A fake @example.com-style email seeded into a WorkflowCustomVariable is a
+    placeholder that dead-ends at runtime, exactly like a hardcoded Send email
+    `to:` recipient — and referencing the variable in `to:` hides it from the
+    recipient guard. These cover the structural-tier check that flags a fake
+    email assigned to a variable (CreateVariable default or UpdateVariable setter).
+    """
+
+    def _wf(self, var_block):
+        return f"""\
+# Created by the CrowdStrike Falcon Fusion authoring skill
+name: Approval Request
+trigger:
+  type: On demand
+  name: On demand
+  next:
+    - InitVars
+actions:
+{var_block}
+  Send:
+    id: 07413ef9ba7c47bf5a242799f59902cc
+    name: Send email
+    version_constraint: ~1
+    properties:
+      to:
+        - ${{data['WorkflowCustomVariable.approver_email']}}
+      subject: Approval
+      msg: Please review
+      msg_type: text
+output_fields: []
+"""
+
+    def test_create_variable_fake_email_default_flagged(self, tmp_path):
+        block = """\
+  InitVars:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - Send
+    properties:
+      variable_schema:
+        properties:
+          approver_email:
+            type: string
+            default: approver@example.com
+        type: object"""
+        f = tmp_path / "cv_default.yaml"
+        f.write_text(self._wf(block))
+        issues = validate.structural_check(str(f))
+        assert any(
+            i.startswith("ERROR") and "approver_email" in i and "placeholder email" in i
+            for i in issues
+        ), issues
+
+    def test_update_variable_fake_email_setter_flagged(self, tmp_path):
+        block = """\
+  InitVars:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - SetVar
+    properties:
+      variable_schema:
+        properties:
+          approver_email:
+            type: string
+        type: object
+  SetVar:
+    id: 6c6eab39063fa3b72d98c82af60deb8a
+    class: UpdateVariable
+    name: Update variable
+    version_constraint: ~1
+    next:
+      - Send
+    properties:
+      WorkflowCustomVariable:
+        approver_email: approver@example.com"""
+        f = tmp_path / "uv_setter.yaml"
+        f.write_text(self._wf(block))
+        issues = validate.structural_check(str(f))
+        assert any(
+            i.startswith("ERROR") and "approver_email" in i and "placeholder email" in i
+            for i in issues
+        ), issues
+
+    def test_variable_without_default_passes(self, tmp_path):
+        # Declaring the variable with no hardcoded default (console-configured) is
+        # the correct pattern — nothing to flag.
+        block = """\
+  InitVars:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - Send
+    properties:
+      variable_schema:
+        properties:
+          approver_email:
+            type: string
+        type: object"""
+        f = tmp_path / "no_default.yaml"
+        f.write_text(self._wf(block))
+        issues = validate.structural_check(str(f))
+        assert not any("placeholder email" in i for i in issues), issues
+
+    def test_variable_set_from_data_reference_passes(self, tmp_path):
+        # Binding the variable from a trigger parameter (a data reference, not a
+        # literal address) is correct — nothing to flag.
+        block = """\
+  InitVars:
+    id: 702d15788dbbffdf0b68d8e2f3599aa4
+    class: CreateVariable
+    name: Create variable
+    version_constraint: ~1
+    next:
+      - SetVar
+    properties:
+      variable_schema:
+        properties:
+          approver_email:
+            type: string
+        type: object
+  SetVar:
+    id: 6c6eab39063fa3b72d98c82af60deb8a
+    class: UpdateVariable
+    name: Update variable
+    version_constraint: ~1
+    next:
+      - Send
+    properties:
+      WorkflowCustomVariable:
+        approver_email: ${data['request_approver_email']}"""
+        f = tmp_path / "data_ref.yaml"
+        f.write_text(self._wf(block))
+        issues = validate.structural_check(str(f))
+        assert not any("placeholder email" in i for i in issues), issues
