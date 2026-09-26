@@ -68,7 +68,7 @@ The skills are markdown instructions plus Python scripts — no plugin runtime i
 1. **Read the SKILL.md** for the task you are doing (e.g., `skills/authoring/SKILL.md` to write a workflow).
 2. **Run the scripts directly** with `python <skill>/scripts/<script>.py --help` to see flags. Any absolute or `~/.agents/skills/...` symlink path works — each script resolves its own location and bootstraps its managed Python venv, so `${CLAUDE_PLUGIN_ROOT}` (set only by Claude Code) is not required.
 3. **Follow the discipline rules**, which are not optional:
-   - Always discover real action IDs with `action_search.py` — never guess. IDs are opaque catalog identifiers.
+   - Resolve real action IDs from the Common Action IDs table in `skills/authoring/SKILL.md` first, then `action_search.py --search` for anything the table doesn't list — never guess. IDs are opaque catalog identifiers.
    - Never write `PLACEHOLDER_*` values. Resolve every ID before authoring.
    - Every action needs a `version_constraint`: `~<major>` of its `semantic_version` (`~0` when it declares none).
    - Validate after authoring (`validate.py`) and again as a deploy pre-flight.
@@ -137,7 +137,7 @@ python skills/authoring/scripts/validate.py workflow.yaml
 python skills/deployment/scripts/import_workflows.py workflow.yaml
 ```
 
-Re-importing a name that already exists is flagged by the duplicate check; rename in the YAML, delete the existing definition with `skills/deployment/scripts/delete_workflow.py`, or re-import with `import_workflows.py --replace` (deletes the same-name definition, then imports). A re-imported definition is disabled until you release it again. To stop a running execution, use `skills/execution/scripts/monitor_execution.py` and `get_execution_results.py` to inspect status.
+Re-importing a name that already exists is flagged by the duplicate check; keep the name, since renaming leaves the old definition orphaned in the CID, and re-import with `import_workflows.py --replace` (deletes the same-name definition, then imports), or delete the existing definition first with `skills/deployment/scripts/delete_workflow.py`. A re-imported definition is disabled until you release it again. To stop a running execution, use `skills/execution/scripts/monitor_execution.py` and `get_execution_results.py` to inspect status.
 
 ### Common Scenarios
 
@@ -150,7 +150,7 @@ Re-importing a name that already exists is flagged by the duplicate check; renam
 Quality matters more than speed. Specifically:
 
 - **Validate everything.** Run `validate.py` after authoring and rely on the import pre-flight; do not push unvalidated YAML to the API.
-- **No placeholders.** Every action `id` must be a real value resolved via `action_search.py`. A `PLACEHOLDER_*` string in output YAML means a step was skipped — go back and resolve it.
+- **No placeholders.** Every action `id` must be a real value, from the Common Action IDs table or `action_search.py`. A `PLACEHOLDER_*` string in output YAML means a step was skipped — go back and resolve it.
 - **Test before declaring done.** A returned `definition_id` means imported, not working. Release it, trigger it with real parameters, and confirm the execution reached a terminal success state (`Succeeded` or `Completed`) with `monitor_execution.py` before calling the task complete.
 - **Read each skill's Common Pitfalls section** before working in that phase.
 
