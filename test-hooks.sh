@@ -66,6 +66,7 @@ assert_empty "non-fusion prompt emits no context" "$OUT"
 if [ ! -f "$MARKER" ]; then pass "non-fusion prompt writes no marker"; else fail "non-fusion prompt writes no marker"; fi
 
 # 5. PreToolUse with marker present + non-Skill tool -> advisory nudge
+rm -f "$MARKER.nudged"
 echo "$$" > "$MARKER"
 OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash"}' | bash "$ROUTER")
 assert_contains "PreToolUse nudges when marker active" "$OUT" "Fusion plugin reminder"
@@ -80,6 +81,24 @@ if [ ! -f "$MARKER" ]; then pass "Skill invocation clears marker"; else fail "Sk
 rm -f "$MARKER"
 OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash"}' | bash "$ROUTER")
 assert_empty "PreToolUse silent without marker" "$OUT"
+
+# 7a. Reminder fires once per detected prompt, not on every tool call
+rm -f "$MARKER" "$MARKER.nudged"
+echo "$$" > "$MARKER"
+echo '{"hook_event_name":"PreToolUse","tool_name":"Bash"}' | bash "$ROUTER" >/dev/null
+OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Read"}' | bash "$ROUTER")
+assert_empty "second tool call gets no repeated reminder" "$OUT"
+if [ -f "$MARKER" ]; then pass "marker survives the reminder for the bridge"; else fail "marker survives the reminder for the bridge"; fi
+
+# 7b. A new prompt that doesn't match clears the leftover marker
+OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital of France"}' | bash "$ROUTER")
+if [ ! -f "$MARKER" ] && [ ! -f "$MARKER.nudged" ]; then pass "non-fusion prompt clears leftover marker"; else fail "non-fusion prompt clears leftover marker"; fi
+
+# 7c. Another session's marker doesn't leak into this one
+echo "$$" > "$MARKER"
+OUT=$(echo '{"hook_event_name":"PreToolUse","session_id":"other-session","tool_name":"Bash"}' | bash "$ROUTER")
+assert_empty "marker from another session emits no reminder" "$OUT"
+rm -f "$MARKER" "$MARKER-other-session" "$MARKER-other-session.nudged"
 
 echo ""
 echo "Testing fusion-foundry-bridge.sh"
@@ -104,7 +123,7 @@ OUT=$(echo '{"tool_input":{"skill":"some-other-skill"}}' | bash "$BRIDGE")
 assert_empty "unrelated skill emits no advisory" "$OUT"
 
 # Cleanup
-rm -f "$MARKER"
+rm -f "$MARKER" "$MARKER.nudged"
 
 echo ""
 echo "──────────────────────────────"

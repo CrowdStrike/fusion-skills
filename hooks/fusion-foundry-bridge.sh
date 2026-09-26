@@ -21,7 +21,9 @@ set -euo pipefail
 INPUT=$(cat)
 
 SKILL_NAME=$(echo "$INPUT" | jq -r '.tool_input.skill // empty')
-MARKER="/tmp/.fusion-skill-router-active"
+# Same session-scoped marker path as fusion-skill-router.sh.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
 
 # Detect whether the sibling foundry plugin is installed. Best-effort: the file
 # may not exist, in which case we simply skip the "already installed" wording.
