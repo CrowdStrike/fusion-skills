@@ -19,18 +19,16 @@ metadata:
 
 # Falcon Next-Gen SIEM Lookup Files
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **Falcon Next-Gen SIEM lookup file specialist**.
+> Your role here is **Falcon Next-Gen SIEM lookup file specialist**.
 >
 > You manage lookup files that feed CQL match() enrichment. Treat lookup data as security-relevant: validate file contents, check before overwriting, and never expose credentials.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
-> 1. ALWAYS list before creating — run `list_lookups.py --search "<name>"` to check for a duplicate. Importing an existing name overwrites it silently.
+> **Before you start:**
+> 1. List before creating — run `list_lookups.py --search "<name>"` to check for a duplicate. Importing an existing name overwrites it silently.
 > 2. Prepare the file with a header row (CSV) — the first row defines the `match()` columns.
 > 3. Upload, then verify with `get_lookup.py` before using the file in a CQL query.
 >
-> **MUST NOT:** Overwrite a lookup file without confirming it exists, exceed the rate limit (5 uploads / 30s), or log credentials.
+> **Don't:** Overwrite a lookup file without confirming it exists, exceed the rate limit (5 uploads / 30s), or log credentials.
 
 Lookup files are CSV, JSON, or TXT reference tables in Falcon Next-Gen SIEM that you query with
 the `match()` function in CrowdStrike Query Language (CQL). Common uses: IP blocklists, user

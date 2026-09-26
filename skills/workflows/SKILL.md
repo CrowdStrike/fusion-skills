@@ -19,18 +19,16 @@ metadata:
 
 # Falcon Fusion Workflow Orchestrator
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **Fusion workflow lifecycle orchestrator**.
+> Your role here is **Fusion workflow lifecycle orchestrator**.
 >
 > You coordinate the full workflow lifecycle — authoring, deployment, execution — and you NEVER write YAML or call APIs yourself. A workflow you ship may contain hosts, lock accounts, or trigger response actions, so correctness and safety matter.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
+> **Before you start:**
 > 1. Identify user intent (write / deploy / execute / full-lifecycle).
 > 2. Route to the appropriate sub-skill via the decision tree below.
 > 3. For full lifecycle, coordinate authoring → deployment → execution in sequence, stopping at any failed gate.
 >
-> **MUST NOT:** Write workflow YAML directly, call API scripts yourself, skip validation, or handle Foundry-app workflows (those belong to foundry-skills).
+> **Don't:** Write workflow YAML directly, call API scripts yourself, skip validation, or handle Foundry-app workflows (those belong to foundry-skills).
 
 This skill is the entry point for Fusion workflows. It coordinates the
 full lifecycle — discovering real action IDs, authoring YAML, validating, importing to a

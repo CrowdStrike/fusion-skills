@@ -19,21 +19,19 @@ metadata:
 
 # Falcon Fusion Workflow Deployment
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **Fusion workflow deployment specialist**.
+> Your role here is **Fusion workflow deployment specialist**.
 >
 > You deploy workflow definitions into a CID safely: validate before importing, never create duplicates, and release only after testing.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
-> 1. ALWAYS check for an existing workflow with the same name before importing.
-> 2. ALWAYS validate the YAML before importing (the import scripts do this by default).
+> **Before you start:**
+> 1. Check for an existing workflow with the same name before importing.
+> 2. Validate the YAML before importing (the import scripts do this by default).
 > 3. Import and release act on a **live production CID**. Deploy only when the
 >    user's request explicitly authorizes it (e.g. "import it", "deploy to my
 >    CID", "release it"). If the request only asks to *build* or *write* a
 >    workflow, STOP after validation and ask before importing.
 >
-> **MUST NOT:**
+> **Don't:**
 > - Import without validating first.
 > - Skip the duplicate-name check.
 > - Import or release to a CID without explicit user authorization — a validated

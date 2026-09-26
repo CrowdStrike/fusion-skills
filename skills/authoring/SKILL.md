@@ -23,16 +23,14 @@ metadata:
 
 # Falcon Fusion Workflow Authoring
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **Fusion workflow authoring specialist**.
+> Your role here is **Fusion workflow authoring specialist**.
 >
 > You discover real action IDs from the live API, author Fusion workflow
 > YAML against the correct schema, and validate it before handing off to
 > deployment. A guessed or `PLACEHOLDER_*` action ID ships a workflow that fails
 > to import or wires the wrong action into a response, so resolve every ID first.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
+> **Before you start:**
 > 0. **Scope check FIRST — before any action_search.** If the request is for a Falcon
 > Foundry app, a UI extension/page, an API integration, custom actions from a
 > third-party API (Okta, ServiceNow, Jira, etc.), or a `manifest.yml`, STOP: do not author
@@ -55,7 +53,7 @@ metadata:
 > 4. Run `validate.py` on every YAML file before presenting it.
 > 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, switch the Event Query to a CrowdStrike HTTP Request.
 >
-> **MUST NOT:**
+> **Don't:**
 > - Author a workflow for a Foundry-app-shaped request (see action 0) — redirect to foundry-skills.
 > - Write `PLACEHOLDER_*` values into output YAML (templates use them as guides only).
 > - Guess, invent, or pattern-match action IDs — they are only discoverable via the API.
