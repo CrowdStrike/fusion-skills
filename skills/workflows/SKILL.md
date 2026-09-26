@@ -232,22 +232,22 @@ authoring sub-skill must use numeric CEL comparisons (`>= 4` for High/Critical),
 
 ## Counter-Rationalizations
 
-These thoughts mean STOP — you are about to skip a step the lifecycle requires:
+Each of these thoughts skips a step the lifecycle requires; the right column says what to do instead:
 
 | Thought | Reality |
 |---------|---------|
-| "I'll just write the YAML without searching actions" | STOP. Invoke the authoring skill. It runs `action_search.py` first. No exceptions. |
-| "I can guess the action ID format" | WRONG. IDs are opaque identifiers, only discoverable via API. |
-| "I'll use a placeholder for now" | NEVER. Resolve every ID before writing YAML. No `PLACEHOLDER_*` values. |
-| "Validation can wait until deploy" | NO. Authoring validates; deployment validates again as a pre-flight. Both happen. |
-| "This is basically a Foundry app" | CHECK. Does it need UI/functions/collections? If not, it's a standalone workflow. |
-| "I'll deploy without releasing" | INCOMPLETE. Workflows must be released before they can execute. |
-| "I can skip the duplicate check" | RISKY. Importing a duplicate name silently creates a new version. |
-| "Release failed — I'll re-import as `<name>-v2`." | NEVER. The name is the workflow's identity, not a version. Renaming orphans the old definition and sprawls the CID. Fix the source YAML, keep the SAME name, re-import with `--replace`. |
-| "I'll build the dependency myself" | PAUSE. If it needs a Foundry function/collection, route to foundry-skills. |
-| "They want all high-severity alerts — I'll Event Query the alert population." | STOP. Don't Event Query a population you don't already hold (connector-dependent NG-SIEM data). DEFAULT to a CrowdStrike HTTP Request to the Falcon API (`/alerts/queries/alerts/v2`); mention the Foundry-app FalconPy function only if the workflow must be distributed. Enriching a detection the workflow ALREADY holds stays an Event Query. |
-| "version_constraint is optional" | WRONG. Every action requires it: `~<major>` of the action's `semantic_version` (`~0` when it declares none) — `1.0.4` → `~1`, `0.0.100` → `~0`. |
-| "I'll trigger before it's released" | NO. Trigger only after deployment releases the workflow. |
+| "I'll just write the YAML without searching actions" | Invoke the authoring skill. It runs `action_search.py` first. No exceptions. |
+| "I can guess the action ID format" | IDs are opaque identifiers, only discoverable via API. |
+| "I'll use a placeholder for now" | Resolve every ID before writing YAML. No `PLACEHOLDER_*` values. |
+| "Validation can wait until deploy" | Authoring validates; deployment validates again as a pre-flight. Both happen. |
+| "This is basically a Foundry app" | Does it need UI/functions/collections? If not, it's a standalone workflow. |
+| "I'll deploy without releasing" | Workflows must be released before they can execute. |
+| "I can skip the duplicate check" | Importing a duplicate name silently creates a new version. |
+| "Release failed — I'll re-import as `<name>-v2`." | The name is the workflow's identity, not a version. Renaming orphans the old definition and sprawls the CID. Fix the source YAML, keep the SAME name, re-import with `--replace`. |
+| "I'll build the dependency myself" | If it needs a Foundry function/collection, route to foundry-skills. |
+| "They want all high-severity alerts — I'll Event Query the alert population." | Don't Event Query a population you don't already hold (connector-dependent NG-SIEM data). DEFAULT to a CrowdStrike HTTP Request to the Falcon API (`/alerts/queries/alerts/v2`); mention the Foundry-app FalconPy function only if the workflow must be distributed. Enriching a detection the workflow ALREADY holds stays an Event Query. |
+| "version_constraint is optional" | Every action requires it: `~<major>` of the action's `semantic_version` (`~0` when it declares none) — `1.0.4` → `~1`, `0.0.100` → `~0`. |
+| "I'll trigger before it's released" | Trigger only after deployment releases the workflow. |
 
 ## Reading Guide
 

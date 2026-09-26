@@ -13,16 +13,16 @@ Both hooks are **advisory only** — they always exit 0 and never block a user a
 
 ## Counter-Rationalizations
 
-The skills enforce discipline to prevent common failures. When you catch yourself thinking one of these, stop:
+Each thought on the left has led to a broken workflow; the right column says what to do instead:
 
 | Thought | Reality |
 |---------|---------|
-| "I'll write the YAML without searching actions" | STOP. Run `action_search.py` first — action IDs are opaque catalog identifiers, only discoverable via API |
-| "I'll use a placeholder ID for now" | NEVER. Resolve every action ID before writing YAML. No `PLACEHOLDER_*` values |
-| "version_constraint is optional" | WRONG. Every action requires it: `~<major>` of its `semantic_version` (`~0` when none, e.g. Charlotte AI at `0.0.100`) |
-| "Validation can wait until deploy" | NO. Authoring validates; deployment validates again as a pre-flight |
-| "I'll deploy without releasing" | INCOMPLETE. Workflows must be released before they can execute |
-| "This is basically a Foundry app" | CHECK. If it needs UI/functions/collections, route to foundry-skills instead |
+| "I'll write the YAML without searching actions" | Resolve IDs first — Common Action IDs table, then `action_search.py`; action IDs are opaque catalog identifiers, only discoverable via API |
+| "I'll use a placeholder ID for now" | Resolve every action ID before writing YAML. No `PLACEHOLDER_*` values |
+| "version_constraint is optional" | Every action requires it: `~<major>` of its `semantic_version` (`~0` when none, e.g. Charlotte AI at `0.0.100`) |
+| "Validation can wait until deploy" | Authoring validates; deployment validates again as a pre-flight |
+| "I'll deploy without releasing" | Workflows must be released before they can execute |
+| "This is basically a Foundry app" | If it needs UI/functions/collections, route to foundry-skills instead |
 
 ## Skills Integration
 
