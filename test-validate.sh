@@ -65,11 +65,11 @@ check_ref() {
 }
 check_ref "skills/lookup-files/references/cql-match-function.md"
 check_ref "skills/lookup-files/references/lookup-file-formats.md"
-check_ref "skills/workflows/references/yaml-schema.md"
-check_ref "skills/workflows/references/json-structure.md"
-check_ref "skills/workflows/references/cel-expressions.md"
-check_ref "skills/workflows/references/trigger-types.md"
-check_ref "skills/workflows/references/best-practices.md"
+check_ref "skills/authoring/references/yaml-schema.md"
+check_ref "skills/authoring/references/json-structure.md"
+check_ref "skills/authoring/references/cel-expressions.md"
+check_ref "skills/authoring/references/trigger-types.md"
+check_ref "skills/authoring/references/best-practices.md"
 
 echo ""
 echo "─────────────────────────────────────"

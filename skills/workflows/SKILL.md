@@ -210,7 +210,7 @@ which phases to coordinate.
 ## Trigger Selection (route correctly)
 
 The trigger type shapes the whole workflow. Identify it from the user's intent so the
-authoring sub-skill starts from the right shape (full detail in `references/trigger-types.md`):
+authoring sub-skill starts from the right shape (full detail in `../authoring/references/trigger-types.md`):
 
 | User intent | Trigger type |
 |-------------|--------------|
@@ -253,16 +253,16 @@ These thoughts mean STOP — you are about to skip a step the lifecycle requires
 
 ## Reading Guide
 
-Reference docs live under `workflows/references/`. Point sub-skills and yourself here when
-you need format details:
+Reference docs live in the authoring skill (`../authoring/references/`), one copy shared by
+both skills. Point sub-skills and yourself there when you need format details:
 
 | Need | File |
 |------|------|
-| YAML field reference | `workflows/references/yaml-schema.md` |
-| JSON internal schema | `workflows/references/json-structure.md` |
-| CEL syntax | `workflows/references/cel-expressions.md` |
-| Trigger types | `workflows/references/trigger-types.md` |
-| Best practices | `workflows/references/best-practices.md` |
+| YAML field reference | `../authoring/references/yaml-schema.md` |
+| JSON internal schema | `../authoring/references/json-structure.md` |
+| CEL syntax | `../authoring/references/cel-expressions.md` |
+| Trigger types | `../authoring/references/trigger-types.md` |
+| Best practices | `../authoring/references/best-practices.md` |
 
 ## Improving These Skills
 
