@@ -248,7 +248,7 @@ These thoughts mean STOP — you are about to skip a step the lifecycle requires
 | "Release failed — I'll re-import as `<name>-v2`." | NEVER. The name is the workflow's identity, not a version. Renaming orphans the old definition and sprawls the CID. Fix the source YAML, keep the SAME name, re-import with `--replace`. |
 | "I'll build the dependency myself" | PAUSE. If it needs a Foundry function/collection, route to foundry-skills. |
 | "They want all high-severity alerts — I'll Event Query the alert population." | STOP. Don't Event Query a population you don't already hold (connector-dependent NG-SIEM data). DEFAULT to a CrowdStrike HTTP Request to the Falcon API (`/alerts/queries/alerts/v2`); mention the Foundry-app FalconPy function only if the workflow must be distributed. Enriching a detection the workflow ALREADY holds stays an Event Query. |
-| "version_constraint is optional" | WRONG. Every action requires it. `~0` if no `semantic_version`, `~1` if it has one. |
+| "version_constraint is optional" | WRONG. Every action requires it: `~<major>` of the action's `semantic_version` (`~0` when it declares none) — `1.0.4` → `~1`, `0.0.100` → `~0`. |
 | "I'll trigger before it's released" | NO. Trigger only after deployment releases the workflow. |
 
 ## Reading Guide
