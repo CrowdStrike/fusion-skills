@@ -51,7 +51,7 @@ Lookup files can also be uploaded as JSON.
 | Limit | Value |
 |-------|-------|
 | Upload rate | 5 files per 30 seconds |
-| Recommended max file size | 10 MB |
+| File size | No fixed maximum to design around; for large files, update entries incrementally instead of re-uploading the whole file |
 | File name characters | Alphanumeric, hyphens, underscores, dots |
 
 ## Search Domains
