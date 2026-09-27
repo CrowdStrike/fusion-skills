@@ -16,26 +16,49 @@ path.
 ## Pattern
 
 1. **Choose a trigger.** Scheduled for periodic exports, or On demand for ad-hoc runs.
-2. **Add the Event Query action.** Configure an `Inline.QueryEvent` action with your LogScale
-   query. Set **"Output files only: false"** so the JSON result fields stay populated for
-   downstream actions in addition to the CSV file.
-3. **Wire the CSV to a lookup file.** The Event Query exposes a `file_csv` output. Pass it into a
-   Create Lookup File action:
+2. **Add the Event Query action.** Configure an `Inline.QueryEvent` action. The query and its
+   window live in `inline_configuration.config` (`search_query`, `repo_or_view`, `start`, `end`),
+   not in `properties`; see
+   [event-query-action.md](../skills/authoring/references/event-query-action.md) for the full
+   shape. Set `workflow_export_event_query_results_to_csv: true` so the action produces its
+   `file_csv` output, and keep `output_files_only: false` so the JSON result fields stay populated
+   for downstream actions too. End the query in `| tail(x)` so the export isn't cut off at the
+   default 200 rows.
+3. **Wire the CSV to a lookup file.** Pass `file_csv` into the Create lookup file action with
+   `lookup_file_content_type: file`:
 
    ```yaml
    actions:
      QueryEvents:
        id: cdf5c3e0d69f156eaaf56c1f5d3f1b66   # Event Query (Inline.QueryEvent)
+       class: Inline.QueryEvent
+       name: Export process events
+       version_constraint: ~1
+       next:
+         - CreateLookup
+       properties:
+         logscale_search_start_time: 1 day
+         output_files_only: false                          # keep the JSON results too
+         workflow_csv_header_fields: []                    # empty = all fields
+         workflow_export_event_query_results_to_csv: true  # populates file_csv
+       inline_configuration:
+         config:
+           description: ''
+           end: now
+           repo_or_view: search-all
+           search_name: Export process events
+           search_query: '#event_simpleName=ProcessRollup2 | select([ComputerName, FileName]) | tail(10000)'
+           start: 24h
+           tags: []
+     CreateLookup:
+       id: 51c4db34ab30465f796d7550f3e3e97b   # Create lookup file
+       name: Create lookup file
        version_constraint: ~1
        properties:
-         query: "#event_simpleName=ProcessRollup2 | select(ComputerName, FileName) | tail(10000)"
-         time_range: "24h"
-     CreateLookup:
-       id: <create-lookup-file-action-id>     # discover via action_search.py
-       properties:
-         file_csv: ${data['QueryEvents.file_csv']}
-         filename: "process_export.csv"
-         repository: "search-all"
+         lookup_file_content_file: ${data['QueryEvents.file_csv']}
+         lookup_file_content_type: file
+         lookup_file_name: process_export.csv
+         lookup_file_repo: search-all
    ```
 
 4. **Enrich later with match().** Once the CSV lands in the lookup table, join it to events:
@@ -46,8 +69,8 @@ path.
 
 | Action | Type | Purpose |
 |--------|------|---------|
-| Event Query | `Inline.QueryEvent` | Runs the query and exposes a `file_csv` output. `version_constraint: ~1` |
-| Create Lookup File | Lookup action | Writes the CSV to a Next-Gen SIEM lookup table (see the lookup-files skill) |
+| Event Query | `Inline.QueryEvent` | Runs the query and, with CSV export on, exposes a `file_csv` output. `version_constraint: ~1` |
+| Create lookup file | `51c4db34ab30465f796d7550f3e3e97b` | Writes the CSV to a Next-Gen SIEM lookup table (see the lookup-files skill). `version_constraint: ~1` |
 
 ## Common Pitfalls
 
