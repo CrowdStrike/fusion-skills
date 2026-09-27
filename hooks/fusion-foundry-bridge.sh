@@ -22,7 +22,7 @@ INPUT=$(cat)
 
 SKILL_NAME=$(echo "$INPUT" | jq -r '.tool_input.skill // empty')
 # Same session-scoped marker path as fusion-skill-router.sh.
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' | tr -cd 'A-Za-z0-9_-')
 MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
 
 # Detect whether the sibling foundry plugin is installed. Best-effort: the file

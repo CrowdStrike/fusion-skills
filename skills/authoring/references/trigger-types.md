@@ -210,7 +210,7 @@ request_url: "https://www.virustotal.com/api/v3/ip_addresses/${data['Trigger.Det
 **For indicators genuinely NOT on the trigger** (anything `--fields` doesn't
 list), hydrate with an Event Query and read from its `results` array:
 `${data['HydrateDetection.results'][0].<Field>}`. See
-`references/event-query-action.md` for that pattern. **Do NOT route query results
+`event-query-action.md` for that pattern. **Do NOT route query results
 through an inline Python extractor** (`cs.json.decode(data['<Python>.output_stdout'])`)
 — that form does not resolve at release. Read `results[0].<Field>` directly.
 
@@ -226,7 +226,7 @@ the event-level detail that composed the detection; a **Get Detection Details**
 action (or an HTTP Request to `/alerts/entities/alerts/v2` passing the composite
 `DetectionID` as `composite_id`) returns the detection object instead — use it when
 the object's summary fields are all you need. See
-`references/event-query-vs-api.md`.
+`event-query-vs-api.md`.
 
 **Not every `Trigger.Detection.*` field resolves on the NG-SIEM trigger.**
 `${Trigger.Detection.Product}` and `${Trigger.Detection.Description}` are available

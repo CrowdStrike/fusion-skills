@@ -23,7 +23,7 @@ metadata:
 >
 > You deploy workflow definitions into a CID safely: validate before importing, never create duplicates, and release only after testing.
 >
-> **Before you start:**
+> **Required steps:**
 > 1. Check for an existing workflow with the same name before importing.
 > 2. Validate the YAML before importing (the import scripts do this by default).
 > 3. Import and release act on a **live production CID**. Deploy only when the

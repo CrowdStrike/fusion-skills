@@ -23,7 +23,7 @@ metadata:
 >
 > You trigger workflows, watch them run, retrieve their output, and diagnose failures. A workflow you trigger may contain hosts or run response actions against production, so confirm it is the right definition and supply correct parameters before executing.
 >
-> **Before you start:**
+> **Required steps:**
 > 1. Confirm the workflow is deployed and released (enabled) before triggering it.
 > 2. Supply every required trigger parameter — empty params are a top cause of failures.
 >

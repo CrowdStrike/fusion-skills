@@ -11,8 +11,9 @@
 # The marker file bridges the two hooks since they run at different times. It is
 # scoped to the session and reset on every prompt, so a detection never carries
 # into a later prompt or another session. fusion-foundry-bridge.sh reads it too,
-# so it stays until the next prompt or a Skill call; a sidecar file records that
-# the reminder was already given.
+# and Claude Code runs matching hooks in parallel, so only the next prompt removes
+# it; a sidecar file records that the reminder was already given. Harnesses that
+# send no session_id share one unscoped marker, still reset on every prompt.
 #
 # Receives JSON on stdin with hook_event_name and event-specific fields.
 # Outputs JSON with additionalContext. Always exits 0 — never blocks the user.
@@ -22,7 +23,8 @@ set -euo pipefail
 INPUT=$(cat)
 
 HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty')
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+# Keep only filename-safe characters so the ID can't escape the /tmp filename.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' | tr -cd 'A-Za-z0-9_-')
 MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
 NUDGED="$MARKER.nudged"
 
@@ -30,6 +32,8 @@ case "$HOOK_EVENT" in
   UserPromptSubmit)
     # Each prompt is classified on its own; never carry a detection forward.
     rm -f "$MARKER" "$NUDGED"
+    # Sessions that end mid-detection leave their markers behind; prune old ones.
+    find /tmp/ -maxdepth 1 -name '.fusion-skill-router-active-*' -mmin +1440 -delete 2>/dev/null || true
     USER_PROMPT=$(echo "$INPUT" | jq -r '.prompt // .user_prompt // .query // empty')
     PROMPT_LOWER=$(echo "$USER_PROMPT" | tr '[:upper:]' '[:lower:]')
 
@@ -71,9 +75,10 @@ case "$HOOK_EVENT" in
 
     # Only intercept when the current prompt was detected as Fusion intent.
     if [ -f "$MARKER" ]; then
-      # Allow the Skill tool through — that's the goal. Clean up the marker.
+      # A Skill call is the goal: stop reminding, but leave the marker for
+      # fusion-foundry-bridge.sh, which runs alongside this hook.
       if [ "$TOOL_NAME" = "Skill" ]; then
-        rm -f "$MARKER" "$NUDGED"
+        touch "$NUDGED"
         exit 0
       fi
 

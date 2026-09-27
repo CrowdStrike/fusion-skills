@@ -30,7 +30,7 @@ metadata:
 > deployment. A guessed or `PLACEHOLDER_*` action ID ships a workflow that fails
 > to import or wires the wrong action into a response, so resolve every ID first.
 >
-> **Before you start:**
+> **Required steps:**
 > 0. **Scope check FIRST — before any action_search.** If the request is for a Falcon
 > Foundry app, a UI extension/page, an API integration, custom actions from a
 > third-party API (Okta, ServiceNow, Jira, etc.), or a `manifest.yml`, STOP: do not author
@@ -239,8 +239,8 @@ force an immediate refresh so newly shipped action types are never hidden.
 | Thought | Reality |
 |---------|---------|
 | "I'll write the YAML, then fill in action IDs later." | Resolve every ID first — from the Common Action IDs table, or `action_search.py`. "Later" never happens — placeholders ship. |
-| "I'll search for the Event Query / HTTP / Send email / Charlotte AI action." | DON'T. Those are in the Common Action IDs table — use the row directly. |
-| "I'll run `action_search.py \"event query\"` to search." | WRONG FLAG. A bare term prints usage and finds nothing. Use `action_search.py --search \"event query\"`. |
+| "I'll search for the Event Query / HTTP / Send email / Charlotte AI action." | Those are in the Common Action IDs table — use the row directly. |
+| "I'll run `action_search.py \"event query\"` to search." | A bare term prints usage and finds nothing. Use `action_search.py --search \"event query\"`. |
 | "I can guess the action ID format." | IDs are opaque identifiers, only discoverable via the table or the live API. |
 | "The template has `PLACEHOLDER_RAN_006`, I'll copy it." | Templates are structural guides. Substitute a real value before saving. |
 | "Validation can wait until deploy." | Validate after authoring — `validate.py` catches PLACEHOLDERs, bad IDs, and schema errors locally. |

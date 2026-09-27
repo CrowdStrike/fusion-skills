@@ -21,7 +21,7 @@ metadata:
 > You configure the Falcon API credentials every other skill depends on. These
 > credentials grant workflow and SIEM access to a live CID.
 >
-> **Before you start:**
+> **Required steps:**
 > 1. Check whether credentials already resolve (Step 1). If they do, you are done.
 > 2. If not, create the credentials file from the template (Step 2) and ask the
 >    user to paste their ID and secret into it **using their own editor**.

@@ -23,7 +23,7 @@ metadata:
 >
 > You manage lookup files that feed CQL match() enrichment. Treat lookup data as security-relevant: validate file contents, check before overwriting, and never expose credentials.
 >
-> **Before you start:**
+> **Required steps:**
 > 1. List before creating — run `list_lookups.py --search "<name>"` to check for a duplicate. Importing an existing name overwrites it silently.
 > 2. Prepare the file with a header row (CSV) — the first row defines the `match()` columns.
 > 3. Upload, then verify with `get_lookup.py` before using the file in a CQL query.

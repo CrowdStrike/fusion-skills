@@ -23,7 +23,7 @@ metadata:
 >
 > You coordinate the full workflow lifecycle — authoring, deployment, execution — and you NEVER write YAML or call APIs yourself. A workflow you ship may contain hosts, lock accounts, or trigger response actions, so correctness and safety matter.
 >
-> **Before you start:**
+> **Required steps:**
 > 1. Identify user intent (write / deploy / execute / full-lifecycle).
 > 2. Route to the appropriate sub-skill via the decision tree below.
 > 3. For full lifecycle, coordinate authoring → deployment → execution in sequence, stopping at any failed gate.
@@ -76,7 +76,7 @@ coordinate the three sub-skills in sequence. Do not skip phases.
 3. Validate with `validate.py` (structural) and, if credentials exist, API validation.
 
 **Step 2 — Deployment** (invoke deployment skill)
-1. Check for an existing workflow of the same name (`query_workflows.py`) — avoid silent duplicate versions.
+1. Check for an existing workflow of the same name (`query_workflows.py`) — if it exists, re-import with `--replace` instead of renaming.
 2. Import the validated YAML to the CID (`import_workflows.py`).
 3. Release the workflow so it becomes executable (`release_workflow.py`).
 
@@ -117,7 +117,7 @@ and, on yes, run the deploy yourself via the `deployment` skill. Never tell the 
 credential-less HTTP Action, after a successful import tell the user it imported (disabled until
 released) and give the console steps to attach the API key: open the Cloud HTTP Request action →
 Authentication → Create new → API key → secret key → location Header → header name (e.g.
-`x-apikey`) → Test → Save. See `references/http-actions.md` — a `403`/`401` at runtime almost
+`x-apikey`) → Test → Save. See `../authoring/references/http-actions.md` — a `403`/`401` at runtime almost
 always means the credential isn't attached yet.
 
 **Authoring only:**
@@ -236,13 +236,13 @@ Each of these thoughts skips a step the lifecycle requires; the right column say
 
 | Thought | Reality |
 |---------|---------|
-| "I'll just write the YAML without searching actions" | Invoke the authoring skill. It runs `action_search.py` first. No exceptions. |
+| "I'll just write the YAML without searching actions" | Invoke the authoring skill. It resolves every ID from its Common Action IDs table, then `action_search.py --search` for anything the table doesn't list. |
 | "I can guess the action ID format" | IDs are opaque identifiers, only discoverable via API. |
 | "I'll use a placeholder for now" | Resolve every ID before writing YAML. No `PLACEHOLDER_*` values. |
 | "Validation can wait until deploy" | Authoring validates; deployment validates again as a pre-flight. Both happen. |
 | "This is basically a Foundry app" | Does it need UI/functions/collections? If not, it's a standalone workflow. |
 | "I'll deploy without releasing" | Workflows must be released before they can execute. |
-| "I can skip the duplicate check" | Importing a duplicate name silently creates a new version. |
+| "I can skip the duplicate check" | The duplicate check is how you find your own earlier attempt. Keep the name and re-import with `import_workflows.py --replace` (see the deployment skill). |
 | "Release failed — I'll re-import as `<name>-v2`." | The name is the workflow's identity, not a version. Renaming orphans the old definition and sprawls the CID. Fix the source YAML, keep the SAME name, re-import with `--replace`. |
 | "I'll build the dependency myself" | If it needs a Foundry function/collection, route to foundry-skills. |
 | "They want all high-severity alerts — I'll Event Query the alert population." | Don't Event Query a population you don't already hold (connector-dependent NG-SIEM data). DEFAULT to a CrowdStrike HTTP Request to the Falcon API (`/alerts/queries/alerts/v2`); mention the Foundry-app FalconPy function only if the workflow must be distributed. Enriching a detection the workflow ALREADY holds stays an Event Query. |
