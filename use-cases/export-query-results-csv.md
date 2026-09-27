@@ -80,16 +80,12 @@ path.
   `| tail(x)` / `| head(x)` (up to 10,000) or raises `table(...)`'s `limit`, so a lookup file built
   from an uncapped query silently misses rows. See the row-cap note in
   [event-query-action.md](../skills/authoring/references/event-query-action.md).
-- **Large lookup files:** don't design around a fixed maximum size. The published numbers
-  disagree (the Create lookup file action's description, the Falcon Fusion SOAR docs and the
-  Falcon Next-Gen SIEM limits page each give a different one), and files well past all of them
-  have uploaded fine. Size still matters for processing: rebuilding and re-uploading a whole
-  multi-hundred-MB file on every run is slow and memory-heavy, and the whole CSV has to pass
-  through the workflow. For large or growing data, write only new or changed rows in bounded
-  batches and let Falcon Next-Gen SIEM merge them with `update_lookup_file_entries()`
-  (`update_mode="update"` with key columns), instead of downloading and replacing the file. That
-  needs a Foundry function (see below). Falcon Fusion SOAR also creates or overwrites at most
-  5 files per 30 seconds.
+- **Large lookup files:** rebuilding and re-uploading a whole large file on every run is slow and
+  memory-heavy, and the whole CSV has to pass through the workflow. For large or growing data,
+  write only new or changed rows in bounded batches and let Falcon Next-Gen SIEM merge them with
+  `update_lookup_file_entries()` (`update_mode="update"` with key columns), instead of downloading
+  and replacing the file. That needs a Foundry function (see below). Falcon Fusion SOAR also
+  creates or overwrites at most 5 files per 30 seconds.
 
 ## When to Route Elsewhere
 
