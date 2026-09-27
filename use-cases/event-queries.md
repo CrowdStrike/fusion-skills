@@ -45,11 +45,9 @@ rather than pinning a fixed schema before you know what is there.
 **Query syntax:** the Event Query runs CQL/FQL against the event store. Keep queries narrow
 (time-bounded, field-selective) so the workflow stays fast and within execution limits.
 
-**Results cap at 200 rows by default.** A CQL `table(...)` returns at most 200 rows unless you
-pass a `limit` — `table(fields=[...], limit=max)` or a specific number. The console warns
-*"Output capped at 200 elements by default."* If a workflow that accumulates query results into a
-`WorkflowCustomVariable` looks stuck near 200 rows, this query cap is the cause, not a
-variable-size limit — add `limit` to the query. See
+**Results cap at 200 rows by default.** End the query with `| tail(x)` or `| head(x)` (up to
+10,000), or raise `table(...)`'s own `limit`, when you need more rows. Large results can fail the
+workflow, so keep the query narrow even after raising the cap. See the row-cap note in
 [event-query-action.md](../skills/authoring/references/event-query-action.md).
 
 ## Turning Schema Validation Off

@@ -28,7 +28,7 @@ path.
        id: cdf5c3e0d69f156eaaf56c1f5d3f1b66   # Event Query (Inline.QueryEvent)
        version_constraint: ~1
        properties:
-         query: "#event_simpleName=ProcessRollup2 | select(ComputerName, FileName)"
+         query: "#event_simpleName=ProcessRollup2 | select(ComputerName, FileName) | tail(10000)"
          time_range: "24h"
      CreateLookup:
        id: <create-lookup-file-action-id>     # discover via action_search.py
@@ -53,6 +53,10 @@ path.
 
 - **Empty JSON results downstream:** if "Output files only" is `true`, only the CSV file is
   available and JSON result fields are empty. Set it to `false` to keep both.
+- **Truncated exports:** Event Query results stop at 200 rows unless the query ends in
+  `| tail(x)` / `| head(x)` (up to 10,000) or raises `table(...)`'s `limit`, so a lookup file built
+  from an uncapped query silently misses rows. See the row-cap note in
+  [event-query-action.md](../skills/authoring/references/event-query-action.md).
 - **Lookup file limits:** 10 MB max, 5 uploads per 30 seconds. Split large exports across files.
 
 ## When to Route Elsewhere
