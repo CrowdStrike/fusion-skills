@@ -19,18 +19,16 @@ metadata:
 
 # Falcon Fusion Workflow Orchestrator
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **Fusion workflow lifecycle orchestrator**.
+> Your role here is **Fusion workflow lifecycle orchestrator**.
 >
 > You coordinate the full workflow lifecycle — authoring, deployment, execution — and you NEVER write YAML or call APIs yourself. A workflow you ship may contain hosts, lock accounts, or trigger response actions, so correctness and safety matter.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
+> **Required steps:**
 > 1. Identify user intent (write / deploy / execute / full-lifecycle).
 > 2. Route to the appropriate sub-skill via the decision tree below.
 > 3. For full lifecycle, coordinate authoring → deployment → execution in sequence, stopping at any failed gate.
 >
-> **MUST NOT:** Write workflow YAML directly, call API scripts yourself, skip validation, or handle Foundry-app workflows (those belong to foundry-skills).
+> **Don't:** Write workflow YAML directly, call API scripts yourself, skip validation, or handle Foundry-app workflows (those belong to foundry-skills).
 
 This skill is the entry point for Fusion workflows. It coordinates the
 full lifecycle — discovering real action IDs, authoring YAML, validating, importing to a
@@ -78,7 +76,7 @@ coordinate the three sub-skills in sequence. Do not skip phases.
 3. Validate with `validate.py` (structural) and, if credentials exist, API validation.
 
 **Step 2 — Deployment** (invoke deployment skill)
-1. Check for an existing workflow of the same name (`query_workflows.py`) — avoid silent duplicate versions.
+1. Check for an existing workflow of the same name (`query_workflows.py`) — if it exists, re-import with `--replace` instead of renaming.
 2. Import the validated YAML to the CID (`import_workflows.py`).
 3. Release the workflow so it becomes executable (`release_workflow.py`).
 
@@ -119,7 +117,7 @@ and, on yes, run the deploy yourself via the `deployment` skill. Never tell the 
 credential-less HTTP Action, after a successful import tell the user it imported (disabled until
 released) and give the console steps to attach the API key: open the Cloud HTTP Request action →
 Authentication → Create new → API key → secret key → location Header → header name (e.g.
-`x-apikey`) → Test → Save. See `references/http-actions.md` — a `403`/`401` at runtime almost
+`x-apikey`) → Test → Save. See `../authoring/references/http-actions.md` — a `403`/`401` at runtime almost
 always means the credential isn't attached yet.
 
 **Authoring only:**
@@ -210,7 +208,7 @@ which phases to coordinate.
 ## Trigger Selection (route correctly)
 
 The trigger type shapes the whole workflow. Identify it from the user's intent so the
-authoring sub-skill starts from the right shape (full detail in `references/trigger-types.md`):
+authoring sub-skill starts from the right shape (full detail in `../authoring/references/trigger-types.md`):
 
 | User intent | Trigger type |
 |-------------|--------------|
@@ -234,35 +232,35 @@ authoring sub-skill must use numeric CEL comparisons (`>= 4` for High/Critical),
 
 ## Counter-Rationalizations
 
-These thoughts mean STOP — you are about to skip a step the lifecycle requires:
+Each of these thoughts skips a step the lifecycle requires; the right column says what to do instead:
 
 | Thought | Reality |
 |---------|---------|
-| "I'll just write the YAML without searching actions" | STOP. Invoke the authoring skill. It runs `action_search.py` first. No exceptions. |
-| "I can guess the action ID format" | WRONG. IDs are opaque identifiers, only discoverable via API. |
-| "I'll use a placeholder for now" | NEVER. Resolve every ID before writing YAML. No `PLACEHOLDER_*` values. |
-| "Validation can wait until deploy" | NO. Authoring validates; deployment validates again as a pre-flight. Both happen. |
-| "This is basically a Foundry app" | CHECK. Does it need UI/functions/collections? If not, it's a standalone workflow. |
-| "I'll deploy without releasing" | INCOMPLETE. Workflows must be released before they can execute. |
-| "I can skip the duplicate check" | RISKY. Importing a duplicate name silently creates a new version. |
-| "Release failed — I'll re-import as `<name>-v2`." | NEVER. The name is the workflow's identity, not a version. Renaming orphans the old definition and sprawls the CID. Fix the source YAML, keep the SAME name, re-import with `--replace`. |
-| "I'll build the dependency myself" | PAUSE. If it needs a Foundry function/collection, route to foundry-skills. |
-| "They want all high-severity alerts — I'll Event Query the alert population." | STOP. Don't Event Query a population you don't already hold (connector-dependent NG-SIEM data). DEFAULT to a CrowdStrike HTTP Request to the Falcon API (`/alerts/queries/alerts/v2`); mention the Foundry-app FalconPy function only if the workflow must be distributed. Enriching a detection the workflow ALREADY holds stays an Event Query. |
-| "version_constraint is optional" | WRONG. Every action requires it. `~0` if no `semantic_version`, `~1` if it has one. |
-| "I'll trigger before it's released" | NO. Trigger only after deployment releases the workflow. |
+| "I'll just write the YAML without searching actions" | Invoke the authoring skill. It resolves every ID from its Common Action IDs table, then `action_search.py --search` for anything the table doesn't list. |
+| "I can guess the action ID format" | IDs are opaque identifiers, only discoverable via API. |
+| "I'll use a placeholder for now" | Resolve every ID before writing YAML. No `PLACEHOLDER_*` values. |
+| "Validation can wait until deploy" | Authoring validates; deployment validates again as a pre-flight. Both happen. |
+| "This is basically a Foundry app" | Does it need UI/functions/collections? If not, it's a standalone workflow. |
+| "I'll deploy without releasing" | Workflows must be released before they can execute. |
+| "I can skip the duplicate check" | The duplicate check is how you find your own earlier attempt. Keep the name and re-import with `import_workflows.py --replace` (see the deployment skill). |
+| "Release failed — I'll re-import as `<name>-v2`." | The name is the workflow's identity, not a version. Renaming orphans the old definition and sprawls the CID. Fix the source YAML, keep the SAME name, re-import with `--replace`. |
+| "I'll build the dependency myself" | If it needs a Foundry function/collection, route to foundry-skills. |
+| "They want all high-severity alerts — I'll Event Query the alert population." | Don't Event Query a population you don't already hold (connector-dependent NG-SIEM data). DEFAULT to a CrowdStrike HTTP Request to the Falcon API (`/alerts/queries/alerts/v2`); mention the Foundry-app FalconPy function only if the workflow must be distributed. Enriching a detection the workflow ALREADY holds stays an Event Query. |
+| "version_constraint is optional" | Every action requires it: `~<major>` of the action's `semantic_version` (`~0` when it declares none) — `1.0.4` → `~1`, `0.0.100` → `~0`. |
+| "I'll trigger before it's released" | Trigger only after deployment releases the workflow. |
 
 ## Reading Guide
 
-Reference docs live under `workflows/references/`. Point sub-skills and yourself here when
-you need format details:
+Reference docs live in the authoring skill (`../authoring/references/`), one copy shared by
+both skills. Point sub-skills and yourself there when you need format details:
 
 | Need | File |
 |------|------|
-| YAML field reference | `workflows/references/yaml-schema.md` |
-| JSON internal schema | `workflows/references/json-structure.md` |
-| CEL syntax | `workflows/references/cel-expressions.md` |
-| Trigger types | `workflows/references/trigger-types.md` |
-| Best practices | `workflows/references/best-practices.md` |
+| YAML field reference | `../authoring/references/yaml-schema.md` |
+| JSON internal schema | `../authoring/references/json-structure.md` |
+| CEL syntax | `../authoring/references/cel-expressions.md` |
+| Trigger types | `../authoring/references/trigger-types.md` |
+| Best practices | `../authoring/references/best-practices.md` |
 
 ## Improving These Skills
 

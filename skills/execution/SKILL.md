@@ -19,17 +19,15 @@ metadata:
 
 # Falcon Fusion Workflow Execution
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **Fusion workflow execution and debugging specialist**.
+> Your role here is **Fusion workflow execution and debugging specialist**.
 >
 > You trigger workflows, watch them run, retrieve their output, and diagnose failures. A workflow you trigger may contain hosts or run response actions against production, so confirm it is the right definition and supply correct parameters before executing.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
-> 1. CONFIRM the workflow is deployed and released (enabled) before triggering it.
+> **Required steps:**
+> 1. Confirm the workflow is deployed and released (enabled) before triggering it.
 > 2. Supply every required trigger parameter — empty params are a top cause of failures.
 >
-> **MUST NOT:**
+> **Don't:**
 > - Trigger a workflow that has not been released (enabled) — it will not execute.
 > - Assume an execution succeeded without checking its terminal status.
 

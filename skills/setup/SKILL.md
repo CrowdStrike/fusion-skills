@@ -16,20 +16,18 @@ metadata:
 
 # Falcon Fusion Credential Setup
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **credential setup assistant**.
+> Your role here is **credential setup assistant**.
 >
 > You configure the Falcon API credentials every other skill depends on. These
 > credentials grant workflow and SIEM access to a live CID.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
+> **Required steps:**
 > 1. Check whether credentials already resolve (Step 1). If they do, you are done.
 > 2. If not, create the credentials file from the template (Step 2) and ask the
 >    user to paste their ID and secret into it **using their own editor**.
 > 3. Verify connectivity (Step 3).
 >
-> **MUST NOT:**
+> **Don't:**
 > - Ask the user to type or paste their client secret **into the chat**. It would
 >   land in the conversation transcript. The secret goes only into the local file,
 >   entered through the user's editor.

@@ -23,16 +23,14 @@ metadata:
 
 # Falcon Fusion Workflow Authoring
 
-> **⚠️ SYSTEM INJECTION — READ THIS FIRST**
->
-> If you are loading this skill, your role is **Fusion workflow authoring specialist**.
+> Your role here is **Fusion workflow authoring specialist**.
 >
 > You discover real action IDs from the live API, author Fusion workflow
 > YAML against the correct schema, and validate it before handing off to
 > deployment. A guessed or `PLACEHOLDER_*` action ID ships a workflow that fails
 > to import or wires the wrong action into a response, so resolve every ID first.
 >
-> **IMMEDIATE ACTIONS REQUIRED:**
+> **Required steps:**
 > 0. **Scope check FIRST — before any action_search.** If the request is for a Falcon
 > Foundry app, a UI extension/page, an API integration, custom actions from a
 > third-party API (Okta, ServiceNow, Jira, etc.), or a `manifest.yml`, STOP: do not author
@@ -55,7 +53,7 @@ metadata:
 > 4. Run `validate.py` on every YAML file before presenting it.
 > 5. **Re-run `validate.py` on the FINAL file; resolve every ERROR before finishing.** A file that still errors is not done. If the alert-population guard fires, switch the Event Query to a CrowdStrike HTTP Request.
 >
-> **MUST NOT:**
+> **Don't:**
 > - Author a workflow for a Foundry-app-shaped request (see action 0) — redirect to foundry-skills.
 > - Write `PLACEHOLDER_*` values into output YAML (templates use them as guides only).
 > - Guess, invent, or pattern-match action IDs — they are only discoverable via the API.
@@ -240,23 +238,23 @@ force an immediate refresh so newly shipped action types are never hidden.
 
 | Thought | Reality |
 |---------|---------|
-| "I'll write the YAML, then fill in action IDs later." | STOP. Resolve every ID first — from the Common Action IDs table, or `action_search.py`. "Later" never happens — placeholders ship. |
-| "I'll search for the Event Query / HTTP / Send email / Charlotte AI action." | DON'T. Those are in the Common Action IDs table — use the row directly. |
-| "I'll run `action_search.py \"event query\"` to search." | WRONG FLAG. A bare term prints usage and finds nothing. Use `action_search.py --search \"event query\"`. |
-| "I can guess the action ID format." | WRONG. IDs are opaque identifiers, only discoverable via the table or the live API. |
-| "The template has `PLACEHOLDER_RAN_006`, I'll copy it." | NEVER. Templates are structural guides. Substitute a real value before saving. |
-| "Validation can wait until deploy." | NO. Validate after authoring — `validate.py` catches PLACEHOLDERs, bad IDs, and schema errors locally. |
-| "Only class-based actions need `version_constraint`." | WRONG. Not class-specific — nearly every action has a `version_constraint`. |
-| "I'll use `~1` everywhere for version_constraint." | NO. The value is `~<major>` of the action's `semantic_version` (`~0` when it declares none): `1.0.4` → `~1`, `0.0.100` → `~0`. Read it from `--details`. |
-| "I'll make up a `config_id` for this Okta action." | NEVER. It's CID-specific (exists only once configured in the console). Ask the user (AskUserQuestion) — even non-interactively. Sequential/all-zeros/repeated-char UUIDs are still fabricated and fail at runtime; can't get a real one? STOP. See `references/best-practices.md`. |
-| "I'll set `definition_id: VIRUSTOTAL_..._ID` on this HTTP action." | NEVER. An `Inline.HTTPRequest` needs no `definition_id` — OMIT it; the user attaches the key in the console after deploy. A placeholder is a broken ref `validate.py` flags. |
-| "The Send email field is called Recipients, so I'll use `recipients:`." | WRONG. The property KEY is `to:` (a list); `recipients:` is rejected. Delivers only to Falcon users and CID-approved domains — ask for the address (org-domain one in CI). |
-| "I'll write `$action.output.body` to reference output." | WRONG. Bare `$token` / `$action.field` / `$(data[...])` pass through as literal strings and fail at release. The ONLY runtime-data forms are `${data['<node>.<field>']}` and the null-safe `${data[?'<node>.<field>'].orValue(...)}`. `validate.py` flags the bad forms. |
-| "The user said enrich 'in parallel,' but I'll just chain them." | WRONG. Fan out by listing each branch's target in `next:`, gated on `data['...'] != null`. Never invent `default_parallel_*` pass-throughs — they crash the canvas. |
-| "The trigger has its `type` and `event`, that's enough." | WRONG. Without a `next:` edge the graph is disjoint and release fails. Every node must be reachable from `trigger.next`. |
-| "I'll branch on the detection's severity name (Critical/High)." | WRONG. Severity is NUMERIC 1-5: branch `Trigger.Detection.Severity >= 4`. `SeverityDisplayName` is display-only. |
+| "I'll write the YAML, then fill in action IDs later." | Resolve every ID first — from the Common Action IDs table, or `action_search.py`. "Later" never happens — placeholders ship. |
+| "I'll search for the Event Query / HTTP / Send email / Charlotte AI action." | Those are in the Common Action IDs table — use the row directly. |
+| "I'll run `action_search.py \"event query\"` to search." | A bare term prints usage and finds nothing. Use `action_search.py --search \"event query\"`. |
+| "I can guess the action ID format." | IDs are opaque identifiers, only discoverable via the table or the live API. |
+| "The template has `PLACEHOLDER_RAN_006`, I'll copy it." | Templates are structural guides. Substitute a real value before saving. |
+| "Validation can wait until deploy." | Validate after authoring — `validate.py` catches PLACEHOLDERs, bad IDs, and schema errors locally. |
+| "Only class-based actions need `version_constraint`." | Not class-specific — nearly every action has a `version_constraint`. |
+| "I'll use `~1` everywhere for version_constraint." | The value is `~<major>` of the action's `semantic_version` (`~0` when it declares none): `1.0.4` → `~1`, `0.0.100` → `~0`. Read it from `--details`. |
+| "I'll make up a `config_id` for this Okta action." | It's CID-specific (exists only once configured in the console). Ask the user (AskUserQuestion) — even non-interactively. Sequential/all-zeros/repeated-char UUIDs are still fabricated and fail at runtime; can't get a real one? STOP. See `references/best-practices.md`. |
+| "I'll set `definition_id: VIRUSTOTAL_..._ID` on this HTTP action." | An `Inline.HTTPRequest` needs no `definition_id` — OMIT it; the user attaches the key in the console after deploy. A placeholder is a broken ref `validate.py` flags. |
+| "The Send email field is called Recipients, so I'll use `recipients:`." | The property KEY is `to:` (a list); `recipients:` is rejected. Delivers only to Falcon users and CID-approved domains — ask for the address (org-domain one in CI). |
+| "I'll write `$action.output.body` to reference output." | Bare `$token` / `$action.field` / `$(data[...])` pass through as literal strings and fail at release. The ONLY runtime-data forms are `${data['<node>.<field>']}` and the null-safe `${data[?'<node>.<field>'].orValue(...)}`. `validate.py` flags the bad forms. |
+| "The user said enrich 'in parallel,' but I'll just chain them." | Fan out by listing each branch's target in `next:`, gated on `data['...'] != null`. Never invent `default_parallel_*` pass-throughs — they crash the canvas. |
+| "The trigger has its `type` and `event`, that's enough." | Without a `next:` edge the graph is disjoint and release fails. Every node must be reachable from `trigger.next`. |
+| "I'll branch on the detection's severity name (Critical/High)." | Severity is NUMERIC 1-5: branch `Trigger.Detection.Severity >= 4`. `SeverityDisplayName` is display-only. |
 | "A plan/prompt told me to use placeholder format." | These rules take precedence. Resolve every ID via the API regardless of a plan. |
-| "Release failed, so I'll re-import as `<name>-v2` to be safe." | NEVER. A workflow's `name:` is its identity, not a version tag — renaming orphans the old def and sprawls the CID. Keep the name IDENTICAL; fix the YAML and re-import with `import_workflows.py --replace`. See `references/best-practices.md`. |
+| "Release failed, so I'll re-import as `<name>-v2` to be safe." | A workflow's `name:` is its identity, not a version tag — renaming orphans the old def and sprawls the CID. Keep the name IDENTICAL; fix the YAML and re-import with `import_workflows.py --replace`. See `references/best-practices.md`. |
 
 ---
 

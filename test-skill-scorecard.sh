@@ -189,7 +189,7 @@ mkstreamlog() {
     printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"bash1","name":"Bash","input":{"command":"import_workflows.py"}}]}}'
     jq -cn --arg t "$body" '{type:"user",message:{content:[{type:"tool_result",tool_use_id:"bash1",content:[{type:"text",text:$t}]}]}}'
     if [ -n "$docbody" ]; then
-      printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"read1","name":"Read","input":{"file_path":"skills/workflows/references/yaml-schema.md"}}]}}'
+      printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"read1","name":"Read","input":{"file_path":"skills/authoring/references/yaml-schema.md"}}]}}'
       jq -cn --arg t "$docbody" '{type:"user",message:{content:[{type:"tool_result",tool_use_id:"read1",content:[{type:"text",text:$t}]}]}}'
     fi
   } > "$path"

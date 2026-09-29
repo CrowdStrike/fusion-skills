@@ -37,7 +37,7 @@ that, and how to navigate the console reliably to do it.
    the deployment skill) so it doesn't linger in the CID.
 
 The crash above is caused by referencing a node the canvas can't build — most
-often a synthetic gateway pass-through. See `workflows/references/yaml-schema.md`
+often a synthetic gateway pass-through. See `authoring/references/yaml-schema.md`
 ("Parallel fan-out") for the render-safe shape: fan out by listing targets
 directly in `next:`, never via `default_parallel_*`/`default: true`
 pass-throughs.

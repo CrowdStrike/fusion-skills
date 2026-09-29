@@ -66,20 +66,75 @@ assert_empty "non-fusion prompt emits no context" "$OUT"
 if [ ! -f "$MARKER" ]; then pass "non-fusion prompt writes no marker"; else fail "non-fusion prompt writes no marker"; fi
 
 # 5. PreToolUse with marker present + non-Skill tool -> advisory nudge
+rm -f "$MARKER.nudged"
 echo "$$" > "$MARKER"
 OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash"}' | bash "$ROUTER")
 assert_contains "PreToolUse nudges when marker active" "$OUT" "Fusion plugin reminder"
 
-# 6. PreToolUse with Skill tool -> marker cleared, no nudge
+# 6. PreToolUse with Skill tool -> no nudge, marker kept for the bridge
+rm -f "$MARKER.nudged"
 echo "$$" > "$MARKER"
 OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Skill"}' | bash "$ROUTER")
 assert_empty "Skill invocation emits no nudge" "$OUT"
-if [ ! -f "$MARKER" ]; then pass "Skill invocation clears marker"; else fail "Skill invocation clears marker"; fi
+if [ -f "$MARKER" ]; then pass "Skill invocation keeps marker for the bridge"; else fail "Skill invocation keeps marker for the bridge"; fi
+OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash"}' | bash "$ROUTER")
+assert_empty "no reminder after the Skill call" "$OUT"
+rm -f "$MARKER" "$MARKER.nudged"
 
 # 7. PreToolUse without marker -> no output
 rm -f "$MARKER"
 OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash"}' | bash "$ROUTER")
 assert_empty "PreToolUse silent without marker" "$OUT"
+
+# 7a. Reminder fires once per detected prompt, not on every tool call
+rm -f "$MARKER" "$MARKER.nudged"
+echo "$$" > "$MARKER"
+echo '{"hook_event_name":"PreToolUse","tool_name":"Bash"}' | bash "$ROUTER" >/dev/null
+OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Read"}' | bash "$ROUTER")
+assert_empty "second tool call gets no repeated reminder" "$OUT"
+if [ -f "$MARKER" ]; then pass "marker survives the reminder for the bridge"; else fail "marker survives the reminder for the bridge"; fi
+
+# 7b. A new prompt that doesn't match clears the leftover marker
+OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital of France"}' | bash "$ROUTER")
+if [ ! -f "$MARKER" ] && [ ! -f "$MARKER.nudged" ]; then pass "non-fusion prompt clears leftover marker"; else fail "non-fusion prompt clears leftover marker"; fi
+
+# 7c. Another session's marker doesn't leak into this one
+echo "$$" > "$MARKER"
+OUT=$(echo '{"hook_event_name":"PreToolUse","session_id":"other-session","tool_name":"Bash"}' | bash "$ROUTER")
+assert_empty "marker from another session emits no reminder" "$OUT"
+rm -f "$MARKER" "$MARKER-other-session" "$MARKER-other-session.nudged"
+
+# 7d. Session-scoped marker round-trips from UserPromptSubmit to PreToolUse
+SA="$MARKER-sess-a"; SB="$MARKER-sess-b"
+rm -f "$SA" "$SA.nudged" "$SB" "$SB.nudged"
+echo '{"hook_event_name":"UserPromptSubmit","session_id":"sess-a","prompt":"create a fusion workflow"}' | bash "$ROUTER" >/dev/null
+if [ -f "$SA" ]; then pass "prompt with session_id writes the scoped marker"; else fail "prompt with session_id writes the scoped marker"; fi
+OUT=$(echo '{"hook_event_name":"PreToolUse","session_id":"sess-a","tool_name":"Bash"}' | bash "$ROUTER")
+assert_contains "same session gets the reminder" "$OUT" "Fusion plugin reminder"
+
+# 7e. A second session sees nothing from the first
+OUT=$(echo '{"hook_event_name":"PreToolUse","session_id":"sess-b","tool_name":"Bash"}' | bash "$ROUTER")
+assert_empty "other session gets no reminder" "$OUT"
+OUT=$(echo '{"session_id":"sess-b","tool_input":{"skill":"crowdstrike-falcon-foundry:development-workflow"}}' | bash "$BRIDGE")
+assert_empty "other session gets no bridge advisory" "$OUT"
+
+# 7f. The bridge reads the same scoped marker after the router sees the Skill call
+echo '{"hook_event_name":"PreToolUse","session_id":"sess-a","tool_name":"Skill"}' | bash "$ROUTER" >/dev/null
+OUT=$(echo '{"session_id":"sess-a","tool_input":{"skill":"crowdstrike-falcon-foundry:development-workflow"}}' | bash "$BRIDGE")
+assert_contains "bridge sees the scoped marker after a Skill call" "$OUT" "STANDALONE Fusion workflow"
+
+# 7g. Unsafe characters in session_id can't escape the marker filename
+rm -f "$MARKER-evil"
+echo '{"hook_event_name":"UserPromptSubmit","session_id":"../ev/il","prompt":"create a fusion workflow"}' | bash "$ROUTER" >/dev/null
+if [ -f "$MARKER-evil" ]; then pass "session_id is sanitized into the marker name"; else fail "session_id is sanitized into the marker name"; fi
+rm -f "$SA" "$SA.nudged" "$SB" "$SB.nudged" "$MARKER-evil" "$MARKER-evil.nudged"
+
+# 7h. Markers older than a day are pruned on the next prompt
+STALE="$MARKER-stale-test"
+touch -t 202001010000 "$STALE"
+echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital of France"}' | bash "$ROUTER" >/dev/null
+if [ ! -f "$STALE" ]; then pass "stale session marker is pruned"; else fail "stale session marker is pruned"; fi
+rm -f "$STALE"
 
 echo ""
 echo "Testing fusion-foundry-bridge.sh"
@@ -104,7 +159,7 @@ OUT=$(echo '{"tool_input":{"skill":"some-other-skill"}}' | bash "$BRIDGE")
 assert_empty "unrelated skill emits no advisory" "$OUT"
 
 # Cleanup
-rm -f "$MARKER"
+rm -f "$MARKER" "$MARKER.nudged"
 
 echo ""
 echo "──────────────────────────────"

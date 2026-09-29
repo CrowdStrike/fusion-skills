@@ -280,7 +280,7 @@ actions:
     EnrichHash:   { id: ..., next: [SummarizeEnrichment], properties: {...} }
 ```
 
-Do **not** invent pass-throughcondition nodes (`default_parallel_*` with
+Do **not** invent pass-through condition nodes (`default_parallel_*` with
 `default: true`) to model the fan-out. Release rejects those synthetic nodes
 (`exclusive gateway ... has no condition set and is not marked as default`,
 confirmed live — the release API does not honor a node-level `default: true`),
@@ -320,7 +320,11 @@ actions:
 
 Both the enrichment action (`next`) and the skip path (`else`) land on
 `SummarizeEnrichment` directly. No join node — the convergence is expressed by
-many edges pointing at one target, which is what released cleanly.
+many edges pointing at one target, which is what released cleanly. (Note: if the
+Event Query returns no rows, every gate's `else` fires and all branches skip —
+the workflow still terminates on the convergence target but produces empty
+enrichment. Expect this when testing with mock data that doesn't populate the
+query's repo.)
 
 ### Gate an enrichment on the indicator being present
 
