@@ -35,6 +35,12 @@ summarize:
   `~0`, not `~1`. Do not assume a sophisticated action means `~1`; the rule is
   `~<major of semantic_version>`, defaulting to `~0` when there is none. Charlotte
   AI is the textbook `~0` case.
+  - **A published AgentWorks agent action is different — it is `~1`, not `~0`.**
+    That is a separate, CID-specific action (its input is `input`, its output is
+    `response`), versioned at `version: 1`, so `~0` fails the deploy with
+    `(2018) Action was not found, please select a new action.` Do not carry this
+    LLM Completion action's `~0` over to an agent action. See
+    `use-cases/charlotte-agent-invocation.md`.
 - **No `class:` field.** Vendor/plugin actions are referenced by `id:` only
   (contrast the `Inline.*` actions, which set `class:`).
 - **Inputs (`properties`):** `user_prompt` (the prompt; supports `${data[...]}`
