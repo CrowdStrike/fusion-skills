@@ -65,6 +65,23 @@ OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital 
 assert_empty "non-fusion prompt emits no context" "$OUT"
 if [ ! -f "$MARKER" ]; then pass "non-fusion prompt writes no marker"; else fail "non-fusion prompt writes no marker"; fi
 
+# 4a. Loose-match false positives must NOT trigger: the repo name "fusion-skills",
+# the plugin name, common verbs (write/run), and a generic "workflow" that isn't
+# Fusion work. A verb + a Fusion noun must be near each other, and bare "fusion"
+# and generic "create workflow" no longer match.
+while IFS= read -r fp; do
+  [ -z "$fp" ] && continue
+  rm -f "$MARKER"
+  OUT=$(jq -n --arg p "$fp" '{hook_event_name:"UserPromptSubmit",prompt:$p}' | bash "$ROUTER")
+  assert_empty "no false positive: ${fp:0:45}" "$OUT"
+  if [ ! -f "$MARKER" ]; then pass "no marker: ${fp:0:45}"; else fail "no marker: ${fp:0:45}"; fi
+done <<'FALSEPOS'
+write a file to my desktop describing the issue and I'll tell the agent that works on fusion-skills to fix it
+run the tests for the fusion-skills repo
+write a changelog entry about the fusion plugin
+create workflow docs for the onboarding wiki
+FALSEPOS
+
 # 5. PreToolUse with marker present + non-Skill tool -> advisory nudge
 rm -f "$MARKER.nudged"
 echo "$$" > "$MARKER"

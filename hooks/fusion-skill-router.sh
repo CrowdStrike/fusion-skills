@@ -39,16 +39,24 @@ case "$HOOK_EVENT" in
 
     FUSION_MATCH=false
 
-    # Direct Fusion phrases always trigger.
-    PHRASES="fusion workflow|fusion playbook|fusion soar|soar workflow|create workflow|build a workflow|build a playbook|action discovery|action_search|deploy to cid"
+    # Direct Fusion phrases always trigger: they name the product or the SOAR
+    # concept, so they don't need a nearby verb. Generic "create workflow" and
+    # "build a workflow" are deliberately absent — they match CI/GitHub Actions
+    # workflows and other non-Fusion work.
+    PHRASES="fusion workflow|fusion playbook|fusion soar|soar workflow|build a playbook|action discovery|action_search|deploy to cid"
     if echo "$PROMPT_LOWER" | grep -qE "(${PHRASES})"; then
       FUSION_MATCH=true
     fi
 
-    # Verb + Fusion noun (e.g. "automate crowdstrike actions").
-    VERBS="create|build|author|write|deploy|import|release|run|execute|automate|trigger|monitor"
-    NOUNS="fusion|playbook|soar|workflow yaml|crowdstrike action"
-    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b.*(${NOUNS})"; then
+    # Verb + Fusion noun within three words, in either order (e.g. "automate
+    # crowdstrike actions"). Bare "fusion" is not a noun here — it would match the
+    # repo name "fusion-skills" and "the fusion plugin" — and "write"/"run" are not
+    # verbs, since they appear in almost every coding prompt.
+    VERBS="create|build|author|deploy|import|release|execute|automate|trigger|monitor"
+    NOUNS="playbook|soar|workflow yaml|crowdstrike action"
+    GAP="([[:space:]]+[^[:space:]]+){0,3}[[:space:]]+"
+    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b${GAP}(${NOUNS})" \
+       || echo "$PROMPT_LOWER" | grep -qE "(${NOUNS})${GAP}(${VERBS})\b"; then
       FUSION_MATCH=true
     fi
 
