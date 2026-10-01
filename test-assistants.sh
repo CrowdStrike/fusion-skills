@@ -279,6 +279,7 @@ head2(){ printf '\n%s%s%s%s\n' "$BOLD" "$CYAN" "$1" "$RESET"; }
 
 # ── Bias control ───────────────────────────────────────────────
 DISABLED_CLAUDE=()
+DISABLED_COPILOT=()
 DISABLED_AGY=()
 OURS=()                 # symlinks this script created, so we only ever remove our own
 CODEX_CACHE=""          # moved-aside Codex plugin cache, restored on exit
@@ -286,6 +287,7 @@ CODEX_CACHE=""          # moved-aside Codex plugin cache, restored on exit
 restore() {
   local had=0
   [ ${#DISABLED_CLAUDE[@]} -gt 0 ] && had=1
+  [ ${#DISABLED_COPILOT[@]} -gt 0 ] && had=1
   [ ${#DISABLED_AGY[@]} -gt 0 ] && had=1
   [ "${SKILL_ISO_STASHED:-0}" -gt 0 ] && had=1
   [ -n "$CODEX_CACHE" ] && had=1
@@ -297,6 +299,9 @@ restore() {
   local p
   for p in ${DISABLED_CLAUDE[@]+"${DISABLED_CLAUDE[@]}"}; do
     claude plugin enable "$p" >/dev/null 2>&1 && vok "re-enabled claude plugin $p" || warn "could not re-enable claude plugin $p"
+  done
+  for p in ${DISABLED_COPILOT[@]+"${DISABLED_COPILOT[@]}"}; do
+    copilot plugin enable "$p" >/dev/null 2>&1 && vok "re-enabled copilot plugin $p" || warn "could not re-enable copilot plugin $p"
   done
   for p in ${DISABLED_AGY[@]+"${DISABLED_AGY[@]}"}; do
     agy plugin enable "$p" >/dev/null 2>&1 && vok "re-enabled agy plugin $p" || warn "could not re-enable agy plugin $p"
@@ -310,7 +315,7 @@ restore() {
   # Put every stashed ~/.agents/skills entry back. Delegated to the helper: move-only,
   # glob-based, and safe to call from this EXIT/INT trap.
   restore_agents_skills
-  local plugins=$(( ${#DISABLED_CLAUDE[@]} + ${#DISABLED_AGY[@]} ))
+  local plugins=$(( ${#DISABLED_CLAUDE[@]} + ${#DISABLED_COPILOT[@]} + ${#DISABLED_AGY[@]} ))
   printf '  %s✓%s  re-enabled %s%s%s plugin(s), skill namespace restored\n' \
     "$GREEN" "$RESET" "$BOLD" "$plugins" "$RESET"
 }
@@ -388,6 +393,16 @@ isolate() {
       fi
     done < <(echo "$out" | grep -oE '[a-z0-9-]*fusion[a-z0-9-]*' | sort -u)
   fi
+  if command -v copilot >/dev/null 2>&1; then
+    while read -r p; do
+      [ -z "$p" ] && continue
+      if copilot plugin disable "$p" >/dev/null 2>&1; then
+        DISABLED_COPILOT+=("$p"); vok "disabled copilot plugin $p"
+      fi
+    done < <(copilot plugin list --json 2>/dev/null |
+      jq -r '.[] | select(.enabled == true) | .name' |
+      grep -E 'fusion|^crowdstrike-falcon-foundry$' | sort -u)
+  fi
   # Antigravity's own plugin stays enabled: its run swaps the installed copy for a
   # symlink to this repo. Disable any other Fusion-named plugin, and the sibling
   # CrowdStrike plugin too, or Antigravity reaches for its skills (it ran
@@ -427,21 +442,12 @@ isolate() {
     fi
   done
 
-  # Copilot and Cursor can only uninstall, not disable, an installed plugin — too
-  # destructive to do automatically. It doesn't matter: --plugin-dir takes precedence,
-  # so the run still loads this repo's skills (confirmed by the per-assistant source
-  # and skills paths in the summary). Note it as expected, not as a warning.
-  if command -v copilot >/dev/null 2>&1 && copilot plugin list 2>/dev/null | grep -qi fusion; then
-    ok "copilot has a Fusion plugin installed — expected; --plugin-dir overrides it, so this run stays isolated"
-    info "uninstall it only if you want a fully clean environment; not required"
-  fi
-
   # Every symlink in ~/.agents/skills, not only this repo's. A sibling repo competes
   # just as much: a foundry-skills `setup` skill loaded into a fusion run skews it.
   # Delegated to the helper — move-only, so nothing here can be destroyed.
   stash_all_agents_skills
 
-  local plugins=$(( ${#DISABLED_CLAUDE[@]} + ${#DISABLED_AGY[@]} ))
+  local plugins=$(( ${#DISABLED_CLAUDE[@]} + ${#DISABLED_COPILOT[@]} + ${#DISABLED_AGY[@]} ))
   if [ "$plugins" -eq 0 ] && [ "${SKILL_ISO_STASHED:-0}" -eq 0 ]; then
     ok "nothing to isolate — no competing sources found"
   else

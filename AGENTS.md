@@ -46,7 +46,7 @@ skills/
   setup/          SKILL.md — interactive credential setup
 common/scripts/   auth.py — shared API auth (single source of truth)
 use-cases/        Pattern-matchable workflow scenarios (frontmatter + markdown)
-hooks/            Claude Code hooks (intent routing, cross-plugin advisory)
+hooks/            Plugin hooks (intent routing, cross-plugin advisory)
 ```
 
 Each skill's `SKILL.md` is plain markdown with YAML frontmatter — read it directly for the workflow, script reference, and pitfalls. Reference docs live under each skill's `references/` directory.
