@@ -51,25 +51,30 @@ case "$HOOK_EVENT" in
     # concept, so they don't need a nearby verb. Generic "create workflow" and
     # "build a workflow" are deliberately absent — they match CI/GitHub Actions
     # workflows and other non-Fusion work.
+    # Each phrase is a whole word or phrase. Unanchored, "deploy to cid" matches
+    # "redeploy to cider" and "action_search" matches "my_action_search_helper".
     PHRASES="fusion workflow|fusion playbook|fusion soar|soar workflow|build a playbook|action discovery|action_search|deploy to cid"
-    if echo "$PROMPT_LOWER" | grep -qE "(${PHRASES})"; then
+    if echo "$PROMPT_LOWER" | grep -qE "\b(${PHRASES})\b"; then
       FUSION_MATCH=true
     fi
 
     # Verb + Fusion noun within three words, in either order (e.g. "automate
-    # crowdstrike actions"). Bare "fusion" is not a noun here — it would match the
-    # repo name "fusion-skills" and "the fusion plugin" — and "write"/"run" are not
-    # verbs, since they appear in almost every coding prompt.
+    # crowdstrike actions" or "crowdstrike actions we should automate"). Bare
+    # "fusion" is not a noun — it would match the repo name "fusion-skills" and
+    # "the fusion plugin" — and neither is a bare "playbook", which matches
+    # Ansible. "write"/"run" are not verbs, since they appear in almost every
+    # coding prompt. Nouns are whole words, so "soar" does not match "soaring".
     VERBS="create|build|author|deploy|import|release|execute|automate|trigger|monitor"
-    NOUNS="playbook|soar|workflow yaml|crowdstrike action"
+    NOUNS="soar|workflow yaml|crowdstrike actions?"
     GAP="([[:space:]]+[^[:space:]]+){0,3}[[:space:]]+"
-    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b${GAP}(${NOUNS})" \
-       || echo "$PROMPT_LOWER" | grep -qE "(${NOUNS})${GAP}(${VERBS})\b"; then
+    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b${GAP}(${NOUNS})\b" \
+       || echo "$PROMPT_LOWER" | grep -qE "\b(${NOUNS})\b${GAP}(${VERBS})\b"; then
       FUSION_MATCH=true
     fi
 
-    # Explicit skill request always triggers.
-    if echo "$PROMPT_LOWER" | grep -qE "(use|invoke|run) (fusion|workflows) (skill|plugin)"; then
+    # Explicit skill request always triggers. "the" is optional. The request
+    # ends at skill or plugin, so "run fusion plugin tests" does not match.
+    if echo "$PROMPT_LOWER" | grep -qE "(^|[^[:alnum:]_])(use|invoke|run)( the)? (fusion|workflows) (skill|plugin)([[:punct:]]|$)"; then
       FUSION_MATCH=true
     fi
 

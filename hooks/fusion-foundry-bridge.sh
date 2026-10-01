@@ -28,20 +28,35 @@ SKILL_NAME=$(echo "$INPUT" | jq -r '.tool_input.skill // empty')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .conversation_id // empty' | tr -cd 'A-Za-z0-9_-')
 MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
 
-# Detect whether the sibling Foundry plugin is installed. Claude Code records
-# installed plugins in JSON; Codex records enabled marketplace plugins in TOML;
-# Antigravity in config.json; Cursor in its plugin cache. All checks are best-effort.
+# Detect whether the sibling Foundry plugin is installed on the host that is
+# running this hook. Claude Code records installed plugins in JSON; Codex records
+# enabled marketplace plugins in TOML; Antigravity in config.json; Cursor in its
+# plugin cache. Cursor sets CURSOR_PLUGIN_ROOT. Codex sends turn_id. A Claude
+# registry on the same machine must not count as installed for a Codex turn
+# where the plugin is disabled. All checks are best-effort.
+codex_foundry_enabled() {
+  [ -f "$HOME/.codex/config.toml" ] || return 1
+  awk -v prefix='[plugins."crowdstrike-falcon-foundry@' '
+    index($0, prefix) == 1 { in_plugin = 1; next }
+    /^\[/ { in_plugin = 0 }
+    in_plugin && /^enabled[[:space:]]*=[[:space:]]*true[[:space:]]*(#.*)?$/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$HOME/.codex/config.toml" 2>/dev/null
+}
+
 FOUNDRY_INSTALLED=false
-if [ -f "$HOME/.claude/plugins/installed_plugins.json" ] &&
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  if [ -d "$HOME/.cursor/plugins/cache/cursor-public/crowdstrike-falcon-foundry" ]; then
+    FOUNDRY_INSTALLED=true
+  fi
+elif printf '%s' "$INPUT" | jq -e 'has("turn_id")' >/dev/null 2>&1; then
+  if codex_foundry_enabled; then
+    FOUNDRY_INSTALLED=true
+  fi
+elif [ -f "$HOME/.claude/plugins/installed_plugins.json" ] &&
    grep -q "crowdstrike-falcon-foundry" "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null; then
   FOUNDRY_INSTALLED=true
-elif [ -f "$HOME/.codex/config.toml" ] &&
-     awk -v prefix='[plugins."crowdstrike-falcon-foundry@' '
-       index($0, prefix) == 1 { in_plugin = 1; next }
-       /^\[/ { in_plugin = 0 }
-       in_plugin && /^enabled[[:space:]]*=[[:space:]]*true[[:space:]]*$/ { found = 1 }
-       END { exit found ? 0 : 1 }
-     ' "$HOME/.codex/config.toml" 2>/dev/null; then
+elif codex_foundry_enabled; then
   FOUNDRY_INSTALLED=true
 elif [ -d "$HOME/.gemini/config/plugins/crowdstrike-falcon-foundry" ]; then
   if [ ! -f "$HOME/.gemini/config/config.json" ] || ! python3 -c '

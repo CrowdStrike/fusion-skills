@@ -29,8 +29,8 @@
 # before testing, this script:
 #
 #   1. Disables installed Fusion plugins where the assistant supports it, and the
-#      sibling Foundry plugin in Antigravity (whose own Fusion plugin is swapped
-#      for the working tree instead, see 3)
+#      sibling Foundry plugin in Copilot and Antigravity (Antigravity's own Fusion
+#      plugin is swapped for the working tree instead, see 3)
 #   2. Moves EVERY entry in ~/.agents/skills/ out of the way (not only ours — a
 #      sibling repo's `setup` skill competes for the same prompt just as much)
 #   3. Gives each assistant exactly ONE source pointing at the working tree. For

@@ -26,7 +26,7 @@ Falcon Fusion workflow. It belongs to the sibling Falcon Foundry plugin — the
 
 Why this skill exists: the `workflows` orchestrator declines Foundry-app requests too,
 but its description matches *Fusion workflow* language, so a "build a Foundry app"
-prompt never loads it. On Claude Code, Copilot CLI, and Cursor a hook covers that gap. On
+prompt never loads it. On Claude Code, Codex, Copilot CLI, and Cursor a hook covers that gap. On
 assistants that do not load plugin hooks, this skill's description matches Foundry-app
 language directly and makes the redirect reachable.
 
@@ -36,7 +36,7 @@ Do NOT author workflow YAML. Do NOT scaffold an app yourself. Respond with all t
 
 1. State plainly that this request needs a Falcon Foundry app, not a standalone Fusion workflow.
 2. Name the plugin: **`crowdstrike-falcon-foundry`**.
-3. How to install it: `/plugin install crowdstrike-falcon-foundry`, or clone https://github.com/CrowdStrike/foundry-skills.
+3. How to install it: `/plugin install crowdstrike-falcon-foundry` in Claude Code, `/plugins` in Codex, `copilot plugin install CrowdStrike/foundry-skills` in Copilot CLI, `/add-plugin crowdstrike-falcon-foundry` in Cursor, or clone https://github.com/CrowdStrike/foundry-skills.
 
 ## When both plugins are installed
 

@@ -54,6 +54,16 @@ rm -f "$MARKER"
 OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"automate crowdstrike actions on detection"}' | bash "$ROUTER")
 assert_contains "verb+noun intent detected" "$OUT" "FUSION PLUGIN DETECTED"
 
+# Reverse order uses the same noun, including the plural.
+rm -f "$MARKER"
+OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"crowdstrike actions we should automate"}' | bash "$ROUTER")
+assert_contains "reverse-order plural noun detected" "$OUT" "FUSION PLUGIN DETECTED"
+
+# An explicit skill request may include "the", and it ends at the skill or plugin name.
+rm -f "$MARKER"
+OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"run the fusion skill"}' | bash "$ROUTER")
+assert_contains "explicit skill request detected" "$OUT" "FUSION PLUGIN DETECTED"
+
 # 3. "build a playbook" phrase -> detected
 rm -f "$MARKER"
 OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"build a playbook for ransomware"}' | bash "$ROUTER")
@@ -98,6 +108,13 @@ write a file to my desktop describing the issue and I'll tell the agent that wor
 run the tests for the fusion-skills repo
 write a changelog entry about the fusion plugin
 create workflow docs for the onboarding wiki
+monitor soaring cloud costs
+the release soared last quarter
+notaplaybook deploy today
+redeploy to cider
+see my_action_search_helper
+create an ansible playbook
+run fusion plugin tests
 FALSEPOS
 
 # 5. PreToolUse with marker present + non-Skill tool -> advisory nudge
@@ -196,6 +213,26 @@ EOF
 OUT=$(echo '{"tool_input":{"skill":"workflows"}}' | HOME="$CODEX_HOME" bash "$BRIDGE")
 assert_contains "Codex config recognizes installed Foundry plugin" "$OUT" "foundry-skills plugin is installed"
 rm -rf "$CODEX_HOME"
+
+# A Codex turn must not inherit Claude's registry. turn_id is Codex-only; when
+# Codex has the sibling disabled, Claude's installed_plugins.json does not count.
+BOTH_HOME=$(mktemp -d)
+mkdir -p "$BOTH_HOME/.claude/plugins" "$BOTH_HOME/.codex"
+cat > "$BOTH_HOME/.claude/plugins/installed_plugins.json" <<'EOF'
+{"plugins":{"crowdstrike-falcon-foundry@claude-plugins-official":[{"scope":"user"}]}}
+EOF
+cat > "$BOTH_HOME/.codex/config.toml" <<'EOF'
+[plugins."crowdstrike-falcon-foundry@openai-api-curated"]
+enabled = false
+EOF
+OUT=$(echo '{"turn_id":"codex-turn","tool_input":{"skill":"workflows"}}' | HOME="$BOTH_HOME" bash "$BRIDGE")
+if echo "$OUT" | grep -qF "foundry-skills plugin is installed"; then
+  fail "Codex disabled sibling ignores Claude registry"
+else
+  pass "Codex disabled sibling ignores Claude registry"
+fi
+assert_contains "Codex disabled sibling still names the install command" "$OUT" "/plugins in Codex"
+rm -rf "$BOTH_HOME"
 
 # Cursor marketplace installs live in the plugin cache.
 CURSOR_HOME=$(mktemp -d)
