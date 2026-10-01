@@ -6,8 +6,8 @@ description: >
   get execution results, or debug a workflow failure.
   DO NOT TRIGGER for writing YAML (use authoring) or importing/releasing
   workflows (use deployment).
-version: 1.2.0
-updated: 2026-09-08
+version: 1.3.0
+updated: 2026-10-01
 tags: [fusion, soar, workflows, execution, monitoring, debugging]
 author: CrowdStrike
 license: MIT
