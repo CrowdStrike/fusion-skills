@@ -99,7 +99,7 @@ Describe what you want in plain language. You don't need to name a skill. The or
 
 ### How skill routing works
 
-Repository-backed installs in Claude Code and Codex include hooks that ensure the right skills get used. Codex requires reviewing and trusting bundled hooks through `/hooks` before they run:
+Repository-backed installs in Claude Code, Codex, and Cursor include hooks that ensure the right skills get used. Codex requires reviewing and trusting bundled hooks through `/hooks` before they run. Cursor loads them from `.cursor-plugin/plugin.json`:
 
 1. **`UserPromptSubmit` hook** — Matches Fusion phrases ("fusion workflow", "build a playbook", "deploy to CID") or an action verb paired with a Fusion noun ("automate crowdstrike actions"). When matched, it injects a non-blocking advisory steering toward the `workflows` orchestrator skill.
 

@@ -68,6 +68,15 @@ assert_contains "Codex event uses host-neutral skill routing" "$OUT" "Load and f
 if echo "$OUT" | grep -qF "Skill tool"; then fail "Codex event avoids Claude-only Skill tool wording"; else pass "Codex event avoids Claude-only Skill tool wording"; fi
 rm -f "$MARKER-codex-session" "$MARKER-codex-session.nudged"
 
+# Cursor names the prompt hook beforeSubmitPrompt and only injects additional_context.
+rm -f "$MARKER-cursor-conv"
+OUT=$(echo '{"hook_event_name":"beforeSubmitPrompt","conversation_id":"cursor-conv","prompt":"create a fusion workflow"}' |
+  CURSOR_PLUGIN_ROOT="$SCRIPT_DIR" bash "$ROUTER")
+assert_contains "Cursor event uses additional_context" "$OUT" "\"additional_context\""
+if echo "$OUT" | grep -qF "hookSpecificOutput"; then fail "Cursor event avoids Claude hookSpecificOutput"; else pass "Cursor event avoids Claude hookSpecificOutput"; fi
+assert_contains "Cursor event routes to the workflows skill" "$OUT" "Load and follow the crowdstrike-falcon-fusion workflows orchestrator skill"
+rm -f "$MARKER-cursor-conv" "$MARKER-cursor-conv.nudged"
+
 # 4. Non-fusion prompt -> no output, no marker
 rm -f "$MARKER"
 OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital of France"}' | bash "$ROUTER")
@@ -187,6 +196,13 @@ EOF
 OUT=$(echo '{"tool_input":{"skill":"workflows"}}' | HOME="$CODEX_HOME" bash "$BRIDGE")
 assert_contains "Codex config recognizes installed Foundry plugin" "$OUT" "foundry-skills plugin is installed"
 rm -rf "$CODEX_HOME"
+
+# Cursor marketplace installs live in the plugin cache.
+CURSOR_HOME=$(mktemp -d)
+mkdir -p "$CURSOR_HOME/.cursor/plugins/cache/cursor-public/crowdstrike-falcon-foundry"
+OUT=$(echo '{"tool_input":{"skill":"workflows"}}' | HOME="$CURSOR_HOME" bash "$BRIDGE")
+assert_contains "Cursor plugin cache recognizes installed Foundry plugin" "$OUT" "foundry-skills plugin is installed"
+rm -rf "$CURSOR_HOME"
 
 # 10. lookup-files skill invoked -> advisory emitted
 OUT=$(echo '{"tool_input":{"skill":"lookup-files"}}' | bash "$BRIDGE")

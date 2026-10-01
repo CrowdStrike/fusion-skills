@@ -26,7 +26,7 @@ Falcon Fusion workflow. It belongs to the sibling Falcon Foundry plugin — the
 
 Why this skill exists: the `workflows` orchestrator declines Foundry-app requests too,
 but its description matches *Fusion workflow* language, so a "build a Foundry app"
-prompt never loads it. On Claude Code and Copilot CLI a hook covers that gap. On
+prompt never loads it. On Claude Code, Copilot CLI, and Cursor a hook covers that gap. On
 assistants that do not load plugin hooks, this skill's description matches Foundry-app
 language directly and makes the redirect reachable.
 

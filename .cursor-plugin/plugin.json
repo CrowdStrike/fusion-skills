@@ -1,0 +1,21 @@
+{
+  "name": "crowdstrike-falcon-fusion",
+  "displayName": "CrowdStrike Falcon Fusion",
+  "description": "Author, deploy, and run Falcon Fusion workflows with live action discovery, schema validation, and execution monitoring.",
+  "version": "1.2.0",
+  "author": {
+    "name": "CrowdStrike"
+  },
+  "homepage": "https://github.com/CrowdStrike/fusion-skills",
+  "repository": "https://github.com/CrowdStrike/fusion-skills",
+  "license": "MIT",
+  "keywords": [
+    "crowdstrike",
+    "falcon",
+    "fusion",
+    "soar",
+    "workflow"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks-cursor.json"
+}
