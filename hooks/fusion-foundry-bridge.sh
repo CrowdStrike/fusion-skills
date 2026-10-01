@@ -36,9 +36,10 @@ MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
 # where the plugin is disabled. All checks are best-effort.
 codex_foundry_enabled() {
   [ -f "$HOME/.codex/config.toml" ] || return 1
+  # Only the plugin's own table counts, not a nested one such as
+  # [plugins."<id>@<marketplace>".mcp_servers.x].
   awk -v prefix='[plugins."crowdstrike-falcon-foundry@' '
-    index($0, prefix) == 1 { in_plugin = 1; next }
-    /^\[/ { in_plugin = 0 }
+    /^\[/ { in_plugin = (index($0, prefix) == 1 && substr($0, length(prefix) + 1) ~ /^[^".]*"\][[:space:]]*(#.*)?$/); next }
     in_plugin && /^enabled[[:space:]]*=[[:space:]]*true[[:space:]]*(#.*)?$/ { found = 1 }
     END { exit found ? 0 : 1 }
   ' "$HOME/.codex/config.toml" 2>/dev/null

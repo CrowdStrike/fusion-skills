@@ -234,6 +234,24 @@ fi
 assert_contains "Codex disabled sibling still names the install command" "$OUT" "/plugins in Codex"
 rm -rf "$BOTH_HOME"
 
+# A nested table under a disabled plugin is not the plugin's own enabled flag.
+NESTED_HOME=$(mktemp -d)
+mkdir -p "$NESTED_HOME/.codex"
+cat > "$NESTED_HOME/.codex/config.toml" <<'EOF'
+[plugins."crowdstrike-falcon-foundry@openai-api-curated"]
+enabled = false
+
+[plugins."crowdstrike-falcon-foundry@openai-api-curated".mcp_servers.example]
+enabled = true
+EOF
+OUT=$(echo '{"turn_id":"codex-turn","tool_input":{"skill":"workflows"}}' | HOME="$NESTED_HOME" bash "$BRIDGE")
+if echo "$OUT" | grep -qF "foundry-skills plugin is installed"; then
+  fail "Codex nested enabled table is not the plugin"
+else
+  pass "Codex nested enabled table is not the plugin"
+fi
+rm -rf "$NESTED_HOME"
+
 # Cursor marketplace installs live in the plugin cache.
 CURSOR_HOME=$(mktemp -d)
 mkdir -p "$CURSOR_HOME/.cursor/plugins/cache/cursor-public/crowdstrike-falcon-foundry"
