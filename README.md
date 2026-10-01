@@ -359,13 +359,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 ./release.sh
 ```
 
-This walks you through a semantic version bump (major/minor/patch), updates the version across the plugin manifests (`.claude-plugin/plugin.json`, `marketplace.json`, the root `plugin.json`, and `.codex-plugin/plugin.json`), the README badge, and the CHANGELOG, then creates a release branch and PR. After the PR is approved and merged, create a draft GitHub release to tag main:
+This walks you through a semantic version bump (major/minor/patch), updates the version across the plugin manifests (`.claude-plugin/plugin.json`, `marketplace.json`, the root `plugin.json`, `.codex-plugin/plugin.json`, and `.cursor-plugin/plugin.json`), the README badge, and the CHANGELOG, then creates a release branch and PR. After the PR is approved and merged, create a draft GitHub release to tag main:
 
 ```bash
 gh release create v<version> --target main --title "v<version>" --generate-notes --draft
 ```
 
 Review and edit the notes at [github.com/CrowdStrike/fusion-skills/releases](https://github.com/CrowdStrike/fusion-skills/releases), then click **Publish** when ready.
+
+After publishing the release, update the marketplaces that pin a snapshot. Build and upload the OpenAI skills-only bundle with `./release.sh --bundle v<version>`, email the Cursor marketplace team to re-index the listing, and open a PR to [github/awesome-copilot](https://github.com/github/awesome-copilot) that bumps the `version`, `ref`, and `sha` of the `crowdstrike-falcon-fusion` entry. `release.sh` prints the exact steps when it finishes.
 
 ## Cross-Plugin: Foundry Apps
 
