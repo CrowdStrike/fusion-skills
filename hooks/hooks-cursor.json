@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "./hooks/bootstrap.sh"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "./hooks/fusion-skill-router.sh"
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "./hooks/fusion-skill-router.sh"
+      },
+      {
+        "command": "./hooks/fusion-foundry-bridge.sh"
+      }
+    ]
+  }
+}

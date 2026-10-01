@@ -344,12 +344,14 @@ main() {
   printf "${GREEN}✓${RESET} Updated to v${NEXT_VERSION}\n"
 
   printf "\n${BLUE}Step 1c: Update Agent Plugins manifests${RESET}\n"
-  # The root plugin.json (Agent Plugins spec) and .codex-plugin/plugin.json are
-  # separate manifests for the non-Claude assistants; CI enforces that all four
-  # manifests share one version. Bump them alongside .claude-plugin/.
+  # The root plugin.json (Agent Plugins spec), .codex-plugin/plugin.json, and
+  # .cursor-plugin/plugin.json are separate manifests for the non-Claude
+  # assistants; CI enforces that they share one version. Bump them alongside
+  # .claude-plugin/.
   ROOT_PLUGIN_JSON="$SCRIPT_DIR/plugin.json"
   CODEX_PLUGIN_JSON="$SCRIPT_DIR/.codex-plugin/plugin.json"
-  for manifest in "$ROOT_PLUGIN_JSON" "$CODEX_PLUGIN_JSON"; do
+  CURSOR_PLUGIN_JSON="$SCRIPT_DIR/.cursor-plugin/plugin.json"
+  for manifest in "$ROOT_PLUGIN_JSON" "$CODEX_PLUGIN_JSON" "$CURSOR_PLUGIN_JSON"; do
     if [[ -f "$manifest" ]]; then
       jq --arg v "$NEXT_VERSION" '.version = $v' "$manifest" > /tmp/agent-plugin.json.tmp
       mv /tmp/agent-plugin.json.tmp "$manifest"
@@ -398,7 +400,7 @@ main() {
   printf "\n${BLUE}Step 5: Commit and create PR${RESET}\n"
   local release_branch="release/v${NEXT_VERSION}"
   git checkout -b "$release_branch"
-  git add "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$ROOT_PLUGIN_JSON" "$CODEX_PLUGIN_JSON" "$AGENTS_MARKETPLACE_JSON" "$SCRIPT_DIR/README.md" "$SCRIPT_DIR/skills"/*/SKILL.md "$SCRIPT_DIR/CHANGELOG.md" "$SCRIPT_DIR/release.sh"
+  git add "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$ROOT_PLUGIN_JSON" "$CODEX_PLUGIN_JSON" "$CURSOR_PLUGIN_JSON" "$AGENTS_MARKETPLACE_JSON" "$SCRIPT_DIR/README.md" "$SCRIPT_DIR/skills"/*/SKILL.md "$SCRIPT_DIR/CHANGELOG.md" "$SCRIPT_DIR/release.sh"
   git commit -m "Release v${NEXT_VERSION}"
   printf "${GREEN}✓${RESET} Committed v${NEXT_VERSION}\n"
 

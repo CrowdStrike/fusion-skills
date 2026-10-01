@@ -6,8 +6,8 @@ description: >
   collection, or a custom API integration from a third-party API (Okta, ServiceNow,
   Jira, etc.) built. DO NOT TRIGGER for a standalone Fusion workflow that only wires
   together existing actions. This skill declines Foundry-app requests and points to
-  the crowdstrike-falcon-foundry plugin, so the redirect works even without Claude
-  Code hooks; it yields to the real Foundry plugin when that plugin is also installed.
+  the crowdstrike-falcon-foundry plugin, so the redirect works even without plugin
+  hooks; it yields to the real Foundry plugin when that plugin is also installed.
 version: 1.2.0
 updated: 2026-09-08
 tags: [fusion, foundry, redirect, routing]
@@ -26,9 +26,9 @@ Falcon Fusion workflow. It belongs to the sibling Falcon Foundry plugin — the
 
 Why this skill exists: the `workflows` orchestrator declines Foundry-app requests too,
 but its description matches *Fusion workflow* language, so a "build a Foundry app"
-prompt never loads it. On Claude Code a hook covers that gap; on Codex, Copilot CLI,
-Cursor, and the Agent SDK there are no hooks, so this skill — whose description matches
-Foundry-app language directly — is what makes the redirect reachable.
+prompt never loads it. On Claude Code, Codex, Copilot CLI, and Cursor a hook covers that gap. On
+assistants that do not load plugin hooks, this skill's description matches Foundry-app
+language directly and makes the redirect reachable.
 
 ## What to do
 
@@ -36,7 +36,7 @@ Do NOT author workflow YAML. Do NOT scaffold an app yourself. Respond with all t
 
 1. State plainly that this request needs a Falcon Foundry app, not a standalone Fusion workflow.
 2. Name the plugin: **`crowdstrike-falcon-foundry`**.
-3. How to install it: `/plugin install crowdstrike-falcon-foundry`, or clone https://github.com/CrowdStrike/foundry-skills.
+3. How to install it: `/plugin install crowdstrike-falcon-foundry` in Claude Code, `/plugins` in Codex, `copilot plugin install CrowdStrike/foundry-skills` in Copilot CLI, `/add-plugin crowdstrike-falcon-foundry` in Cursor, or clone https://github.com/CrowdStrike/foundry-skills.
 
 ## When both plugins are installed
 

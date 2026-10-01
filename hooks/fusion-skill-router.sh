@@ -20,11 +20,19 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/host-output.sh"
+
 INPUT=$(cat)
 
 HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty')
+# Cursor names these beforeSubmitPrompt and preToolUse, and sends conversation_id.
+case "$HOOK_EVENT" in
+  beforeSubmitPrompt) HOOK_EVENT=UserPromptSubmit ;;
+  preToolUse) HOOK_EVENT=PreToolUse ;;
+esac
 # Keep only filename-safe characters so the ID can't escape the /tmp filename.
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' | tr -cd 'A-Za-z0-9_-')
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .conversation_id // empty' | tr -cd 'A-Za-z0-9_-')
 MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
 NUDGED="$MARKER.nudged"
 
@@ -39,33 +47,56 @@ case "$HOOK_EVENT" in
 
     FUSION_MATCH=false
 
-    # Direct Fusion phrases always trigger.
-    PHRASES="fusion workflow|fusion playbook|fusion soar|soar workflow|create workflow|build a workflow|build a playbook|action discovery|action_search|deploy to cid"
-    if echo "$PROMPT_LOWER" | grep -qE "(${PHRASES})"; then
+    # Direct Fusion phrases always trigger: they name the product or the SOAR
+    # concept, so they don't need a nearby verb. Generic "create workflow" and
+    # "build a workflow" are deliberately absent — they match CI/GitHub Actions
+    # workflows and other non-Fusion work.
+    # Each phrase is a whole word or phrase. Unanchored, "deploy to cid" matches
+    # "redeploy to cider" and "action_search" matches "my_action_search_helper".
+    PHRASES="fusion workflow|fusion playbook|fusion soar|soar workflow|build a playbook|action discovery|action_search|deploy to cid"
+    if echo "$PROMPT_LOWER" | grep -qE "\b(${PHRASES})\b"; then
       FUSION_MATCH=true
     fi
 
-    # Verb + Fusion noun (e.g. "automate crowdstrike actions").
-    VERBS="create|build|author|write|deploy|import|release|run|execute|automate|trigger|monitor"
-    NOUNS="fusion|playbook|soar|workflow yaml|crowdstrike action"
-    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b.*(${NOUNS})"; then
+    # Verb + Fusion noun within three words, in either order (e.g. "automate
+    # crowdstrike actions" or "crowdstrike actions we should automate"). Bare
+    # "fusion" is not a noun — it would match the repo name "fusion-skills" and
+    # "the fusion plugin" — and neither is a bare "playbook", which matches
+    # Ansible. "write"/"run" are not verbs, since they appear in almost every
+    # coding prompt. Nouns are whole words, so "soar" does not match "soaring".
+    VERBS="create|build|author|deploy|import|release|execute|automate|trigger|monitor"
+    NOUNS="soar|workflow yaml|crowdstrike actions?"
+    GAP="([[:space:]]+[^[:space:]]+){0,3}[[:space:]]+"
+    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b${GAP}(${NOUNS})\b" \
+       || echo "$PROMPT_LOWER" | grep -qE "\b(${NOUNS})\b${GAP}(${VERBS})\b"; then
       FUSION_MATCH=true
     fi
 
-    # Explicit skill request always triggers.
-    if echo "$PROMPT_LOWER" | grep -qE "(use|invoke|run) (fusion|workflows) (skill|plugin)"; then
+    # A generic "build a workflow" is Fusion work when the prompt is about
+    # security response, e.g. "create a workflow triggered by an EPP detection".
+    # Bare "alert" and "host" don't count as security context (build hosts, CI
+    # alerts), and CI/GitHub/GitLab workflows never count. A prompt that also
+    # asks for an app, UI, function, or collection is Foundry work, so it's left
+    # to the Foundry plugin.
+    WORKFLOW_NOUNS="workflows?"
+    SECURITY_CONTEXT="detections?|incidents?|contain(ment)?|crowdstrike|falcon|cid|okta|severity|iocs?|rtr|threats?|phish(ing)?|malware|endpoints?|edr|epp"
+    FOUNDRY_CAPABILITIES="apps?|ui|functions?|collections?|extensions?"
+    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b${GAP}(${WORKFLOW_NOUNS})\b" \
+       && echo "$PROMPT_LOWER" | grep -qE "\b(${SECURITY_CONTEXT})\b" \
+       && ! echo "$PROMPT_LOWER" | grep -qE "\b(ci|github|gitlab|${FOUNDRY_CAPABILITIES})\b"; then
+      FUSION_MATCH=true
+    fi
+
+    # Explicit skill request always triggers. "the" is optional. The request
+    # ends at skill or plugin, so "run fusion plugin tests" does not match.
+    if echo "$PROMPT_LOWER" | grep -qE "(^|[^[:alnum:]_])(use|invoke|run)( the)? (fusion|workflows) (skill|plugin)([[:punct:]]|$)"; then
       FUSION_MATCH=true
     fi
 
     if [ "$FUSION_MATCH" = true ]; then
       echo "$$" > "$MARKER"
 
-      jq -n '{
-        hookSpecificOutput: {
-          hookEventName: "UserPromptSubmit",
-          additionalContext: "FUSION PLUGIN DETECTED: This prompt involves Falcon Fusion workflow automation. Invoke the crowdstrike-falcon-fusion workflows orchestrator skill via the Skill tool. It routes to authoring (discover actions, write/validate YAML), deployment (import/release to CID), and execution (trigger/monitor). Do NOT hand-write workflow YAML or guess action IDs."
-        }
-      }'
+      emit_advisory "UserPromptSubmit" "FUSION PLUGIN DETECTED: This prompt involves Falcon Fusion workflow automation. Load and follow the crowdstrike-falcon-fusion workflows orchestrator skill. It routes to authoring (discover actions, write/validate YAML), deployment (import/release to CID), and execution (trigger/monitor). Do NOT hand-write workflow YAML or guess action IDs."
       exit 0
     fi
     ;;
@@ -85,12 +116,7 @@ case "$HOOK_EVENT" in
       # Advisory nudge, once per detected prompt — never block tools.
       [ -f "$NUDGED" ] && exit 0
       touch "$NUDGED"
-      jq -n '{
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          additionalContext: "Fusion plugin reminder: Consider invoking the crowdstrike-falcon-fusion workflows skill for Fusion workflow tasks. It coordinates action discovery, YAML authoring/validation, deployment, and execution."
-        }
-      }'
+      emit_advisory "PreToolUse" "Fusion plugin reminder: Consider invoking the crowdstrike-falcon-fusion workflows skill for Fusion workflow tasks. It coordinates action discovery, YAML authoring/validation, deployment, and execution."
       exit 0
     fi
     ;;

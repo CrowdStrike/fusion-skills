@@ -109,8 +109,10 @@ jobs:
         run: |
           for f in \
             hooks/hooks.json \
+            hooks/hooks-cursor.json \
             plugin.json \
             .claude-plugin/plugin.json \
+            .cursor-plugin/plugin.json \
             .claude-plugin/marketplace.json \
             .codex-plugin/plugin.json \
             test-result-schema.json \
@@ -218,6 +220,13 @@ jobs:
           codex_plugin_version=$(jq -r '.version' .codex-plugin/plugin.json)
           if [ "$codex_plugin_version" != "$plugin_version" ]; then
             echo "FAIL: .codex-plugin/plugin.json version '$codex_plugin_version' != .claude-plugin/plugin.json '$plugin_version'"
+            fail=1
+          fi
+
+          # Cursor manifest must match .claude-plugin/plugin.json
+          cursor_plugin_version=$(jq -r '.version' .cursor-plugin/plugin.json)
+          if [ "$cursor_plugin_version" != "$plugin_version" ]; then
+            echo "FAIL: .cursor-plugin/plugin.json version '$cursor_plugin_version' != .claude-plugin/plugin.json '$plugin_version'"
             fail=1
           fi
 
