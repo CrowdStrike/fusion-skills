@@ -40,6 +40,8 @@ sys.path.insert(
     0,
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common", "scripts"),
 )
+import _bootstrap  # pylint: disable=wrong-import-position
+_bootstrap.ensure_deps(__file__)  # re-exec via the managed venv if deps are missing
 try:
     from auth import get_client  # pylint: disable=wrong-import-position
 except ImportError:
