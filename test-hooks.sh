@@ -93,6 +93,19 @@ OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital 
 assert_empty "non-fusion prompt emits no context" "$OUT"
 if [ ! -f "$MARKER" ]; then pass "non-fusion prompt writes no marker"; else fail "non-fusion prompt writes no marker"; fi
 
+# 4b. A generic "workflow" request with security context is Fusion work, even
+# without the product name.
+while IFS= read -r tp; do
+  [ -z "$tp" ] && continue
+  rm -f "$MARKER"
+  OUT=$(jq -n --arg p "$tp" '{hook_event_name:"UserPromptSubmit",prompt:$p}' | bash "$ROUTER")
+  assert_contains "security workflow detected: ${tp:0:45}" "$OUT" "FUSION PLUGIN DETECTED"
+done <<'SECWORKFLOW'
+Build a workflow that takes a list of user email addresses, checks each one against Okta to see if their account is active, and revokes sessions for any active accounts.
+Create a workflow triggered by an EPP detection alert. If the detection severity is Critical or High, contain the host immediately and send a Slack notification.
+build a workflow to contain a host when a detection fires
+SECWORKFLOW
+
 # 4a. Loose-match false positives must NOT trigger: the repo name "fusion-skills",
 # the plugin name, common verbs (write/run), and a generic "workflow" that isn't
 # Fusion work. A verb + a Fusion noun must be near each other, and bare "fusion"
@@ -115,6 +128,10 @@ redeploy to cider
 see my_action_search_helper
 create an ansible playbook
 run fusion plugin tests
+create a workflow that alerts me when the build host runs out of disk
+create a github actions workflow that scans for vulnerabilities
+create a ci workflow for the falcon dashboard repo
+we need an incident response app with a collection and a UI page, and build workflows that auto-escalate based on severity
 FALSEPOS
 
 # 5. PreToolUse with marker present + non-Skill tool -> advisory nudge

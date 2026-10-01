@@ -72,6 +72,21 @@ case "$HOOK_EVENT" in
       FUSION_MATCH=true
     fi
 
+    # A generic "build a workflow" is Fusion work when the prompt is about
+    # security response, e.g. "create a workflow triggered by an EPP detection".
+    # Bare "alert" and "host" don't count as security context (build hosts, CI
+    # alerts), and CI/GitHub/GitLab workflows never count. A prompt that also
+    # asks for an app, UI, function, or collection is Foundry work, so it's left
+    # to the Foundry plugin.
+    WORKFLOW_NOUNS="workflows?"
+    SECURITY_CONTEXT="detections?|incidents?|contain(ment)?|crowdstrike|falcon|cid|okta|severity|iocs?|rtr|threats?|phish(ing)?|malware|endpoints?|edr|epp"
+    FOUNDRY_CAPABILITIES="apps?|ui|functions?|collections?|extensions?"
+    if echo "$PROMPT_LOWER" | grep -qE "\b(${VERBS})\b${GAP}(${WORKFLOW_NOUNS})\b" \
+       && echo "$PROMPT_LOWER" | grep -qE "\b(${SECURITY_CONTEXT})\b" \
+       && ! echo "$PROMPT_LOWER" | grep -qE "\b(ci|github|gitlab|${FOUNDRY_CAPABILITIES})\b"; then
+      FUSION_MATCH=true
+    fi
+
     # Explicit skill request always triggers. "the" is optional. The request
     # ends at skill or plugin, so "run fusion plugin tests" does not match.
     if echo "$PROMPT_LOWER" | grep -qE "(^|[^[:alnum:]_])(use|invoke|run)( the)? (fusion|workflows) (skill|plugin)([[:punct:]]|$)"; then
