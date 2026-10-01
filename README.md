@@ -99,15 +99,17 @@ Describe what you want in plain language. You don't need to name a skill. The or
 
 ### How skill routing works
 
-The skills include hooks that ensure the right skills get used:
+Repository-backed installs in Claude Code and Codex include hooks that ensure the right skills get used. Codex requires reviewing and trusting bundled hooks through `/hooks` before they run:
 
 1. **`UserPromptSubmit` hook** — Matches Fusion phrases ("fusion workflow", "build a playbook", "deploy to CID") or an action verb paired with a Fusion noun ("automate crowdstrike actions"). When matched, it injects a non-blocking advisory steering toward the `workflows` orchestrator skill.
 
-2. **`PreToolUse` hook** — While Fusion intent is active, injects a non-blocking reminder to use the Fusion workflows skill until the Skill tool is invoked. All tools remain available; nothing is blocked.
+2. **`PreToolUse` hook** — While Fusion intent is active, injects a non-blocking reminder to use the Fusion workflows skill. All tools remain available; nothing is blocked.
 
 3. **`PreToolUse` hook (cross-plugin bridge)** — Advisory only. If a request needs a Foundry app (UI, functions, collections, `manifest.yml`), it suggests the sibling [`crowdstrike-falcon-foundry`](https://github.com/CrowdStrike/foundry-skills) plugin. It never blocks a skill.
 
 The `workflows` orchestrator is the entry point: you say what you want, and it routes to `authoring` (discover actions, write and validate YAML), `deployment` (import and release to a CID), and `execution` (trigger and monitor). Hooks observe prompts and tool I/O to keyword-match Fusion actions; no data leaves the session.
+
+Local Codex installs made with skill symlinks, and other assistants that do not load bundled hooks, route from the skill descriptions instead.
 
 ## Skills
 

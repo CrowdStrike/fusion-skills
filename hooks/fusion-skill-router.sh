@@ -71,7 +71,7 @@ case "$HOOK_EVENT" in
       jq -n '{
         hookSpecificOutput: {
           hookEventName: "UserPromptSubmit",
-          additionalContext: "FUSION PLUGIN DETECTED: This prompt involves Falcon Fusion workflow automation. Invoke the crowdstrike-falcon-fusion workflows orchestrator skill via the Skill tool. It routes to authoring (discover actions, write/validate YAML), deployment (import/release to CID), and execution (trigger/monitor). Do NOT hand-write workflow YAML or guess action IDs."
+          additionalContext: "FUSION PLUGIN DETECTED: This prompt involves Falcon Fusion workflow automation. Load and follow the crowdstrike-falcon-fusion workflows orchestrator skill. It routes to authoring (discover actions, write/validate YAML), deployment (import/release to CID), and execution (trigger/monitor). Do NOT hand-write workflow YAML or guess action IDs."
         }
       }'
       exit 0

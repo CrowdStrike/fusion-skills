@@ -59,6 +59,15 @@ rm -f "$MARKER"
 OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"build a playbook for ransomware"}' | bash "$ROUTER")
 assert_contains "playbook phrase detected" "$OUT" "FUSION PLUGIN DETECTED"
 
+# Codex adds turn_id and permission_mode to the shared hook shape. Keep the
+# routing instruction host-neutral instead of naming Claude's Skill tool.
+rm -f "$MARKER-codex-session"
+OUT=$(echo '{"hook_event_name":"UserPromptSubmit","session_id":"codex-session","turn_id":"codex-turn","permission_mode":"default","prompt":"create a fusion workflow"}' |
+  PLUGIN_ROOT="$SCRIPT_DIR" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR" bash "$ROUTER")
+assert_contains "Codex event uses host-neutral skill routing" "$OUT" "Load and follow the crowdstrike-falcon-fusion workflows orchestrator skill"
+if echo "$OUT" | grep -qF "Skill tool"; then fail "Codex event avoids Claude-only Skill tool wording"; else pass "Codex event avoids Claude-only Skill tool wording"; fi
+rm -f "$MARKER-codex-session" "$MARKER-codex-session.nudged"
+
 # 4. Non-fusion prompt -> no output, no marker
 rm -f "$MARKER"
 OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital of France"}' | bash "$ROUTER")
@@ -166,6 +175,18 @@ rm -f "$MARKER"
 # 9. Fusion skill invoked -> advise foundry for app capabilities
 OUT=$(echo '{"tool_input":{"skill":"workflows"}}' | bash "$BRIDGE")
 assert_contains "fusion skill emits foundry advisory" "$OUT" "Foundry app wrapper"
+
+# Codex stores enabled plugins in config.toml. The bridge should recognize the
+# sibling there instead of telling the user to install it again.
+CODEX_HOME=$(mktemp -d)
+mkdir -p "$CODEX_HOME/.codex"
+cat > "$CODEX_HOME/.codex/config.toml" <<'EOF'
+[plugins."crowdstrike-falcon-foundry@openai-api-curated"]
+enabled = true
+EOF
+OUT=$(echo '{"tool_input":{"skill":"workflows"}}' | HOME="$CODEX_HOME" bash "$BRIDGE")
+assert_contains "Codex config recognizes installed Foundry plugin" "$OUT" "foundry-skills plugin is installed"
+rm -rf "$CODEX_HOME"
 
 # 10. lookup-files skill invoked -> advisory emitted
 OUT=$(echo '{"tool_input":{"skill":"lookup-files"}}' | bash "$BRIDGE")

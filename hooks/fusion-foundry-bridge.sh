@@ -25,14 +25,21 @@ SKILL_NAME=$(echo "$INPUT" | jq -r '.tool_input.skill // empty')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' | tr -cd 'A-Za-z0-9_-')
 MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
 
-# Detect whether the sibling foundry plugin is installed. Best-effort: the file
-# may not exist, in which case we simply skip the "already installed" wording.
-INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
+# Detect whether the sibling Foundry plugin is installed. Claude Code records
+# installed plugins in JSON; Codex records enabled marketplace plugins in TOML.
+# Both checks are best-effort.
 FOUNDRY_INSTALLED=false
-if [ -f "$INSTALLED_PLUGINS" ]; then
-  if grep -q "crowdstrike-falcon-foundry" "$INSTALLED_PLUGINS" 2>/dev/null; then
-    FOUNDRY_INSTALLED=true
-  fi
+if [ -f "$HOME/.claude/plugins/installed_plugins.json" ] &&
+   grep -q "crowdstrike-falcon-foundry" "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null; then
+  FOUNDRY_INSTALLED=true
+elif [ -f "$HOME/.codex/config.toml" ] &&
+     awk -v prefix='[plugins."crowdstrike-falcon-foundry@' '
+       index($0, prefix) == 1 { in_plugin = 1; next }
+       /^\[/ { in_plugin = 0 }
+       in_plugin && /^enabled[[:space:]]*=[[:space:]]*true[[:space:]]*$/ { found = 1 }
+       END { exit found ? 0 : 1 }
+     ' "$HOME/.codex/config.toml" 2>/dev/null; then
+  FOUNDRY_INSTALLED=true
 fi
 
 case "$SKILL_NAME" in
@@ -56,7 +63,7 @@ case "$SKILL_NAME" in
     if [ "$FOUNDRY_INSTALLED" = true ]; then
       MSG="Cross-plugin note: If this workflow needs a Foundry app wrapper (UI, functions, collections, or manifest.yml), the foundry-skills plugin is installed — route to crowdstrike-falcon-foundry:development-workflow for the app lifecycle, then return here to author the workflow."
     else
-      MSG="Cross-plugin note: This plugin builds STANDALONE Fusion workflows. If the user needs a Foundry app wrapper (UI, functions, collections, or manifest.yml), install foundry-skills: claude plugin install crowdstrike-falcon-foundry"
+      MSG="Cross-plugin note: This plugin builds STANDALONE Fusion workflows. If the user needs a Foundry app wrapper (UI, functions, collections, or manifest.yml), install crowdstrike-falcon-foundry from the plugin browser (/plugins in Codex; /plugin install crowdstrike-falcon-foundry in Claude Code)."
     fi
     jq -n --arg msg "$MSG" '{
       hookSpecificOutput: {
