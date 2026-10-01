@@ -8,8 +8,8 @@ description: >
   together existing actions. This skill declines Foundry-app requests and points to
   the crowdstrike-falcon-foundry plugin, so the redirect works even without plugin
   hooks; it yields to the real Foundry plugin when that plugin is also installed.
-version: 1.2.0
-updated: 2026-09-08
+version: 1.3.0
+updated: 2026-10-01
 tags: [fusion, foundry, redirect, routing]
 author: CrowdStrike
 license: MIT
