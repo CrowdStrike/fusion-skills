@@ -3,13 +3,13 @@
 # Source this file, then call find_compatible_python (echoes a python binary) or
 # _pd_set_venv_bins <venv_dir> (sets VENV_PYTHON_BIN / VENV_PIP_BIN).
 #
-# Requires Python 3.13+ (fusion-skills' stated floor). 3.14+ is allowed.
+# Requires Python 3.13+ (fusion-skills' stated floor). 3.14 and 3.15 are allowed.
 # Supports: macOS (Homebrew, pyenv), Linux (apt, deadsnakes, pyenv, SCL), Windows (msys/cygwin).
 
 # Version floor — fusion-skills requires Python 3.13+.
 PYTHON_MIN_MAJOR=3
 PYTHON_MIN_MINOR=13
-PYTHON_MAX_MINOR=14  # 3.14+ should work
+PYTHON_MAX_MINOR=15
 
 _PD_RED='\033[0;31m'
 _PD_GREEN='\033[0;32m'
@@ -37,7 +37,7 @@ _pd_get_python_version() {
     echo "$version_output" | sed -n 's/^Python \([0-9]*\.[0-9]*\).*/\1/p'
 }
 
-# True if version is within the supported range (>= 3.13, <= 3.14).
+# True if version is within the supported range (>= 3.13, <= 3.15).
 _pd_is_version_supported() {
     local version="$1" major minor
     major=$(echo "$version" | cut -d. -f1)
@@ -114,7 +114,7 @@ find_compatible_python() {
     fi
 
     # 3. Versioned binaries in PATH.
-    for bin in "python3.14" "python3.13"; do
+    for bin in "python3.15" "python3.14" "python3.13"; do
         if command -v "$bin" &>/dev/null; then
             version=$(_pd_get_python_version "$bin")
             if _pd_is_version_supported "$version"; then echo "$bin"; return 0; fi
@@ -125,7 +125,7 @@ find_compatible_python() {
     local search_path
     while IFS= read -r search_path; do
         [[ -d "$search_path" ]] || continue
-        for bin in "python3.14" "python3.13" "python3"; do
+        for bin in "python3.15" "python3.14" "python3.13" "python3"; do
             local full_path="$search_path/$bin"
             if [[ -x "$full_path" ]]; then
                 version=$(_pd_get_python_version "$full_path")
