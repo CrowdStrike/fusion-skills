@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Python 3.15 is accepted.** The managed-venv setup capped the supported range at 3.14, so a machine whose only Python was 3.15 failed with "No compatible Python found (fusion-skills requires 3.13+)" and every skill script failed to bootstrap. The range is now 3.13 through 3.15, and `python3.15` is searched for alongside `python3.14` and `python3.13`.
+
 ## [1.3.0] - 2026-10-01
 
 ### Added
