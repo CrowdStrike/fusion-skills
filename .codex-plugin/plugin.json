@@ -31,6 +31,7 @@
     ],
     "websiteURL": "https://github.com/CrowdStrike/fusion-skills",
     "privacyPolicyURL": "https://www.crowdstrike.com/en-us/legal/privacy-notice/",
+    "termsOfServiceURL": "https://www.crowdstrike.com/en-us/legal/terms-conditions/",
     "defaultPrompt": [
       "Create a Falcon Fusion workflow",
       "Automate a CrowdStrike response",
