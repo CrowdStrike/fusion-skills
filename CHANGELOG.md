@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Fixed
 
 - **`base_url` is described as optional on US-1, US-2, and EU-1.** FalconPy discovers those regions from the token response, so the README, setup, deployment, and execution guidance no longer tell US-2 and EU-1 users to set `FALCON_BASE_URL` or a profile's `base_url`. It's still needed for any other cloud, such as US-3 and GovCloud, and a short name such as `usgov1` works.
+- **The setup guidance points to Client Management.** The console renamed **API clients and keys** to **Client Management**, so the credentials file template now says *Support and resources → Client Management → Create API client*.
 
 ## [1.3.0] - 2026-10-01
 

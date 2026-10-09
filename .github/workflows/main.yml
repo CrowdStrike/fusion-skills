@@ -151,7 +151,9 @@ jobs:
               echo "WARN: $name ~${approx_tokens} tokens (${pct}% of ${max_tokens} limit)"
             fi
 
-            desc=$(sed -n 's/^description: *//p' "$skill")
+            # Folded (>) descriptions span several lines: collect from 'description:'
+            # up to the next top-level frontmatter key.
+            desc=$(awk '/^description:/{f=1; sub(/^description: *>? */,""); print; next} f && /^[a-z_-]+:/{exit} f{print}' "$skill" | tr -s ' \n' ' ')
             desc_len=${#desc}
             total_desc_chars=$((total_desc_chars + desc_len))
 
