@@ -7,7 +7,7 @@ description: >
   DO NOT TRIGGER for writing YAML (use authoring), executing workflows,
   or monitoring (use execution).
 version: 1.3.0
-updated: 2026-10-01
+updated: 2026-10-10
 tags: [fusion, soar, workflows, deployment, import, release]
 author: CrowdStrike
 license: MIT
@@ -77,7 +77,7 @@ In Falcon Fusion, an imported definition is **disabled** until it is **released*
   variables (for CI/overrides) or the TOML profile:
   - `FALCON_CLIENT_ID`
   - `FALCON_CLIENT_SECRET`
-  - `FALCON_BASE_URL` (optional; defaults to `https://api.crowdstrike.com`)
+  - `FALCON_BASE_URL` (optional; FalconPy discovers US-1, US-2, and EU-1, so set it only for US-3 or GovCloud)
 
   Run `/crowdstrike-falcon-fusion:setup` to configure credentials interactively (writes the TOML profile).
 - An API client with the **Workflow** API scope (read + write)

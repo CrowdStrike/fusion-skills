@@ -25,7 +25,7 @@ For CI or a one-off override, set environment variables instead:
 ```bash
 export FALCON_CLIENT_ID=your_client_id_here
 export FALCON_CLIENT_SECRET=your_client_secret_here
-# export FALCON_BASE_URL=https://api.crowdstrike.com  # US-1 (default)
+# export FALCON_BASE_URL=https://api.us-3.crowdstrike.com  # only for US-3 or GovCloud; FalconPy discovers US-1, US-2, and EU-1
 ```
 
 Verify credentials:

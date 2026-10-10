@@ -7,7 +7,7 @@ description: >
   DO NOT TRIGGER for writing YAML (use authoring) or importing/releasing
   workflows (use deployment).
 version: 1.3.0
-updated: 2026-10-01
+updated: 2026-10-10
 tags: [fusion, soar, workflows, execution, monitoring, debugging]
 author: CrowdStrike
 license: MIT
@@ -47,7 +47,7 @@ An execution moves through states and ends in a **terminal** state. The terminal
   variables (for CI/overrides) or the TOML profile:
   - `FALCON_CLIENT_ID`
   - `FALCON_CLIENT_SECRET`
-  - `FALCON_BASE_URL` (optional; defaults to `https://api.crowdstrike.com`)
+  - `FALCON_BASE_URL` (optional; FalconPy discovers US-1, US-2, and EU-1, so set it only for US-3 or GovCloud)
 
   Run `/crowdstrike-falcon-fusion:setup` to configure credentials interactively (writes the TOML profile).
 - An API client with the **Workflow** API scope
