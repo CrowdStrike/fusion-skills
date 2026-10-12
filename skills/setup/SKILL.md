@@ -5,7 +5,7 @@ description: >
   TRIGGER when user asks to set up credentials, configure API access,
   or runs into authentication errors.
 version: 1.3.0
-updated: 2026-10-01
+updated: 2026-10-10
 tags: [fusion, setup, credentials, configuration]
 author: CrowdStrike
 license: MIT
@@ -85,6 +85,8 @@ default = "us-2"
 [us-2]
 client_id = ""
 client_secret = ""
+# base_url is optional on US-1, US-2, and EU-1: FalconPy discovers the region.
+# Set it for any other cloud, such as US-3 or GovCloud.
 base_url = "https://api.us-2.crowdstrike.com"
 
 # Add more clouds as needed (change `default` above to switch):
@@ -121,8 +123,8 @@ Then tell the user, in your own words:
 
 > I created your credentials file at
 > `~/.cache/crowdstrike-falcon-fusion/credentials.toml`. Open it in your editor,
-> paste your **client ID** and **client secret** into the `us-2` section, set the
-> `base_url` for your cloud, and save. Then tell me to verify — don't paste the
+> paste your **client ID** and **client secret** into the `us-2` section (on any other
+> cloud, such as US-3 or GovCloud, also set `base_url`), and save. Then tell me to verify — don't paste the
 > secret here.
 
 **Offer to open the file for them.** Many terminals don't make the path clickable,

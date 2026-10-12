@@ -18,6 +18,9 @@ secret wins)
 -----------------------------------------------------------------------------
 1. Environment variables: FALCON_CLIENT_ID, FALCON_CLIENT_SECRET, and the
    optional FALCON_BASE_URL. Use these for CI and one-off overrides.
+   FalconPy discovers the API host for US-1, US-2, and EU-1 from the token
+   response, so FALCON_BASE_URL (or a profile's base_url) is needed only for
+   other clouds, such as US-3 and GovCloud. A short name such as "usgov1" works.
 2. TOML profile file at ~/.cache/crowdstrike-falcon-fusion/credentials.toml.
    The profile used is the one named by the FALCON_PROFILE environment
    variable, or the file's top-level `default` key when FALCON_PROFILE is
