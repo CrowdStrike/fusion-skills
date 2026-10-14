@@ -591,7 +591,7 @@ $( [ -n "$DEPLOYED_ONDEMAND" ] && printf '\n## Credential\n- VirusTotal API key:
 Respond with valid JSON. Each result reports the check that applied to that workflow:
 {\"results\":[{\"workflow\":\"NAME\",\"mode\":\"render|configure\",\"render\":\"PASS|FAIL|NA\",\"configure\":\"PASS|FAIL|NA\",\"verified\":true|false,\"notes\":\"...\"}]}
 A render-test workflow is verified=true iff render==PASS. A configure workflow is verified=true iff configure==PASS (credential saved and published)."
-      env -u CLAUDECODE claude -p "$BROWSER_PROMPT" \
+      env -u CLAUDECODE claude --no-session-persistence -p "$BROWSER_PROMPT" \
         --dangerously-skip-permissions \
         --model "${VERIFY_MODEL:-opus}" \
         --verbose --output-format stream-json \

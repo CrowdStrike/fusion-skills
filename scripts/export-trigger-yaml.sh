@@ -119,7 +119,7 @@ PROMPT="You are discovering the exact YAML shape of a Falcon Fusion workflow tri
 After the fenced export, print one line of valid JSON:
 {\"trigger_label_used\":\"...\",\"exported\":true|false,\"deleted\":true|false,\"notes\":\"...\"}"
 
-env -u CLAUDECODE claude -p "$PROMPT" \
+env -u CLAUDECODE claude --no-session-persistence -p "$PROMPT" \
   --dangerously-skip-permissions \
   --verbose --output-format stream-json \
   > "$LOG_FILE" 2>&1 || true

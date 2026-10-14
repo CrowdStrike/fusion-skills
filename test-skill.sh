@@ -299,7 +299,7 @@ count_deploy_churn() {
   echo "$count"
 }
 check_api_health() {
-  env -u CLAUDECODE claude -p "Reply with OK" \
+  env -u CLAUDECODE claude --no-session-persistence -p "Reply with OK" \
     --model haiku > /dev/null 2>&1
   return $?
 }
@@ -342,7 +342,7 @@ for i in $(seq 1 $RUNS); do
   # Use stream-json to capture tool calls for anti-pattern analysis.
   cd "$RUN_DIR"
   RUN_START=$(date +%s)
-  env -u CLAUDECODE claude -p "$RUN_PROMPT" \
+  env -u CLAUDECODE claude --no-session-persistence -p "$RUN_PROMPT" \
     ${PLUGIN_DIR_FLAGS[@]+"${PLUGIN_DIR_FLAGS[@]}"} \
     --dangerously-skip-permissions \
     --model "${EVAL_MODEL:-opus}" \
