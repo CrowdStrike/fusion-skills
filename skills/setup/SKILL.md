@@ -71,7 +71,7 @@ Write tool:
 # Fill in client_id and client_secret below, then save this file.
 #
 # Create an API client in the Falcon console:
-#   Support and resources -> API clients and keys -> Create API client
+#   Support and resources -> Client Management -> Create API client
 # Required scopes:
 # Required scopes (names as shown in the console):
 #   Workflow             read/write   - workflow authoring & deployment
