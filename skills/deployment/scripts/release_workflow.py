@@ -49,11 +49,14 @@ def release_workflow(definition_id):
             action_name="enable",
             body={"ids": [definition_id]},
         )
+        status = resp.get("status_code")
         body = resp["body"]
         errors = body.get("errors", [])
         if errors:
             msg = "; ".join(e.get("message", str(e)) for e in errors)
             return False, msg, None
+        if status and status >= 400:
+            return False, f"API returned status {status}", None
 
         resources = body.get("resources", [])
         return True, "OK", resources

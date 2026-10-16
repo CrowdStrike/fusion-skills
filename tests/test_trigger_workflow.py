@@ -245,6 +245,11 @@ class TestHeuristicValue:
     def test_hash_field_by_name(self):
         assert trigger_workflow.heuristic_value("file_hash", {"type": "string"})
 
+    def test_sha256_field_gets_sha256_length_value(self):
+        value = trigger_workflow.heuristic_value("sha256", {"type": "string"})
+        assert len(value) == 64
+        int(value, 16)  # hex
+
     def test_integer_type(self):
         assert trigger_workflow.heuristic_value("count", {"type": "integer"}) == 1
 
@@ -497,6 +502,61 @@ class TestMain:
         out = capsys.readouterr().out
         assert "Succeeded" in out
         assert "done" in out
+
+    def test_main_wait_unsuccessful_status_exits_1(self, monkeypatch, capsys):
+        """A terminal Failed result is reported and exits non-zero."""
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_workflow.py", "--id", "def_id", "--params", "{}", "--wait"],
+        )
+        monkeypatch.setattr(
+            trigger_workflow,
+            "execute_workflow",
+            lambda *_a, **_k: (True, "exec_123", {}),
+        )
+        monkeypatch.setattr(
+            trigger_workflow,
+            "poll_results",
+            lambda *_a, **_k: {"status": "Failed"},
+        )
+        with pytest.raises(SystemExit) as exc:
+            trigger_workflow.main()
+        assert exc.value.code == 1
+        assert "Execution Failed" in capsys.readouterr().out
+
+    def test_main_wait_completed_status_succeeds(self, monkeypatch):
+        """Completed is the status a normal successful run reports."""
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_workflow.py", "--id", "def_id", "--params", "{}", "--wait"],
+        )
+        monkeypatch.setattr(
+            trigger_workflow,
+            "execute_workflow",
+            lambda *_a, **_k: (True, "exec_123", {}),
+        )
+        monkeypatch.setattr(
+            trigger_workflow,
+            "poll_results",
+            lambda *_a, **_k: {"status": "Completed"},
+        )
+        trigger_workflow.main()
+
+    def test_main_missing_execution_id_exits_1(self, monkeypatch, capsys):
+        """An execute response without an execution ID is not a submission."""
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_workflow.py", "--id", "def_id", "--params", "{}"],
+        )
+        monkeypatch.setattr(
+            trigger_workflow,
+            "execute_workflow",
+            lambda *_a, **_k: (True, None, {"resources": []}),
+        )
+        with pytest.raises(SystemExit) as exc:
+            trigger_workflow.main()
+        assert exc.value.code == 1
+        assert "no execution ID" in capsys.readouterr().out
 
     def test_main_interactive_mode_no_params(self, monkeypatch, capsys):
         """Without --params, main() fetches the schema and prompts for params."""

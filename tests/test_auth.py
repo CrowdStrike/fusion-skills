@@ -351,6 +351,7 @@ class TestSelfTestMain:
         out = capsys.readouterr().out
         assert "Authentication successful (FalconPy Workflows client)" in out
         assert "Authentication successful (FalconPy NGSIEM client)" in out
+        assert "7890" not in out  # no part of the secret is printed
 
     @patch("falconpy.Workflows")
     def test_self_test_workflows_token_expired(

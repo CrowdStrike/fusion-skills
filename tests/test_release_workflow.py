@@ -47,6 +47,19 @@ class TestReleaseWorkflow:
         assert msg == "not found"
         assert resources is None
 
+    def test_error_status_is_failure(self, monkeypatch):
+        """A 500 with an empty errors array is a failure, not a silent success."""
+        mock_client = MagicMock()
+        mock_client.workflow_definition_action.return_value = {
+            "status_code": 500,
+            "body": {"resources": [], "errors": []},
+        }
+        monkeypatch.setattr(release_workflow, "get_client", lambda: mock_client)
+        ok, msg, resources = release_workflow.release_workflow("def_1")
+        assert ok is False
+        assert "500" in msg
+        assert resources is None
+
     def test_empty_success_body(self, monkeypatch):
         mock_client = MagicMock()
         mock_client.workflow_definition_action.return_value = {

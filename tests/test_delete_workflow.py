@@ -89,6 +89,18 @@ def test_delete_definitions_reports_errors(monkeypatch):
     assert "nope" in msg
 
 
+def test_delete_definitions_reports_error_status(monkeypatch):
+    """A 403 with an empty errors array is a failure, not a silent success."""
+    client = _client()
+    client.delete_definitions.return_value = {
+        "status_code": 403, "body": {"resources": [], "errors": []}
+    }
+    monkeypatch.setattr(dw, "get_client", lambda: client)
+    ok, msg, _ = dw.delete_definitions(["id-x"])
+    assert ok is False
+    assert "403" in msg
+
+
 def test_delete_definitions_handles_exception(monkeypatch):
     client = MagicMock()
     client.delete_definitions.side_effect = ConnectionError("down")
