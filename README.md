@@ -62,6 +62,8 @@ done
 
 ### Credentials
 
+These skills authenticate with a Falcon API client. In the console, go to **Support and resources** > **Client Management** > **Create API client**, grant the **Workflow** scope (read and write), and, for the `lookup-files` skill, also **NGSIEM Lookup Files** (read and write). Copy the client ID and secret shown once on creation, then configure them below.
+
 Configure credentials once. Run the interactive setup skill — it writes a profile to `~/.cache/crowdstrike-falcon-fusion/credentials.toml`:
 
 ```
