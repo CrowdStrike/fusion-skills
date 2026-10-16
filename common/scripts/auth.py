@@ -297,7 +297,7 @@ if __name__ == "__main__":
     cid, csec, burl = get_credentials()
     print(f"  Base URL  : {burl}")
     print(f"  Client ID : {cid[:8]}...{cid[-4:]}")
-    print(f"  Secret    : {'*' * 8}...{csec[-4:]}")
+    print(f"  Secret    : {'set' if csec else 'missing'}")
     print()
     try:
         wf_client = get_client()

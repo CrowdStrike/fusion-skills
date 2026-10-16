@@ -9,9 +9,10 @@
 #
 #   1. validate  — skills/authoring/scripts/validate.py --preflight-only   (no creds)
 #   2. deploy    — skills/deployment/scripts/import_workflows.py            (creds)
-#   3. execute   — skills/execution/scripts/trigger_workflow.py --wait      (creds)
+#   3. execute   — skills/deployment/scripts/release_workflow.py, then
+#                  skills/execution/scripts/trigger_workflow.py --wait      (creds)
 #   4. results   — skills/execution/scripts/get_execution_results.py        (creds)
-#   5. cleanup   — scripts/cleanup_workflows.py --names (API delete, optional)  (creds)
+#   5. cleanup   — skills/deployment/scripts/delete_workflow.py --id (optional)  (creds)
 #
 # Phase 2 (browser) runs by DEFAULT, like foundry-skills. It drives the Falcon
 # console via a nested `claude` + Playwright MCP and routes each workflow by
@@ -24,8 +25,10 @@
 # credential-free. The VirusTotal key is prompted for only when an On-demand
 # workflow will execute.
 #
-# Cleanup deletes through the Workflows delete API (scripts/cleanup_workflows.py,
-# FalconPy delete_definitions) — no browser needed, just API credentials.
+# Cleanup deletes through the Workflows delete API (delete_workflow.py --id,
+# FalconPy delete_definitions) — no browser needed, just API credentials. It
+# only deletes definitions this run imported; a same-name definition that
+# already existed is reused for the run and left in place.
 #
 # A duplicate-name check (skills/deployment/scripts/query_workflows.py --check-yaml)
 # runs before deploy and is recorded in the per-workflow notes.
@@ -87,7 +90,8 @@ QUERY_PY="$SCRIPT_DIR/skills/deployment/scripts/query_workflows.py"
 IMPORT_PY="$SCRIPT_DIR/skills/deployment/scripts/import_workflows.py"
 TRIGGER_PY="$SCRIPT_DIR/skills/execution/scripts/trigger_workflow.py"
 RESULTS_PY="$SCRIPT_DIR/skills/execution/scripts/get_execution_results.py"
-CLEANUP_PY="$SCRIPT_DIR/scripts/cleanup_workflows.py"
+RELEASE_PY="$SCRIPT_DIR/skills/deployment/scripts/release_workflow.py"
+DELETE_PY="$SCRIPT_DIR/skills/deployment/scripts/delete_workflow.py"
 VERIFY_LOOKUP_PY="$SCRIPT_DIR/skills/lookup-files/scripts/verify_lookup.py"
 # Falcon cloud used to build the console URL for the Phase 2 browser step.
 CLEANUP_CLOUD="${FALCON_CLEANUP_CLOUD:-us-2}"
@@ -161,10 +165,10 @@ if [ "$SKIP_DEPLOY" != "1" ]; then
   REQUIRED_SCRIPTS+=("$QUERY_PY" "$IMPORT_PY")
 fi
 if [ "$SKIP_EXECUTE" != "1" ]; then
-  REQUIRED_SCRIPTS+=("$TRIGGER_PY" "$RESULTS_PY")
+  REQUIRED_SCRIPTS+=("$RELEASE_PY" "$TRIGGER_PY" "$RESULTS_PY")
 fi
 if [ "$DO_CLEANUP" = "1" ]; then
-  REQUIRED_SCRIPTS+=("$CLEANUP_PY")
+  REQUIRED_SCRIPTS+=("$DELETE_PY")
 fi
 for script in "${REQUIRED_SCRIPTS[@]}"; do
   if [ ! -f "$script" ]; then
@@ -226,14 +230,30 @@ workflow_needs_credential() {
   grep -qiE 'Inline\.HTTPRequest|Cloud HTTP|http_transaction|config_id' "$1" 2>/dev/null
 }
 
-# Delete a deployed workflow by NAME via the Workflows delete API.
-#
-# Fusion exposes a workflow-delete API (FalconPy delete_definitions);
-# scripts/cleanup_workflows.py resolves the name to its definition ID and deletes it.
+# Delete a deployed workflow by definition ID via the Workflows delete API.
+# Deleting by ID (not name) guarantees only this run's definition is removed,
+# never another definition that happens to share its name.
 # Returns 0 on success; output is the script's report/error.
 delete_workflow() {
-  local wf_name="$1"
-  "$PYTHON" "$CLEANUP_PY" --names "$wf_name" 2>&1
+  "$PYTHON" "$DELETE_PY" --id "$1" --yes 2>&1
+}
+
+# Return 0 if this run imported the given definition ID. Cleanup only deletes
+# these; a pre-existing definition the run reused is left in place.
+CREATED_IDS=" "
+created_by_run() {
+  [ -n "$1" ] && case "$CREATED_IDS" in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# Return 0 if an execution-results status (any case) means success. The API
+# reports "Completed" for a normal successful run; "Succeeded" is accepted too,
+# matching SUCCESS_STATUSES in get_execution_results.py.
+is_success_status() {
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    completed|succeeded) return 0 ;;
+  esac
+  return 1
 }
 
 # JSON accumulator for per-workflow results.
@@ -305,6 +325,7 @@ for wf_file in "${YAML_FILES[@]}"; do
     # so skip them inside the importer to keep each scorecard column distinct.
     elif DEPLOY_OUT="$("$PYTHON" "$IMPORT_PY" --skip-validate --skip-duplicate-check "$wf_file" 2>&1)"; then
       DEF_ID="$(printf '%s\n' "$DEPLOY_OUT" | grep -oE 'ID: [0-9a-f]{32}' | head -1 | sed 's/ID: //')"
+      [ -n "$DEF_ID" ] && CREATED_IDS="$CREATED_IDS$DEF_ID "
       D_STATUS="PASS"
       say "  deploy:    ${GREEN}PASS${RESET} (ID: ${DEF_ID:-unknown})"
     else
@@ -342,6 +363,14 @@ for wf_file in "${YAML_FILES[@]}"; do
     E_STATUS="PENDING"
     DEFERRED_EXEC+=("${RUN}|${WF_NAME}|${DEF_ID}")
     say "  execute:   ${YELLOW}DEFERRED${RESET} (needs a credential — will execute after Phase 2)"
+  elif created_by_run "$DEF_ID" && ! RELEASE_OUT="$("$PYTHON" "$RELEASE_PY" --id "$DEF_ID" 2>&1)"; then
+    # An imported definition is disabled, and the execute API refuses to run a
+    # disabled definition, so release (enable) what this run imported. A reused
+    # pre-existing definition keeps whatever state its owner gave it.
+    E_STATUS="FAIL"
+    FIRST_ERR="$(printf '%s\n' "$RELEASE_OUT" | grep -m1 -iE 'FAILED|error' | sed 's/^[[:space:]]*//')"
+    NOTES="${NOTES:+$NOTES; }release: ${FIRST_ERR:-release failed}"
+    say "  execute:   ${RED}FAIL${RESET} (release failed)"
   else
     EXEC_START="$(date +%s)"
     # Pass empty params so the trigger never drops into interactive mode.
@@ -370,9 +399,9 @@ for wf_file in "${YAML_FILES[@]}"; do
   else
     if RESULT_OUT="$("$PYTHON" "$RESULTS_PY" --execution-id "$EXEC_ID" --json 2>&1)"; then
       STATUS_VAL="$(printf '%s' "$RESULT_OUT" | jq -r '.status // empty' 2>/dev/null | tr '[:upper:]' '[:lower:]')"
-      if [ "$STATUS_VAL" = "succeeded" ]; then
+      if is_success_status "$STATUS_VAL"; then
         R_STATUS="PASS"
-        say "  results:   ${GREEN}PASS${RESET} (succeeded)"
+        say "  results:   ${GREEN}PASS${RESET} ($STATUS_VAL)"
       else
         R_STATUS="FAIL"
         NOTES="${NOTES:+$NOTES; }results: status=${STATUS_VAL:-unknown}"
@@ -397,6 +426,10 @@ for wf_file in "${YAML_FILES[@]}"; do
   elif [ -z "$DEF_ID" ]; then
     C_STATUS="N/A"
     say "  cleanup:   ${YELLOW}N/A${RESET} (nothing deployed)"
+  elif ! created_by_run "$DEF_ID"; then
+    C_STATUS="SKIP"
+    NOTES="${NOTES:+$NOTES; }cleanup: left pre-existing definition in place"
+    say "  cleanup:   ${YELLOW}SKIP${RESET} (definition existed before this run; left in place)"
   elif [ "$E_STATUS" = "PENDING" ]; then
     # Credential-gated On-demand workflow: its API execute is deferred until
     # after Phase 2 configures the credential. Deleting it now — before that
@@ -406,8 +439,7 @@ for wf_file in "${YAML_FILES[@]}"; do
     C_STATUS="PENDING"
     say "  cleanup:   ${YELLOW}DEFERRED${RESET} (will delete after Phase 2 execute)"
   else
-    # Delete by NAME via the Workflows delete API (delete_definitions).
-    if DEL_OUT="$(delete_workflow "$WF_NAME" 2>&1)"; then
+    if DEL_OUT="$(delete_workflow "$DEF_ID" 2>&1)"; then
       C_STATUS="PASS"
       say "  cleanup:   ${GREEN}PASS${RESET} (deleted '$WF_NAME' via API)"
     else
@@ -648,13 +680,14 @@ if [ "${#DEFERRED_EXEC[@]}" -gt 0 ]; then
     say "${YELLOW}  ${#DEFERRED_EXEC[@]} credential-gated workflow(s) not executed (browser phase did not run to configure the credential).${RESET}"
     for entry in "${DEFERRED_EXEC[@]}"; do
       D_NAME="${entry#*|}"; D_NAME="${D_NAME%|*}"
+      D_ID="${entry##*|}"
       WORKFLOWS_JSON="$(printf '%s' "$WORKFLOWS_JSON" | jq --arg w "$D_NAME" \
         'map(if .workflow_name == $w then . + {execute: "SKIP", results: "SKIP"} else . end)')"
       # Step 5 deferred this workflow's cleanup so the (now-skipped) execute
       # could have found it. The browser phase did not run, so nothing executed,
       # but --cleanup still means delete it — otherwise it leaks.
-      if [ "$DO_CLEANUP" = "1" ]; then
-        if DEL_OUT="$(delete_workflow "$D_NAME" 2>&1)"; then
+      if [ "$DO_CLEANUP" = "1" ] && created_by_run "$D_ID"; then
+        if DEL_OUT="$(delete_workflow "$D_ID" 2>&1)"; then
           say "  cleanup:   ${GREEN}PASS${RESET} (deleted '$D_NAME' via API)"
           WORKFLOWS_JSON="$(printf '%s' "$WORKFLOWS_JSON" | jq --arg w "$D_NAME" \
             'map(if .workflow_name == $w then . + {cleanup: "PASS"} else . end)')"
@@ -685,7 +718,7 @@ if [ "${#DEFERRED_EXEC[@]}" -gt 0 ]; then
         D_EXEC="PASS"
         if [ -n "$EXEC_ID" ] && RESULT_OUT="$("$PYTHON" "$RESULTS_PY" --execution-id "$EXEC_ID" --json 2>&1)"; then
           STATUS_VAL="$(printf '%s' "$RESULT_OUT" | jq -r '.status // empty' 2>/dev/null | tr '[:upper:]' '[:lower:]')"
-          if [ "$STATUS_VAL" = "succeeded" ]; then
+          if is_success_status "$STATUS_VAL"; then
             D_RESULTS="PASS"
             say "  execute:   ${GREEN}PASS${RESET} ($D_NAME — succeeded via API after credential config)"
           else
@@ -710,9 +743,9 @@ if [ "${#DEFERRED_EXEC[@]}" -gt 0 ]; then
       # Deferred cleanup: Step 5 left this workflow deployed (C_STATUS=PENDING)
       # so the execute above could find its definition. Now that the run is done,
       # honor --cleanup by deleting it via the delete API.
-      if [ "$DO_CLEANUP" = "1" ]; then
+      if [ "$DO_CLEANUP" = "1" ] && created_by_run "$D_ID"; then
         DC_ERR=""
-        if DEL_OUT="$(delete_workflow "$D_NAME" 2>&1)"; then
+        if DEL_OUT="$(delete_workflow "$D_ID" 2>&1)"; then
           DC_STATUS="PASS"
           say "  cleanup:   ${GREEN}PASS${RESET} (deleted '$D_NAME' via API)"
         else
@@ -754,6 +787,7 @@ printf '%s\n' "$REPORT" > "$REPORT_FILE"
 # ── JSON-only mode: emit report to stdout and stop ──
 if [ "$JSON_ONLY" = "1" ]; then
   printf '%s\n' "$REPORT"
+  [ "$PASSED" -lt "$TOTAL" ] && exit 1
   exit 0
 fi
 

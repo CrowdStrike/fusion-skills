@@ -17,9 +17,10 @@ Usage:
 
 import argparse
 import glob
-import re
 import sys
 import os
+
+import yaml
 
 # Add the shared common/scripts directory (two levels up) to sys.path so the
 # auth module resolves no matter where this script is launched from.
@@ -89,13 +90,19 @@ def expand_inputs(paths):
 
 
 def extract_name_from_yaml(file_path):
-    """Extract the workflow name from a YAML file."""
-    with open(file_path, encoding="utf-8") as f:
-        for line in f:
-            match = re.match(r"^name:\s*['\"]?(.+?)['\"]?\s*$", line)
-            if match:
-                return match.group(1)
-    return None
+    """Extract the top-level workflow name from a YAML file.
+
+    Parses the YAML rather than matching lines, so quoting and trailing
+    comments (``name: "X" # note``) can't produce a name that dodges the
+    duplicate check. Returns None if the file has no string ``name``.
+    """
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError:
+        return None
+    name = data.get("name") if isinstance(data, dict) else None
+    return name if isinstance(name, str) else None
 
 
 def check_duplicate(name, existing_names):
@@ -122,10 +129,13 @@ def delete_definition_by_id(wf_id):
     """
     try:
         resp = get_client().delete_definitions(ids=[wf_id])
+        status = resp.get("status_code")
         body = resp["body"]
         errors = body.get("errors", [])
         if errors:
             return False, "; ".join(e.get("message", str(e)) for e in errors)
+        if status and status >= 400:
+            return False, f"API returned status {status}"
         return True, "OK"
     except (ConnectionError, RuntimeError, OSError) as exc:
         return False, str(exc)
@@ -169,6 +179,15 @@ def _import_single_file(fp, existing_names, skip_validate, replace=False):
     basename = os.path.basename(fp)
     print(f"\n  {basename}")
 
+    # Validate before the duplicate check so --replace never deletes the
+    # existing definition in favor of a replacement that can't be imported.
+    if not skip_validate and validate_file is not None:
+        passed, messages = validate_file(fp)
+        for m in messages:
+            print(f"    {m}")
+        if not passed:
+            return basename, "VALIDATION FAILED", None
+
     if existing_names:
         wf_name = extract_name_from_yaml(fp)
         if wf_name:
@@ -190,13 +209,6 @@ def _import_single_file(fp, existing_names, skip_validate, replace=False):
                           "rename the workflow to dodge this check: a renamed copy "
                           "orphans the existing definition and sprawls the CID.")
                     return basename, "DUPLICATE", None
-
-    if not skip_validate and validate_file is not None:
-        passed, messages = validate_file(fp)
-        for m in messages:
-            print(f"    {m}")
-        if not passed:
-            return basename, "VALIDATION FAILED", None
 
     ok, msg, wf_id = import_file(fp)
     if ok:
@@ -280,8 +292,11 @@ def main():
             existing_names = {d.get("name", "").lower(): d for d in all_defs}
             print(f"    Found {len(all_defs)} existing workflow(s)")
         except (ConnectionError, RuntimeError, OSError) as exc:
-            print(f"    WARNING: Could not fetch existing workflows: {exc}", file=sys.stderr)
-            print("    Skipping duplicate check — use --skip-duplicate-check to suppress")
+            # Fail closed: importing blind can create a duplicate definition.
+            print(f"    ERROR: Could not fetch existing workflows: {exc}", file=sys.stderr)
+            print("    Nothing was imported. Fix the connection and re-run, or pass "
+                  "--skip-duplicate-check to import without the check.", file=sys.stderr)
+            sys.exit(1)
 
     results = [_import_single_file(fp, existing_names, args.skip_validate, args.replace) for fp in files]
     _print_summary(results)

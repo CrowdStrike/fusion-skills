@@ -34,7 +34,7 @@ from auth import get_client  # pylint: disable=wrong-import-position
 
 # fetch_results and TERMINAL_STATUSES live alongside this script.
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from get_execution_results import fetch_results, TERMINAL_STATUSES  # pylint: disable=wrong-import-position
+from get_execution_results import fetch_results, TERMINAL_STATUSES, SUCCESS_STATUSES  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -102,7 +102,7 @@ def heuristic_value(field_name, field_schema):
         ("ip", "185.220.101.1"),   # a Tor exit node — returns a real VirusTotal verdict
         ("domain", "example.com"),
         ("url", "https://example.com"),
-        ("sha256", "44d88612fea8a8f36de82e1278abb02f"),  # EICAR test-file MD5
+        ("sha256", "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"),  # EICAR test-file SHA-256
         ("hash", "44d88612fea8a8f36de82e1278abb02f"),
     ]
     for needle, value in guesses:
@@ -226,6 +226,20 @@ def poll_results(execution_id, timeout=120, interval=5):
     return None
 
 
+def report_result(result, as_json):
+    """Print a terminal execution result; exit 1 unless the run succeeded."""
+    status = result.get("status", "?")
+    if as_json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"\n  Execution {status}")
+        output = result.get("output", {})
+        if output:
+            print(f"  Output:\n{json.dumps(output, indent=4)}")
+    if str(status).lower() not in SUCCESS_STATUSES:
+        sys.exit(1)
+
+
 def main():
     """CLI entry point for workflow execution."""
     parser = argparse.ArgumentParser(description="Trigger a Fusion workflow")
@@ -272,6 +286,9 @@ def main():
     if not ok:
         print(f"\n  Execution FAILED: {resp}")
         sys.exit(1)
+    if not exec_id:
+        print("\n  Execution FAILED: the API accepted the request but returned no execution ID.")
+        sys.exit(1)
 
     print(f"  Execution ID: {exec_id}")
 
@@ -280,17 +297,10 @@ def main():
         return
 
     # Poll for results
-    if args.wait and exec_id:
+    if args.wait:
         result = poll_results(exec_id, timeout=args.timeout)
         if result:
-            if args.json:
-                print(json.dumps(result, indent=2))
-            else:
-                status = result.get("status", "?")
-                print(f"\n  Execution {status}")
-                output = result.get("output", {})
-                if output:
-                    print(f"  Output:\n{json.dumps(output, indent=4)}")
+            report_result(result, args.json)
         else:
             print("  No results returned within timeout.")
             sys.exit(1)

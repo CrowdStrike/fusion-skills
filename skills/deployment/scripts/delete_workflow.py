@@ -83,11 +83,14 @@ def delete_definitions(ids):
     try:
         client = get_client()
         resp = client.delete_definitions(ids=ids)
+        status = resp.get("status_code")
         body = resp["body"]
         errors = body.get("errors", [])
         if errors:
             msg = "; ".join(e.get("message", str(e)) for e in errors)
             return False, msg, body.get("resources", [])
+        if status and status >= 400:
+            return False, f"API returned status {status}", body.get("resources", [])
         return True, "OK", body.get("resources", [])
     except (ConnectionError, RuntimeError, OSError) as exc:
         return False, str(exc), None
