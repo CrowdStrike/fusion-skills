@@ -208,14 +208,15 @@ EOF
 
 # Both selectors take a comma-separated list and are repeatable, so
 # `--include codex,cursor` and `--include codex --include cursor` are the same thing.
+# No `local -n` nameref: that is bash 4.3+, and macOS still ships bash 3.2. The eval
+# only ever sees the literal ONLY/SKIP names below, and "$v" stays quoted inside it.
 add_selectors() {   # array_name csv
-  local -n arr="$1"
   local IFS=','
   read -r -a _parts <<< "$2"
   local v
   for v in ${_parts[@]+"${_parts[@]}"}; do
     v="${v#"${v%%[![:space:]]*}"}"; v="${v%"${v##*[![:space:]]}"}"
-    [ -n "$v" ] && arr+=("$v")
+    [ -n "$v" ] && eval "$1+=(\"\$v\")"
   done
 }
 
@@ -529,18 +530,25 @@ ASSISTANTS=(
   "Antigravity CLI|agy|~/.gemini/config/plugins|-p %%PROMPT%% --dangerously-skip-permissions --output-format stream-json"
 )
 
+# Lowercase via tr rather than bash case modification, which is bash 4+ (macOS
+# still ships bash 3.2).
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 want() {
-  local n="$1" b="$2" o
+  local n b o
+  n="$(lower "$1")"; b="$(lower "$2")"
   # Match either the display name or the binary. Names are what the table shows;
   # binaries are what the log files are named after, so `--only agent` has to
   # select Cursor or someone reading agent.log gets a silent empty run. (`--only
   # cursor` also works — it matches the display name.)
   for o in ${SKIP[@]+"${SKIP[@]}"}; do
-    [[ "${n,,}" == *"${o,,}"* || "${b,,}" == *"${o,,}"* ]] && return 1
+    o="$(lower "$o")"
+    [[ "$n" == *"$o"* || "$b" == *"$o"* ]] && return 1
   done
   [ ${#ONLY[@]} -eq 0 ] && return 0
   for o in "${ONLY[@]}"; do
-    [[ "${n,,}" == *"${o,,}"* || "${b,,}" == *"${o,,}"* ]] && return 0
+    o="$(lower "$o")"
+    [[ "$n" == *"$o"* || "$b" == *"$o"* ]] && return 0
   done
   return 1
 }
@@ -590,7 +598,8 @@ unwrap_log() {
 
 # Treat an empty, absent, or explicitly-nothing field as nothing.
 is_none() {
-  local v="${1^^}"
+  local v
+  v="$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
   [ -z "$v" ] || [[ "$v" =~ ^(NONE|N/A|NA|NOTHING|-)[.]?$ ]]
 }
 

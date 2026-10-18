@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`base_url` is described as optional on US-1, US-2, and EU-1.** FalconPy discovers those regions from the token response, so the README, setup, deployment, and execution guidance no longer tell US-2 and EU-1 users to set `FALCON_BASE_URL` or a profile's `base_url`. It's still needed for any other cloud, such as US-3 and GovCloud, and a short name such as `usgov1` works.
 - **The setup guidance points to Client Management.** The console renamed **API clients and keys** to **Client Management**, so the credentials file template now says *Support and resources → Client Management → Create API client*.
 - **Python 3.15 is accepted.** The managed-venv setup capped the supported range at 3.14, so a machine whose only Python was 3.15 failed with "No compatible Python found (fusion-skills requires 3.13+)" and every skill script failed to bootstrap. The range is now 3.13 through 3.15, and `python3.15` is searched for alongside `python3.14` and `python3.13`.
+- **`test-assistants.sh` runs under macOS's stock bash 3.2.** It used bash 4+ case modification (`${x^^}`, `${x,,}`) and a bash 4.3 `local -n` nameref, so on a Mac every report check failed with "bad substitution" (13 of the `test-verdict-parser.sh` checks) and `--include`/`--exclude` failed with "local: -n: invalid option". Case folding now goes through `tr`, as the hooks already do, and the selectors append without a nameref.
 
 ## [1.3.0] - 2026-10-01
 
