@@ -53,6 +53,19 @@ SKILLS: skills/authoring/SKILL.md
 COMMANDS: action_search.py => OK, validate.py => OK
 BLOCKER: NONE"
 
+# report_one reads classify through `IFS='|' read <<< "$(classify ...)"`. Bash 3.2
+# leaks that IFS into the command substitution, which once turned BLOCKER: NONE into
+# a blocker there while a direct classify call still passed. Go through the same shape.
+ifs_log="$WORK/ifs.$$"
+printf '%s\n' "FUSION-REPORT
+STATUS: WORKING
+SKILLS: skills/authoring/SKILL.md
+COMMANDS: action_search.py => OK
+BLOCKER: NONE" > "$ifs_log"
+IFS='|' read -r ifs_status ifs_category _ <<< "$(classify "$ifs_log" 0)"
+check "clean run passes through report_one's IFS='|' read" \
+  "$([ "$ifs_status|$ifs_category" = "PASS|ok" ] && echo 0 || echo 1)"
+
 expect_verdict "missing falconpy is deps, not a pass" 0 "FAIL|deps" \
 "Traceback (most recent call last):
 ModuleNotFoundError: No module named 'falconpy'

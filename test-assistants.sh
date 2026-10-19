@@ -81,12 +81,16 @@
 # once before launching, so a credential problem surfaces as a clear message here
 # instead of as five identical auth failures in the logs.
 #
-# Needs bash 4.3+ for case conversion and namerefs. macOS ships 3.2, so this runs
-# under the Homebrew bash the shebang finds on PATH, not /bin/bash.
+# Runs under bash 3.2 (macOS's /bin/bash) as well as bash 4+ and 5, so it avoids
+# case modification (${x,,}) and namerefs (local -n).
 #
 # Exit status is non-zero if any tested assistant failed.
 
 set -uo pipefail
+
+# Shortens $HOME to ~ in paths shown to the user. It goes through a variable
+# because bash 3.2 keeps the backslash in ${x/#$HOME/\~}.
+TILDE='~'
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_AT=""  # default set below: near the end of the run, which differs by mode
@@ -211,7 +215,7 @@ EOF
 # No `local -n` nameref: that is bash 4.3+, and macOS still ships bash 3.2. The eval
 # only ever sees the literal ONLY/SKIP names below, and "$v" stays quoted inside it.
 add_selectors() {   # array_name csv
-  local IFS=','
+  local IFS=',' _parts
   read -r -a _parts <<< "$2"
   local v
   for v in ${_parts[@]+"${_parts[@]}"}; do
@@ -530,25 +534,28 @@ ASSISTANTS=(
   "Antigravity CLI|agy|~/.gemini/config/plugins|-p %%PROMPT%% --dangerously-skip-permissions --output-format stream-json"
 )
 
-# Lowercase via tr rather than bash case modification, which is bash 4+ (macOS
-# still ships bash 3.2).
-lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+# Case-insensitive substring match. nocasematch is bash 3.1+, so this works on
+# macOS's bash 3.2 without forking tr or tripping over non-UTF-8 bytes.
+contains_ci() {   # haystack needle
+  local rc=1
+  shopt -s nocasematch
+  [[ "$1" == *"$2"* ]] && rc=0
+  shopt -u nocasematch
+  return $rc
+}
 
 want() {
-  local n b o
-  n="$(lower "$1")"; b="$(lower "$2")"
+  local n="$1" b="$2" o
   # Match either the display name or the binary. Names are what the table shows;
   # binaries are what the log files are named after, so `--only agent` has to
   # select Cursor or someone reading agent.log gets a silent empty run. (`--only
   # cursor` also works — it matches the display name.)
   for o in ${SKIP[@]+"${SKIP[@]}"}; do
-    o="$(lower "$o")"
-    [[ "$n" == *"$o"* || "$b" == *"$o"* ]] && return 1
+    { contains_ci "$n" "$o" || contains_ci "$b" "$o"; } && return 1
   done
   [ ${#ONLY[@]} -eq 0 ] && return 0
   for o in "${ONLY[@]}"; do
-    o="$(lower "$o")"
-    [[ "$n" == *"$o"* || "$b" == *"$o"* ]] && return 0
+    { contains_ci "$n" "$o" || contains_ci "$b" "$o"; } && return 0
   done
   return 1
 }
@@ -598,9 +605,13 @@ unwrap_log() {
 
 # Treat an empty, absent, or explicitly-nothing field as nothing.
 is_none() {
-  local v
-  v="$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
-  [ -z "$v" ] || [[ "$v" =~ ^(NONE|N/A|NA|NOTHING|-)[.]?$ ]]
+  # The regex lives in a variable: bash 3.2 misparses an inline one when the caller
+  # has IFS='|' (report_one does), so every NONE would read as a blocker.
+  local re='^(NONE|N/A|NA|NOTHING|-)[.]?$' rc=1
+  shopt -s nocasematch
+  { [ -z "$1" ] || [[ "$1" =~ $re ]]; } && rc=0
+  shopt -u nocasematch
+  return $rc
 }
 
 # Which known failure mode a self-reported blocker describes. Bare phrases are safe
@@ -793,10 +804,10 @@ RUN_START=$(date +%s)
 if [ "$JUDGE" -eq 1 ]; then
   :
 elif [ "$E2E" -eq 1 ]; then
-  info "END-TO-END: real import required · report at ${REPORT_AT}s · hard cap ${TIMEOUT}s · logs in ${LOG_DIR/#$HOME/\~}"
+  info "END-TO-END: real import required · report at ${REPORT_AT}s · hard cap ${TIMEOUT}s · logs in ${LOG_DIR/#$HOME/$TILDE}"
   info "a PASS means the assistant reported a definition id; confirm it with --judge"
 else
-  info "real workflow-creation prompt · self-report at ${REPORT_AT}s · hard cap ${TIMEOUT}s · logs in ${LOG_DIR/#$HOME/\~}"
+  info "real workflow-creation prompt · self-report at ${REPORT_AT}s · hard cap ${TIMEOUT}s · logs in ${LOG_DIR/#$HOME/$TILDE}"
 fi
 printf '\n'
 
@@ -868,7 +879,7 @@ report_one() {   # name bin source rc elapsed
                "$BOLD" "$name" "$RESET" "$RED$BOLD" "$RESET" "$RED" "$detail" "$RESET" "$DIM" "$elapsed" "$RESET"
              FAILURES=$((FAILURES+1)) ;;
   esac
-  info "source: $source · log: ${log/#$HOME/\~}"
+  info "source: $source · log: ${log/#$HOME/$TILDE}"
   # What it said it loaded and ran — the two things worth reading without opening the
   # log, and the pair that shows a pass came from the working tree.
   [ -n "$rskills" ] && info "skills: $rskills"
@@ -1045,7 +1056,7 @@ judge_one() {   # name bin claimed_workflow claimed_definition
   # Strip surrounding quotes so a quoted `name: '...'` still matches the tenant's
   # plain name (the tenant stores the unquoted value).
   app_name="${app_name#[\"\']}"; app_name="${app_name%[\"\']}"
-  [ -n "$FOUND_OUTSIDE" ] && notes="authored outside its working directory: ${wf/#$HOME/\~}"
+  [ -n "$FOUND_OUTSIDE" ] && notes="authored outside its working directory: ${wf/#$HOME/$TILDE}"
 
   # Pipeline-stage markers, read from the authored YAML.
   grep -qiE 'Inline\.QueryEvent|event.?query'                    "$wf" && marks+="eventquery " || marks+="---------- "
@@ -1188,7 +1199,7 @@ if [ -n "$SAVE_FILE" ]; then
       "$([ "$E2E" -eq 1 ] && echo e2e || echo smoke)" \
       "$REPORT_AT" "$TIMEOUT" "$ISOLATE"
     first=1
-    for r in "${RESULTS[@]}"; do
+    for r in ${RESULTS[@]+"${RESULTS[@]}"}; do
       IFS='|' read -r n st cat d e src sk wf def <<< "$r"
       [ $first -eq 0 ] && printf ',\n'; first=0
       printf '    {"assistant": "%s", "status": "%s", "category": "%s", "detail": "%s", "seconds": %s, "source": "%s", "skills": "%s", "workflow": "%s", "definition_id": "%s"}' \

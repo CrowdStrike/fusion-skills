@@ -51,6 +51,16 @@ jobs:
           ./test-verdict-parser.sh
           ./test-bootstrap-symlink.sh
 
+  test-bash32:
+    # macOS's /bin/bash is 3.2, which the Ubuntu runners' bash 5 never exercises.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Run verdict parser tests under /bin/bash
+        run: |
+          /bin/bash --version | head -1
+          /bin/bash ./test-verdict-parser.sh
+
   pytest:
     runs-on: ubuntu-latest
     steps:
