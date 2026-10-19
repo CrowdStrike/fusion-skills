@@ -21,7 +21,7 @@ metadata:
 
 > Your role here is **Fusion workflow deployment specialist**.
 >
-> You deploy workflow definitions into a CID safely: validate before importing, never create duplicates, and release only after testing.
+> You deploy workflow definitions into a CID safely: validate before importing, never create duplicates, and release only with the user's go-ahead.
 >
 > **Required steps:**
 > 1. Check for an existing workflow with the same name before importing.
@@ -36,9 +36,10 @@ metadata:
 > - Skip the duplicate-name check.
 > - Import or release to a CID without explicit user authorization — a validated
 >   YAML file is the deliverable unless the user asked you to deploy it.
-> - Release (enable) a workflow before it has been tested via the execution skill.
->   Release makes the workflow act on live events and real assets, so confirm
->   with the user before releasing unless they explicitly asked you to.
+> - Release (enable) a workflow without the user's go-ahead. A workflow must be
+>   released before it can be executed at all, including a test run, and release
+>   makes it act on live events and real assets, so confirm with the user before
+>   releasing unless they explicitly asked you to.
 > - Create experimental, "test", "minimal", or probe workflows in the CID to
 >   reverse-engineer what the API accepts (this includes creatively-named ones
 >   like "QueryEvent Test" or "HTTP Test"). Import the one workflow you were
@@ -65,7 +66,7 @@ metadata:
 
 This skill moves a finished Fusion workflow definition from a local YAML/JSON file into a CrowdStrike CID. Authoring the YAML happens in the **authoring** skill; triggering and monitoring happens in the **execution** skill. Deployment is the bridge: validate, check for duplicates, import, then release.
 
-In Falcon Fusion, an imported definition is **disabled** until it is **released** (enabled). Releasing tells the Fusion engine to run the workflow against new trigger events. Keep the workflow disabled until you have tested it.
+In Falcon Fusion, an imported definition is **disabled** until it is **released** (enabled). Releasing tells the Fusion engine to run the workflow against new trigger events. A disabled definition can't be executed, not even on demand: the execute API rejects it with `workflow definition ... is disabled`. To test a workflow, release it first, ideally in a test CID.
 
 > **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py` (a sibling skill's script is `../<skill>/scripts/<name>.py`). For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/deployment"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/deployment`). The wrapper bootstraps its own Python venv.
 
@@ -164,7 +165,7 @@ imports will resolve.
 
 ### 4. Release (enable) the workflow
 
-Releasing enables the definition so the Fusion engine runs it against trigger events. Do this only after testing (see the execution skill):
+Releasing enables the definition so the Fusion engine runs it against trigger events. It's also required before the execution skill can trigger the workflow, so release before testing, with the user's go-ahead:
 
 ```bash
 ../../scripts/python.sh scripts/release_workflow.py --id <definition_id>
@@ -280,7 +281,7 @@ one: to change a workflow, fix the source YAML and re-import (see pitfall 5).
 
 2. **Importing without validating.** Skipping validation (`--skip-validate`) pushes broken YAML to the API. Never use `--skip-validate` to get past a validation failure — an invalid workflow (for example a bad `trigger.type`) then fails at the API, often as an opaque **500 Internal Server Error** that looks like a server problem but is really a broken definition the local validator would have caught. Fix the workflow and let validation run. `--skip-validate` is only for when you have already validated the same file separately in the same session.
 
-3. **Releasing before testing.** A freshly imported definition is disabled for a reason. Test it with the execution skill (`trigger_workflow.py`) before calling `release_workflow.py`. Releasing an untested workflow can run unintended actions against production data.
+3. **Releasing without confirming.** A disabled definition can't be executed, so testing with the execution skill (`trigger_workflow.py`) requires a release first. Release also lets Signal and Scheduled workflows fire on live events and real assets, so get the user's go-ahead before calling `release_workflow.py`, and prefer a test CID for trial runs.
 
 4. **Losing the definition ID.** The import output contains the ID you need for release and execution. Capture it; re-finding it later means a `query_workflows.py --search` round-trip.
 

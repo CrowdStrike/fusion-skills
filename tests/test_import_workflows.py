@@ -57,6 +57,28 @@ class TestExtractNameFromYaml:
         f.write_text("# Header\ntrigger:\n  type: On demand\n")
         assert import_workflows.extract_name_from_yaml(str(f)) is None
 
+    def test_ignores_trailing_comment(self, tmp_path):
+        """A trailing comment must not leak into the name and dodge the dup check."""
+        f = tmp_path / "wf.yaml"
+        f.write_text('name: "Existing" # owner note\n')
+        assert import_workflows.extract_name_from_yaml(str(f)) == "Existing"
+
+    def test_ignores_nested_name_keys(self, tmp_path):
+        """Only the top-level name counts, not a trigger's or action's name."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("trigger:\n  name: On demand\nname: Top Level\n")
+        assert import_workflows.extract_name_from_yaml(str(f)) == "Top Level"
+
+    def test_returns_none_for_invalid_yaml(self, tmp_path):
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: [unclosed\n")
+        assert import_workflows.extract_name_from_yaml(str(f)) is None
+
+    def test_returns_none_for_non_mapping(self, tmp_path):
+        f = tmp_path / "wf.yaml"
+        f.write_text("- just\n- a list\n")
+        assert import_workflows.extract_name_from_yaml(str(f)) is None
+
 
 class TestCheckDuplicate:
     """Test duplicate name checking."""
@@ -254,6 +276,40 @@ class TestImportSingleFile:
         assert wf_id is None
         mock_client.import_definition.assert_not_called()
 
+    def test_replace_validates_before_deleting(self, tmp_path, monkeypatch):
+        """A replacement that fails validation must leave the existing definition alone."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+        existing = {"my workflow": {"id": "old_id", "name": "My Workflow"}}
+        monkeypatch.setattr(
+            import_workflows, "validate_file",
+            lambda _fp: (False, ["structural error: missing trigger"])
+        )
+        mock_client = MagicMock()
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        basename, status, wf_id = import_workflows._import_single_file(
+            str(f), existing, skip_validate=False, replace=True
+        )
+        assert status == "VALIDATION FAILED"
+        mock_client.delete_definitions.assert_not_called()
+        mock_client.import_definition.assert_not_called()
+
+    def test_replace_aborts_if_delete_returns_error_status(self, tmp_path, monkeypatch):
+        """A 403 with an empty errors array is still a failed delete."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+        existing = {"my workflow": {"id": "old_id", "name": "My Workflow"}}
+        mock_client = MagicMock()
+        mock_client.delete_definitions.return_value = {
+            "status_code": 403, "body": {"resources": [], "errors": []}
+        }
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        basename, status, wf_id = import_workflows._import_single_file(
+            str(f), existing, skip_validate=True, replace=True
+        )
+        assert status == "REPLACE FAILED"
+        mock_client.import_definition.assert_not_called()
+
     def test_no_replace_still_skips_duplicate(self, tmp_path, monkeypatch):
         """Without --replace, an existing name is skipped as before (no delete)."""
         f = tmp_path / "wf.yaml"
@@ -330,3 +386,24 @@ class TestMain:
         with pytest.raises(SystemExit) as exc:
             import_workflows.main()
         assert exc.value.code == 1
+
+    def test_fetch_failure_fails_closed(self, tmp_path, monkeypatch, capsys):
+        """If the duplicate check can't list definitions, nothing is imported."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+
+        def boom():
+            raise ConnectionError("network down")
+
+        monkeypatch.setattr(import_workflows, "fetch_all_definitions", boom)
+        monkeypatch.setattr(
+            import_workflows, "get_client",
+            lambda: (_ for _ in ()).throw(AssertionError("import must not run"))
+        )
+        monkeypatch.setattr("sys.argv", ["import_workflows.py", str(f)])
+        with pytest.raises(SystemExit) as exc:
+            import_workflows.main()
+        assert exc.value.code == 1
+        err = capsys.readouterr().err
+        assert "network down" in err
+        assert "--skip-duplicate-check" in err
