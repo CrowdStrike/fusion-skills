@@ -202,12 +202,16 @@ def _field_is_array(field):
     entirely, so for trigger fields there is no API signal and we fall back to a
     name heuristic: a leaf whose name is plural (ends in a plain ``s``, not the
     scalar-looking ``ss``/``us``/``is`` endings such as Status/Address/Analysis)
-    is treated as a list. ``certain`` is False for the heuristic, so callers can
-    label it as inferred. Threading ``multiple`` through means the annotation
-    becomes exact automatically if the trigger endpoint ever exposes the flag.
+    is treated as a list. A ``bool`` field is never inferred as a list, so
+    ``HasNewlyDetectedCredentials`` stays a scalar. ``certain`` is False for the
+    heuristic, so callers can label it as inferred. Threading ``multiple``
+    through means the annotation becomes exact automatically if the trigger
+    endpoint ever exposes the flag.
     """
     if "multiple" in field:
         return bool(field["multiple"]), True
+    if field.get("type") == "bool":
+        return False, False
     name = field.get("name", "")
     leaf = name.rsplit(".", 1)[-1]
     if len(leaf) > 1 and leaf.endswith("s") and not leaf.endswith(_SCALAR_PLURAL_SUFFIXES):
@@ -268,12 +272,25 @@ def search_trigger_fields(category):
 
 # Fields the trigger API advertises but the release validator rejects as an
 # unknown variable (confirmed live). Keyed by category. validate.py carries the
-# matching guard (NGSIEM_REJECTED_MITRE_FIELDS) that flags a workflow using them.
+# matching guards (NGSIEM_REJECTED_MITRE_FIELDS, RECON_REJECTED_EDR_FIELDS) that
+# flag a workflow using them.
 RELEASE_REJECTED_FIELDS = {
     "Investigatable/NGSIEM": frozenset({
         "Trigger.Detection.MitreAttack.Tactic",
         "Trigger.Detection.MitreAttack.Technique",
     }),
+    "ReconNotification": frozenset({
+        "Trigger.ReconNotification.EDRs.Email",
+        "Trigger.ReconNotification.EDRs.HostName",
+    }),
+}
+
+# Where to get a rejected field's data instead, per category.
+RELEASE_REJECTED_HINTS = {
+    "Investigatable/NGSIEM": "Hydrate this from the detection instead.",
+    "ReconNotification": (
+        "Use the Get exposed data records from a Recon notification action instead."
+    ),
 }
 
 
@@ -298,6 +315,7 @@ def _print_fields(category, as_json):
         "  the trigger API omits an explicit array flag.\n"
     )
     rejected = RELEASE_REJECTED_FIELDS.get(category, frozenset())
+    hint = RELEASE_REJECTED_HINTS.get(category, "")
     for field in fields:
         print(f"  ${{data['{field['path']}']}}")
         array_note = {
@@ -311,7 +329,7 @@ def _print_fields(category, as_json):
         if field["path"] in rejected:
             print(
                 "      NOT release-valid: advertised here but release rejects it "
-                "as an unknown variable. Hydrate this from the detection instead."
+                f"as an unknown variable. {hint}".rstrip()
             )
     print()
 

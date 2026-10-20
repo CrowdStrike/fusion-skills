@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- **Recon notification trigger documented.** The trigger-types reference now covers `event: ReconNotification`, which needs `version_constraint: ~1` because with `~0` release rejects every `Trigger.ReconNotification.*` field. The trigger's exposed data records (`EDRs`) are a partial view of the notification, sometimes missing entirely, and `EDRs.Email` and `EDRs.HostName` fail release, so `trigger_search.py --fields ReconNotification` now marks those two as not release-valid, `validate.py` flags a workflow that uses them, and the reference points to the paginated **Get exposed data records from a Recon notification** action for the full set, with its ID, input, outputs, record fields, and when to stop paging. It also warns that records can include a plaintext `password`.
+
 ### Fixed
 
 - **`import_workflows.py --replace` validates before it deletes.** It used to delete the existing same-name definition first, so a replacement that failed validation left the CID with neither version. Validation now runs before the duplicate check, and an invalid replacement leaves the existing definition untouched.
@@ -15,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **The deployment skill says to release before testing.** It told agents to keep a workflow disabled and test it with `trigger_workflow.py` first, but the execute API rejects a disabled definition (`workflow definition ... is disabled, re-enable to allow running on-demand`). The guidance now says a test run needs a release first, with the user's go-ahead and ideally in a test CID.
 - **`--autofill` sends a real SHA-256 for `sha256` inputs.** It sent the 32-character EICAR MD5, which fails a workflow that validates SHA-256 input. It now sends EICAR's 64-character SHA-256.
 - **The auth self-test no longer prints part of the client secret.** It showed the secret's last four characters and now reports only whether a secret is set.
+- **`trigger_search.py --fields` no longer marks `bool` fields as lists.** The trigger API has no list flag, so `--fields` guesses from plural names, and it labeled the Recon trigger's `HasNewlyDetectedCredentials` as `(list?)`. Fields the API types as `bool` are now shown as scalars.
 - **`base_url` is described as optional on US-1, US-2, and EU-1.** FalconPy discovers those regions from the token response, so the README, setup, deployment, and execution guidance no longer tell US-2 and EU-1 users to set `FALCON_BASE_URL` or a profile's `base_url`. It's still needed for any other cloud, such as US-3 and GovCloud, and a short name such as `usgov1` works.
 - **The setup guidance points to Client Management.** The console renamed **API clients and keys** to **Client Management**, so the credentials file template now says *Support and resources → Client Management → Create API client*.
 - **Python 3.15 is accepted.** The managed-venv setup capped the supported range at 3.14, so a machine whose only Python was 3.15 failed with "No compatible Python found (fusion-skills requires 3.13+)" and every skill script failed to bootstrap. The range is now 3.13 through 3.15, and `python3.15` is searched for alongside `python3.14` and `python3.13`.
