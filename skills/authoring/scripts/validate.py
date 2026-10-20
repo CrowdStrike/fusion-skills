@@ -124,6 +124,17 @@ NGSIEM_REJECTED_MITRE_FIELDS = (
     "Trigger.Detection.MitreAttack.Technique",
 )
 
+# Exposed data record fields that trigger discovery advertises on the Recon
+# notification trigger, yet release rejects as `unknown variable "..."`
+# (confirmed live). EDRs is a list of records, and it is partial or missing on
+# many notifications anyway; read records with the Get exposed data records
+# action instead.
+RECON_EVENT = "ReconNotification"
+RECON_REJECTED_EDR_FIELDS = (
+    "Trigger.ReconNotification.EDRs.Email",
+    "Trigger.ReconNotification.EDRs.HostName",
+)
+
 # The EPP-detection payload namespace. NG-SIEM detections (event:
 # Investigatable/NGSIEM) do NOT expose Trigger.Category.Investigatable.* — that
 # path resolves only on the base EPP trigger (event: Investigatable). Referencing
@@ -923,6 +934,29 @@ def _validate_ngsiem_trigger_fields(trigger, file_path, issues):
         )
 
 
+def _validate_recon_trigger_fields(trigger, file_path, issues):
+    """Flag exposed data record fields that release rejects on the Recon trigger.
+
+    ``trigger_search.py --fields ReconNotification`` lists ``EDRs.Email`` and
+    ``EDRs.HostName``, but release rejects both as "unknown variable" (confirmed
+    live). Only check when the workflow uses the Recon notification trigger.
+    """
+    if not isinstance(trigger, dict) or trigger.get("event") != RECON_EVENT:
+        return
+    with open(file_path, encoding="utf-8") as f:
+        content = f.read()
+    for field in RECON_REJECTED_EDR_FIELDS:
+        if field in content:
+            issues.append(
+                f"ERROR: '{field}' is advertised by trigger discovery but "
+                f"release rejects it as an unknown variable on the "
+                f"'{RECON_EVENT}' trigger. The trigger's exposed data records "
+                f"are also partial or missing on many notifications. Read them "
+                f"with the Get exposed data records from a Recon notification "
+                f"action instead. See references/trigger-types.md."
+            )
+
+
 def _validate_http_output_schema(data, file_path, issues):
     """Release requires _cs_inline_output_schema to reference HTTP response fields.
 
@@ -1324,6 +1358,7 @@ def structural_check(file_path):
     _validate_data_refs(file_path, issues)
     _validate_http_output_schema(data, file_path, issues)
     _validate_ngsiem_trigger_fields(trigger, file_path, issues)
+    _validate_recon_trigger_fields(trigger, file_path, issues)
     _validate_pinned_data_paths(data, file_path, issues)
     _validate_custom_variable_refs(data, file_path, issues)
     _validate_fake_variable_emails(data, issues)

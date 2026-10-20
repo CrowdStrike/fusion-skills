@@ -2780,6 +2780,56 @@ actions:
         issues = validate.structural_check(str(f))
         assert not any("MitreAttack" in i for i in issues)
 
+    def test_recon_edr_trigger_field_flagged(self, tmp_path):
+        """EDRs.Email/HostName are advertised by trigger discovery but release
+        rejects them on the Recon notification trigger (confirmed live)."""
+        f = tmp_path / "recon_edrs.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: Signal
+  event: ReconNotification
+  version_constraint: ~1
+  next:
+    - Log
+actions:
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        email: ${data['Trigger.ReconNotification.EDRs.Email']}
+        host: ${data['Trigger.ReconNotification.EDRs.HostName']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert any("EDRs.Email" in i and "ERROR" in i for i in issues)
+        assert any("EDRs.HostName" in i and "ERROR" in i for i in issues)
+        assert any("Get exposed data records" in i for i in issues)
+
+    def test_recon_edr_guard_scoped_to_recon_trigger(self, tmp_path):
+        """The guard only runs for workflows on the Recon notification trigger."""
+        f = tmp_path / "recon_edrs_on_demand.yaml"
+        content = """\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - Log
+actions:
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        email: ${data['Trigger.ReconNotification.EDRs.Email']}
+"""
+        f.write_text(content)
+        issues = validate.structural_check(str(f))
+        assert not any("Get exposed data records" in i for i in issues)
+
     def test_event_query_detection_id_literal_not_flagged(self, tmp_path):
         """A non-?arg reference to detection.id (no hydration join) is not flagged."""
         f = tmp_path / "eq_literal.yaml"

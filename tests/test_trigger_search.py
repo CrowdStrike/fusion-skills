@@ -325,6 +325,25 @@ class TestTriggerFields:
         out = capsys.readouterr().out
         assert "NOT release-valid" in out
 
+    def test_fields_flags_release_rejected_edrs_on_recon(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            trigger_search,
+            "search_trigger_fields",
+            lambda cat: [
+                {"path": "Trigger.ReconNotification.EDRs.Email",
+                 "type": "email", "display": ""},
+            ],
+        )
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_search.py", "--fields", "ReconNotification"],
+        )
+        trigger_search.main()
+        out = capsys.readouterr().out
+        assert "NOT release-valid" in out
+        assert "Get exposed data records" in out
+        assert "Hydrate" not in out
+
     def test_fields_no_reject_note_off_ngsiem(self, monkeypatch, capsys):
         # Same field path under a different category is not flagged.
         monkeypatch.setattr(
@@ -376,6 +395,10 @@ class TestTriggerFields:
             False,
             False,
         )
+        # A bool is never inferred as a list, even with a plural name.
+        assert trigger_search._field_is_array(
+            {"name": "Foo.HasNewlyDetectedCredentials", "type": "bool"}
+        ) == (False, False)
 
     def test_flatten_marks_array_fields(self):
         """_flatten_trigger_fields emits 'list'/'list?'/'' markers per field."""

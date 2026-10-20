@@ -90,6 +90,7 @@ import.)
 | `Case` | `Case` | `~1` |
 | `Case > Case Created` | `Case/Created` | `~1` |
 | `Audit event` | `FalconAudit` | `~1` |
+| `Recon notification` | `ReconNotification` | `~1` |
 
 For an event source not in this table, discover its `event:` (category) with
 `trigger_search.py` rather than guessing.
@@ -294,6 +295,82 @@ trigger:
     type: Signal
     version_constraint: ~1
 ```
+
+### Recon notification
+
+Fires when an item matches a Falcon Intelligence Recon monitoring rule (exposed
+credentials, typosquatting domains, and so on). Release fails with `missing
+required subscription to use trigger 'Recon notification'` on a CID without a
+Recon subscription.
+
+```yaml
+trigger:
+    next:
+        - GetExposedDataRecords
+    name: Recon notification
+    event: ReconNotification
+    type: Signal
+    version_constraint: ~1
+```
+
+**Use `~1`, not `~0`.** Both import, but with `~0` release rejects every
+`Trigger.ReconNotification.*` field as an unknown variable. `~2` fails import
+with `trigger not found`.
+
+**Use the base `ReconNotification` event for new workflows**, not the
+`Recon notification > Recon notification creation`
+(`ReconNotification/ReconNotificationCreation`) or
+`Recon notification > Recon notification update`
+(`ReconNotification/ReconNotificationUpdate`) sub-triggers.
+
+Fields that release resolves on the base trigger include
+`Trigger.ReconNotification.NotificationId`, `.MonitoringRuleName`, `.Priority`,
+`.NotificationDate`, `.Topic`, `.Type`, `.Domain`, and
+`.HasNewlyDetectedCredentials` (a `bool`). Run
+`trigger_search.py --fields ReconNotification` for the full list.
+
+**Don't read exposed data records from the trigger.** The trigger's `EDRs` is
+a partial view of the notification. In the execution history of an
+exposed-credentials workflow, `EDRs` was missing from the payload entirely in 10
+of 40 runs, even with `HasNewlyDetectedCredentials` set to `true`. When it was
+present, it often held fewer records than the action below returned for the
+same notification, such as 3 instead of 20. It's an exception to the
+`--fields` rule above, too: `--fields` lists
+`Trigger.ReconNotification.EDRs.Email` and `.EDRs.HostName`, but release
+rejects both as unknown variables, because `EDRs` is a list of records (each
+with `Email` and `HostName` keys). `--fields` marks both as not release-valid,
+and `validate.py` flags a workflow that uses them.
+
+Get the full set with the **Get exposed data records from a Recon notification**
+action instead. It's paginated: each call returns up to 500 records plus a
+`scroll_token`. The first call returns a token even when it already holds every
+record, so pass the token back in as the `scroll_token` property and call it
+again. The call after the last
+page returns no records and no `scroll_token`. Stop there: calling again with
+the empty token starts over from the first page.
+
+```yaml
+GetExposedDataRecords:
+    id: 90bf52fbdab54d9abb6832da7e2087a7_2bb508fe0b8c5f4cc1f193fadbae3820
+    name: Get exposed data records from a Recon notification
+    next:
+        - NextAction
+    properties:
+        id: ${Trigger.ReconNotification.NotificationId}
+    version_constraint: ~0
+```
+
+Its outputs are `${data['GetExposedDataRecords.reconExposedDataRecords']}`, a
+list of records, and `${data['GetExposedDataRecords.scroll_token']}` for the
+next page. Record fields include `login_id`, `email`, `domain`,
+`credentials_domain`, `credential_status` (`newly_reported` or
+`previously_reported`), `file_name`, `hash_type`, and `password`. Not every
+record has `email`, and empty fields usually hold `-` rather than an empty
+string. Records can carry a plaintext `password`, so leave it out of emails,
+tickets, and logs unless you mean to send it. The action needs the same Recon
+subscription as the trigger. CrowdStrike's out-of-the-box Recon playbooks, such
+as **Send email with new exposed credentials list**, use this action, so start
+from one of them when you can.
 
 ---
 
