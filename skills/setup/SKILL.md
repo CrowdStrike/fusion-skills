@@ -251,6 +251,8 @@ change the `default` key, or select one per run:
 FALCON_PROFILE=eu-1 ../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
+Each cloud has its own API client, so with 1Password, use one API Credential item per cloud with the cloud in its name (for example, "Falcon Fusion skills (EU-1)") and point each profile at its own item. A run reads only the selected profile's references.
+
 ## Required API scopes
 
 The API client needs the **Workflow** scope (read/write) for workflow authoring
