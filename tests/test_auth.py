@@ -2,6 +2,7 @@
 
 import builtins
 import runpy
+import subprocess
 import sys
 import types
 from unittest.mock import patch, MagicMock
@@ -272,6 +273,230 @@ class TestCredsFromToml:
         assert auth._creds_from_toml() is None
 
 
+def _write_profile(tmp_path, monkeypatch, body):
+    """Write a us-1 TOML profile with `body` and point auth at it."""
+    toml_file = tmp_path / "credentials.toml"
+    toml_file.write_text('default = "us-1"\n\n[us-1]\n' + body)
+    monkeypatch.setattr(auth, "TOML_CREDENTIALS_PATH", str(toml_file))
+
+
+def _op_result(stdout="", returncode=0, stderr=""):
+    return subprocess.CompletedProcess(["op"], returncode, stdout, stderr)
+
+
+def _fake_inject(values):
+    """A subprocess.run stand-in for `op inject` that resolves from `values`."""
+
+    def run(args, input, **_kwargs):  # pylint: disable=redefined-builtin
+        assert args == ["op", "inject"]
+        refs = [line[3:-3] for line in input.splitlines()]  # strip "{{ " and " }}"
+        return _op_result("".join(values[r] + "\n" for r in refs))
+
+    return run
+
+
+class TestSecretReferences:
+    """Test 1Password op:// resolution for client_id and client_secret."""
+
+    def test_plain_values_never_call_op(self, tmp_path, monkeypatch):
+        _write_profile(
+            tmp_path, monkeypatch, 'client_id = "plain_id"\nclient_secret = "plain_secret"\n'
+        )
+        with patch("auth.subprocess.run") as run:
+            cid, csec, _ = auth.get_credentials()
+        run.assert_not_called()
+        assert (cid, csec) == ("plain_id", "plain_secret")
+
+    def test_toml_op_references_resolve_in_one_op_call(self, tmp_path, monkeypatch):
+        _write_profile(
+            tmp_path,
+            monkeypatch,
+            'client_id = "op://Vault/Falcon API/username"\n'
+            'client_secret = "op://Vault/Falcon API/credential"\n',
+        )
+        values = {
+            "op://Vault/Falcon API/username": "resolved_id",
+            "op://Vault/Falcon API/credential": "resolved_secret",
+        }
+        with patch("auth.subprocess.run", side_effect=_fake_inject(values)) as run:
+            cid, csec, _ = auth.get_credentials()
+        assert (cid, csec) == ("resolved_id", "resolved_secret")
+        # One approval per run, and an argument list, never a shell string.
+        assert run.call_count == 1
+        assert "shell" not in run.call_args.kwargs
+
+    def test_only_op_values_go_to_op(self, monkeypatch):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "env_id")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        values = {"op://Vault/Falcon API/credential": "env_secret"}
+        with patch("auth.subprocess.run", side_effect=_fake_inject(values)) as run:
+            cid, csec, _ = auth.get_credentials()
+        assert (cid, csec) == ("env_id", "env_secret")
+        assert run.call_args.kwargs["input"] == "{{ op://Vault/Falcon API/credential }}\n"
+
+    def test_failed_op_call_exits_with_clear_error(self, tmp_path, monkeypatch, capsys):
+        _write_profile(
+            tmp_path,
+            monkeypatch,
+            'client_id = "plain_id"\nclient_secret = "op://Vault/Falcon API/credential"\n',
+        )
+        failed = _op_result(returncode=1, stderr="account is not signed in")
+        with patch("auth.subprocess.run", return_value=failed), pytest.raises(SystemExit):
+            auth.get_credentials()
+        err = capsys.readouterr().err
+        assert "Couldn't read client_secret from 1Password" in err
+        assert "op signin" in err
+        assert "account is not signed in" in err
+
+    def test_failed_op_call_never_prints_partial_secret(self, monkeypatch, capsys):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "env_id")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        partial = _op_result(stdout="half_a_secret\n", returncode=1)
+        with patch("auth.subprocess.run", return_value=partial), pytest.raises(SystemExit):
+            auth.get_credentials()
+        captured = capsys.readouterr()
+        assert "half_a_secret" not in captured.out + captured.err
+
+    def test_missing_or_empty_output_is_an_error(self, monkeypatch, capsys):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "op://Vault/Falcon API/username")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        # Two references but only one (blank) line back.
+        with patch("auth.subprocess.run", return_value=_op_result("\n")), pytest.raises(
+            SystemExit
+        ):
+            auth.get_credentials()
+        assert "FALCON_CLIENT_ID and FALCON_CLIENT_SECRET" in capsys.readouterr().err
+
+    def test_blank_resolved_value_is_an_error(self, monkeypatch, capsys):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "op://Vault/Falcon API/username")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        with patch("auth.subprocess.run", return_value=_op_result("id\n \n")), pytest.raises(
+            SystemExit
+        ):
+            auth.get_credentials()
+        assert "Couldn't read" in capsys.readouterr().err
+
+    def test_missing_op_cli_exits_with_install_hint(self, monkeypatch, capsys):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "env_id")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        with patch("auth.subprocess.run", side_effect=FileNotFoundError), pytest.raises(
+            SystemExit
+        ):
+            auth.get_credentials()
+        assert "1Password CLI (op) isn't installed" in capsys.readouterr().err
+
+    def test_op_timeout_exits_with_clear_error(self, monkeypatch, capsys):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "env_id")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        timeout = subprocess.TimeoutExpired(cmd="op", timeout=120)
+        with patch("auth.subprocess.run", side_effect=timeout), pytest.raises(SystemExit):
+            auth.get_credentials()
+        assert "Timed out reading FALCON_CLIENT_SECRET" in capsys.readouterr().err
+
+
+class TestCredentialCache:
+    """Test that credentials resolve once per process and report their source."""
+
+    def test_op_references_are_read_once_for_both_clients(self, monkeypatch):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "op://Vault/Falcon API/username")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        with patch("auth.subprocess.run", return_value=_op_result("id\nsecret\n")) as run, patch(
+            "falconpy.Workflows"
+        ), patch("falconpy.NGSIEM"):
+            auth.get_client()
+            auth.get_ngsiem_client()
+            auth.get_credentials()
+        assert run.call_count == 1
+
+    def test_reset_client_clears_cached_credentials(self, monkeypatch):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "first_id")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "first_secret")
+        assert auth.get_credentials()[0] == "first_id"
+        monkeypatch.setenv("FALCON_CLIENT_ID", "second_id")
+        assert auth.get_credentials()[0] == "first_id"
+        auth.reset_client()
+        assert auth.get_credentials()[0] == "second_id"
+
+    def test_source_names_env_vars(self, fake_credentials):
+        assert auth.get_credentials_source() == "environment variables"
+
+    def test_source_names_profile_and_1password(self, tmp_path, monkeypatch):
+        _write_profile(
+            tmp_path, monkeypatch, 'client_id = "a"\nclient_secret = "op://Vault/Falcon API/credential"\n'
+        )
+        with patch("auth.subprocess.run", return_value=_op_result("secret\n")):
+            source = auth.get_credentials_source()
+        assert source == f"profile us-1 in {tmp_path / 'credentials.toml'} (1Password)"
+
+    def test_source_for_plain_profile_has_no_1password_suffix(self, tmp_path, monkeypatch):
+        _write_profile(tmp_path, monkeypatch, 'client_id = "a"\nclient_secret = "b"\n')
+        assert auth.get_credentials_source().endswith("credentials.toml")
+
+
+class TestCaBundle:
+    """Test the per-profile ca_bundle option for TLS-inspecting proxies."""
+
+    def test_ca_bundle_sets_requests_ca_bundle(self, tmp_path, monkeypatch):
+        # Registers the key with monkeypatch so the value auth sets is undone.
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "")
+        bundle = tmp_path / "ca.pem"
+        bundle.write_text("-----BEGIN CERTIFICATE-----\n")
+        _write_profile(
+            tmp_path,
+            monkeypatch,
+            f'client_id = "a"\nclient_secret = "b"\nca_bundle = "{bundle}"\n',
+        )
+        auth.get_credentials()
+        assert auth.os.environ["REQUESTS_CA_BUNDLE"] == str(bundle)
+
+    def test_profile_ca_bundle_overrides_inherited_env(self, tmp_path, monkeypatch):
+        bundle = tmp_path / "ca.pem"
+        bundle.write_text("-----BEGIN CERTIFICATE-----\n")
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/inherited/wrong.pem")
+        _write_profile(
+            tmp_path,
+            monkeypatch,
+            f'client_id = "a"\nclient_secret = "b"\nca_bundle = "{bundle}"\n',
+        )
+        auth.get_credentials()
+        assert auth.os.environ["REQUESTS_CA_BUNDLE"] == str(bundle)
+        assert auth.describe_ca_bundle() == (
+            f"{bundle} (profile ca_bundle, overrides REQUESTS_CA_BUNDLE)"
+        )
+
+    def test_describe_profile_ca_bundle(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "")
+        bundle = tmp_path / "ca.pem"
+        bundle.write_text("-----BEGIN CERTIFICATE-----\n")
+        _write_profile(
+            tmp_path,
+            monkeypatch,
+            f'client_id = "a"\nclient_secret = "b"\nca_bundle = "{bundle}"\n',
+        )
+        auth.get_credentials()
+        assert auth.describe_ca_bundle() == f"{bundle} (profile ca_bundle)"
+
+    def test_describe_env_ca_bundles(self, monkeypatch):
+        monkeypatch.setenv("CURL_CA_BUNDLE", "/curl.pem")
+        assert auth.describe_ca_bundle() == "/curl.pem (CURL_CA_BUNDLE)"
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/env.pem")
+        assert auth.describe_ca_bundle() == "/env.pem (REQUESTS_CA_BUNDLE)"
+
+    def test_describe_default_ca_bundle(self):
+        assert auth.describe_ca_bundle() == "default (certifi)"
+
+    def test_missing_ca_bundle_file_exits(self, tmp_path, monkeypatch, capsys):
+        _write_profile(
+            tmp_path,
+            monkeypatch,
+            'client_id = "a"\nclient_secret = "b"\nca_bundle = "/nonexistent/ca.pem"\n',
+        )
+        with pytest.raises(SystemExit):
+            auth.get_credentials()
+        assert "ca_bundle file doesn't exist" in capsys.readouterr().err
+        assert "REQUESTS_CA_BUNDLE" not in auth.os.environ
+
+
 class TestFalconPyVersionGuard:
     """Test the minimum-FalconPy-version guard in get_client/get_ngsiem_client."""
 
@@ -362,7 +587,10 @@ class TestSelfTestMain:
         mock_wf.return_value = wf
         with pytest.raises(SystemExit):
             runpy.run_path(auth.__file__, run_name="__main__")
-        assert "Workflows" in capsys.readouterr().err
+        captured = capsys.readouterr()
+        assert "Workflows" in captured.err
+        assert "check the CA" in captured.err  # points at the CA bundle line
+        assert "CA bundle : default (certifi)" in captured.out
 
     @patch("falconpy.NGSIEM")
     @patch("falconpy.Workflows")

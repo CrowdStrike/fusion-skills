@@ -15,12 +15,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/python-detect.sh"
 _pd_set_venv_bins "${CACHE_DIR}/venv"
+# Written by setup-python-venv.sh only after the dependencies install.
+INSTALLED_MARKER="${CACHE_DIR}/venv/.requirements.sha256"
 
-if [[ ! -x "$VENV_PYTHON_BIN" ]]; then
+if [[ ! -x "$VENV_PYTHON_BIN" || ! -f "$INSTALLED_MARKER" ]]; then
     # Normally the SessionStart hook builds the venv. If it hasn't (e.g. a bare
-    # invocation in a cloned repo where the plugin hook never fired), build it
+    # invocation in a cloned repo where the plugin hook never fired), or an
+    # earlier install failed and left the venv without its packages, build it
     # on demand so the script runs without manual setup.
-    echo "fusion-skills Python venv not found; building it at ${CACHE_DIR}/venv ..." >&2
+    echo "fusion-skills Python venv is missing or incomplete; building it at ${CACHE_DIR}/venv ..." >&2
     if ! "${SCRIPT_DIR}/setup-python-venv.sh" >&2; then
         echo "ERROR: failed to build the fusion-skills Python venv." >&2
         exit 1

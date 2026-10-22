@@ -5,7 +5,8 @@ set -euo pipefail
 # Creates/updates the fusion-skills managed venv at ~/.cache/claude-code-fusion/venv.
 # uv-first (fast, can provision Python 3.13) with a `python -m venv` fallback.
 # Idempotent: skips reinstall when requirements.txt is unchanged; rebuilds if the
-# venv's Python drifts out of the supported range. Installs from public PyPI.
+# venv's Python drifts out of the supported range. Installs from PyPI, or from
+# the package index in PIP_INDEX_URL (pip and uv) or UV_DEFAULT_INDEX (uv).
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -35,6 +36,10 @@ _calc_hash() {
 }
 
 _has_uv() { command -v uv &>/dev/null; }
+
+_index_hint() {
+    echo "If your network blocks public PyPI, set PIP_INDEX_URL (or UV_DEFAULT_INDEX for uv) to your package mirror and run ${SCRIPT_DIR}/setup-python-venv.sh again." >&2
+}
 
 # Is the existing venv's Python still supported?
 _check_venv_python_version() {
@@ -102,8 +107,12 @@ main() {
     echo "Installing dependencies from requirements.txt"
     local install_success=false
 
-    # uv install (fast) — public PyPI, native TLS.
+    # uv install (fast), native TLS. uv ignores PIP_INDEX_URL, so pass it along
+    # when no uv index is set.
     if _has_uv; then
+        if [[ -n "${PIP_INDEX_URL:-}" && -z "${UV_DEFAULT_INDEX:-}${UV_INDEX_URL:-}" ]]; then
+            export UV_DEFAULT_INDEX="$PIP_INDEX_URL"
+        fi
         echo -e "${GREEN}[uv]${NC} Attempting fast install..."
         if uv pip install --native-tls --quiet -r "$REQUIREMENTS_FILE" --python "$VENV_PYTHON_BIN" 2>/dev/null; then
             install_success=true
@@ -122,10 +131,10 @@ main() {
             }
         fi
         "$VENV_PIP_BIN" install --quiet --upgrade pip || {
-            echo -e "${RED}ERROR: Failed to upgrade pip${NC}" >&2; exit 2
+            echo -e "${RED}ERROR: Failed to upgrade pip${NC}" >&2; _index_hint; exit 2
         }
         "$VENV_PIP_BIN" install --quiet -r "$REQUIREMENTS_FILE" || {
-            echo -e "${RED}ERROR: Failed to install dependencies from $REQUIREMENTS_FILE${NC}" >&2; exit 2
+            echo -e "${RED}ERROR: Failed to install dependencies from $REQUIREMENTS_FILE${NC}" >&2; _index_hint; exit 2
         }
     fi
 

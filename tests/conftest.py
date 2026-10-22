@@ -35,6 +35,8 @@ def clean_env(monkeypatch):
         "FALCON_CLIENT_SECRET",
         "FALCON_BASE_URL",
         "FALCON_PROFILE",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
     ):
         monkeypatch.delenv(var, raising=False)
     # Point the TOML credentials path at a nonexistent file so tests never read
