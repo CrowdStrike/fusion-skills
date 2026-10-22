@@ -50,6 +50,7 @@ jobs:
           ./test-agy-plugin-swap.sh
           ./test-verdict-parser.sh
           ./test-bootstrap-symlink.sh
+          ./test-python-wrapper.sh
 
   pytest:
     runs-on: ubuntu-latest

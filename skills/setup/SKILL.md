@@ -23,8 +23,7 @@ metadata:
 >
 > **Required steps:**
 > 1. Check whether credentials already resolve (Step 1). If they do, you are done.
-> 2. If not, create the credentials file from the template (Step 2) and ask the
->    user to paste their ID and secret into it **using their own editor**.
+> 2. If not, ask whether the user keeps the credentials in 1Password. If they do, write a profile of `op://` references (Step 2a). Otherwise, create the credentials file from the template (Step 2b) and ask the user to paste their ID and secret into it **using their own editor**.
 > 3. Verify connectivity (Step 3).
 >
 > **Don't:**
@@ -32,6 +31,7 @@ metadata:
 >   land in the conversation transcript. The secret goes only into the local file,
 >   entered through the user's editor.
 > - Print, echo, or repeat a secret you happen to see in the file.
+> - Run `op item get` without the `jq` filter shown in Step 2a. Without it, `op` prints the secret values.
 > - Suggest `export FALCON_CLIENT_SECRET=...` for interactive use — it leaks the
 >   secret into shell history. (Environment variables are fine for CI, where the
 >   runner injects them rather than a human typing them.)
@@ -39,7 +39,7 @@ metadata:
 This skill configures the Falcon API credentials that every fusion-skills script
 uses. Credentials are stored in a per-profile TOML file at
 `~/.cache/crowdstrike-falcon-fusion/credentials.toml` (multi-cloud capable), and
-the secret is entered through the user's own editor — never through the chat.
+the secret is entered through the user's own editor (or kept in 1Password and referenced from the file) — never through the chat.
 
 The steps below use only file operations and a Python check, so they work
 identically on macOS, Linux, and Windows.
@@ -56,11 +56,40 @@ are done — report success and stop.
 ```
 
 - **"Authentication successful"** for both clients → done.
-- **An error about missing credentials** → continue to Step 2.
+- **An error about missing credentials** → continue to Step 2a.
 - **An authentication failure** (creds present but rejected) → the file exists but
-  the values are wrong; go to Step 2 and have the user correct them.
+  the values are wrong; go to Step 2a or 2b and have the user correct them.
 
-## Step 2 — Create the credentials file and have the user fill it in
+## Step 2a — Offer 1Password
+
+Before writing the template, ask: "Do you keep your Falcon API client ID and secret in 1Password?" If they don't, or aren't sure, skip to Step 2b.
+
+If they do, the profile holds 1Password secret references instead of the values. References aren't secrets, so you can write the file yourself and the user doesn't need to edit it.
+
+1. Ask for the item's name, and ask which cloud they're on (US-1, US-2, EU-1, US-3, or GovCloud). If they haven't created an item yet, have them create an **API Credential** item in the 1Password app with the client ID in `username` and the client secret in `credential`.
+2. Print the item's references. This shows only `op://` paths, never values:
+
+   ```bash
+   op item get "<item name>" --format json | jq -r '.fields[].reference'
+   ```
+
+   1Password may ask the user to authorize the CLI. If the command fails (for example, `op` or `jq` isn't installed), ask the user to run it in their own terminal and paste the output, which contains no secrets. `RequestDelegatedSession: cannot setup session` means the 1Password app needs them to sign in to their account again.
+3. Pick the client ID reference (the `username` field) and the secret reference (`credential`, or `password` on a Login item). Show both to the user and confirm before writing.
+4. If `~/.cache/crowdstrike-falcon-fusion/credentials.toml` doesn't exist, write it with that profile. If it does, add the profile as a new section and leave the existing ones alone. For example:
+
+   ```toml
+   default = "us-2"
+
+   [us-2]
+   client_id = "op://Private/Falcon API client/username"
+   client_secret = "op://Private/Falcon API client/credential"
+   ```
+
+   Set `base_url` only on clouds other than US-1, US-2, and EU-1 (see the template in Step 2b). Apply the same `chmod` as in Step 2b, then go to Step 3.
+
+See [Keeping the secret in 1Password](#keeping-the-secret-in-1password) for how `auth.py` reads the references.
+
+## Step 2b — Create the credentials file and have the user fill it in
 
 Create `~/.cache/crowdstrike-falcon-fusion/credentials.toml` **only if it does not
 already exist** (never overwrite existing profiles). Write this template with the
@@ -69,10 +98,10 @@ Write tool:
 ```toml
 # CrowdStrike Falcon API credentials for fusion-skills.
 # Fill in client_id and client_secret below, then save this file.
+# Either can be a 1Password reference instead, e.g. "op://Private/Falcon API client/credential".
 #
 # Create an API client in the Falcon console:
 #   Support and resources -> Client Management -> Create API client
-# Required scopes:
 # Required scopes (names as shown in the console):
 #   Workflow             read/write   - workflow authoring & deployment
 #   NGSIEM Lookup Files   read/write   - lookup-file operations (lookup-files skill only)
@@ -151,10 +180,52 @@ Once the user says they have saved the file, re-run the self-test:
 ../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
-A successful run prints the resolved base URL, a masked client ID, and
-"Authentication successful" for both the Workflows and Next-Gen SIEM clients. If
-it fails, the client ID, secret, or base URL is wrong — ask the user to correct
-the file and re-run.
+A successful run prints where the credentials came from (environment variables or a named profile, marked "(1Password)" when it used `op://` references), the resolved base URL, a masked client ID, and "Authentication successful" for both the Workflows and Next-Gen SIEM clients. If it fails, the client ID, secret, or base URL is wrong. If the source isn't the one the user expects, a `FALCON_CLIENT_ID`/`FALCON_CLIENT_SECRET` left in the environment is outranking the profile. Otherwise, ask the user to correct the file and re-run. If the values are right and it still reports "could not obtain token", the network may be re-signing TLS traffic; see [TLS-inspecting proxies](#tls-inspecting-proxies).
+
+## Keeping the secret in 1Password
+
+If the user keeps API secrets in 1Password and can't store them in plain text, `client_id` and `client_secret` can each hold a 1Password secret reference instead of the value (the same works for `FALCON_CLIENT_ID` and `FALCON_CLIENT_SECRET`).
+
+Have the user create an **API Credential** item in the 1Password app (for example, "Falcon API client"), put the client ID in its `username` field and the client secret in its `credential` field, and then reference both fields in the profile:
+
+```toml
+[us-2]
+client_id = "op://Private/Falcon API client/username"
+client_secret = "op://Private/Falcon API client/credential"
+```
+
+`auth.py` reads each `op://` value with the [1Password CLI](https://developer.1password.com/docs/cli/get-started/) and keeps the results in memory only. The user needs `op` installed and signed in. Both references are read in one `op` call, so 1Password asks for approval at most once per script run. A reference takes the form `op://<vault>/<item>/<field>`; see [secret reference syntax](https://developer.1password.com/docs/cli/secret-reference-syntax/). Plain values keep working as before.
+
+Building a workflow runs many scripts, so in a long session those approvals add up. To approve once per session instead, the user can start the assistant under `op run` with the references in environment variables. `op run` resolves them at launch, and the scripts then read plain values without calling `op`:
+
+```bash
+FALCON_CLIENT_ID="op://Private/Falcon API client/username" \
+FALCON_CLIENT_SECRET="op://Private/Falcon API client/credential" \
+op run -- claude
+```
+
+Substitute the assistant's own command for `claude`. The tradeoff: the resolved secrets are in the environment of the assistant and every process it starts for the whole session.
+
+The CLI's vault and field names can differ from what the app shows (a vault the app labels "Employee" may be `Private` to `op`, and a Login item names its secret field `password` rather than `credential`). Have the user print the exact references with this command, which shows no secret values. Don't run `op item get` without the `jq` filter, because that prints them:
+
+```bash
+op item get "<item name>" --format json | jq -r '.fields[].reference'
+```
+
+If `op` fails with `RequestDelegatedSession: cannot setup session`, the 1Password app needs the user to sign in to their account again.
+
+## TLS-inspecting proxies
+
+On a network that intercepts and re-signs TLS traffic, the self-test fails with "could not obtain token" even though the credentials are correct. Point the profile at the organization's CA bundle (a PEM file):
+
+```toml
+[us-2]
+ca_bundle = "~/certs/corporate-ca.pem"
+```
+
+`auth.py` exports it as `REQUESTS_CA_BUNDLE` for that run, replacing any `REQUESTS_CA_BUNDLE` inherited from the shell, since a stale one left over from another tool is a common cause of this failure. The self-test's `CA bundle` line shows the bundle in use and where it came from, for example `~/certs/corporate-ca.pem (profile ca_bundle, overrides REQUESTS_CA_BUNDLE)`.
+
+If the plugin's Python setup can't reach public PyPI on the same network, set `PIP_INDEX_URL` (or `UV_DEFAULT_INDEX` for uv) to the organization's package mirror and run `../../scripts/setup-python-venv.sh` again.
 
 ## Credential resolution order
 
@@ -165,6 +236,8 @@ a secret:
    optional `FALCON_BASE_URL`. Intended for CI, where the runner injects them.
 2. **TOML profile file** — `~/.cache/crowdstrike-falcon-fusion/credentials.toml`,
    using the profile named by `FALCON_PROFILE` or the file's `default` key.
+
+Either source can use `op://` references (see [Keeping the secret in 1Password](#keeping-the-secret-in-1password)).
 
 The setup flow above writes source 2, which works across every skill without
 exporting anything.

@@ -79,7 +79,7 @@ export FALCON_CLIENT_SECRET=your_client_secret_here
 # export FALCON_BASE_URL=https://api.us-3.crowdstrike.com  # US-GOV-1: https://api.laggar.gcw.crowdstrike.com
 ```
 
-Credentials come from environment variables (checked first) or the TOML profile, and are never hardcoded. Verify your setup:
+Credentials come from environment variables (checked first) or the TOML profile, and are never hardcoded. Either source can hold a 1Password secret reference (`op://<vault>/<item>/<field>`) instead of the client ID or secret, which `auth.py` reads with the 1Password CLI so the secret stays off disk. On a network that re-signs TLS traffic, set a profile's `ca_bundle` to your organization's CA bundle. See the [setup skill](skills/setup/SKILL.md) for both. Verify your setup:
 
 ```bash
 python common/scripts/auth.py
@@ -231,6 +231,8 @@ python common/scripts/auth.py          # Verify credentials resolve and a token 
 ```
 
 Confirm `FALCON_CLIENT_ID` and `FALCON_CLIENT_SECRET` are set in your environment or TOML profile, and, on any cloud other than US-1, US-2, and EU-1 (such as US-3 or GovCloud), that `FALCON_BASE_URL` (or the profile's `base_url`) points at your cloud. FalconPy discovers those three on its own.
+
+If the credentials are right but the self-test still reports "could not obtain token", a TLS-inspecting proxy may be re-signing traffic. Set `ca_bundle` in the profile to your organization's CA bundle (PEM). The self-test's `CA bundle` line shows which one is in use. If the plugin's Python setup fails because public PyPI is blocked, set `PIP_INDEX_URL` (or `UV_DEFAULT_INDEX`) to your package mirror and run `scripts/setup-python-venv.sh` again.
 
 ### Stale action cache
 
