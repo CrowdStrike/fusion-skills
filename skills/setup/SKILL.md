@@ -91,7 +91,7 @@ If they do, the profile holds 1Password secret references instead of the values.
    client_secret = "op://Private/Falcon Fusion skills/credential"
    ```
 
-   Set `base_url` only on clouds other than US-1, US-2, and EU-1 (see the template in Step 2b). Apply the same `chmod` as in Step 2b, then go to Step 3. Tell the user that 1Password will ask them to authorize the CLI when the self-test runs.
+   Set `base_url` only on clouds other than US-1, US-2, and EU-1 (see the template in Step 2b). Apply the same `chmod` as in Step 2b, then go to Step 3. Tell the user that 1Password will ask them to authorize the CLI when the self-test runs, and that the prompt can take several seconds to appear.
 
 If the self-test reports that a vault, item, or field doesn't exist, ask the user to run the reference-listing command in [Keeping the secret in 1Password](#keeping-the-secret-in-1password) in their own terminal and paste its output, which contains only `op://` paths. Then fix the profile. `RequestDelegatedSession: cannot setup session` means the 1Password app needs them to sign in to their account again.
 

@@ -194,6 +194,14 @@ def _resolve_secret_refs(fields):
         return [value for _, value in fields]
     names = " and ".join(name for name, _ in refs)
     template = "".join(f"{{{{ {value} }}}}\n" for _, value in refs)
+    # The approval prompt can take several seconds to appear; say what's
+    # happening so the wait doesn't look like a hang. stderr keeps the
+    # scripts' JSON output on stdout clean.
+    print(
+        "Reading Falcon API credentials from 1Password. Approve the 1Password "
+        "prompt when it appears (it can take a few seconds).",
+        file=sys.stderr,
+    )
     try:
         result = subprocess.run(
             ["op", "inject"],
@@ -450,6 +458,17 @@ def reset_client():
     _ca_bundle_note = ""
 
 
+def describe_base_url(client, configured):
+    """
+    Return the base URL a client settled on, marked "(discovered)" when it
+    differs from the configured one. FalconPy discovers US-1, US-2, and EU-1
+    while it builds the client, so the configured default can be the wrong
+    region to show.
+    """
+    found = str(getattr(client, "base_url", "") or configured).rstrip("/")
+    return f"{found} (discovered)" if found != configured else found
+
+
 TOKEN_FAILURE_HINT = (
     "  Check the client ID, secret, and base URL. If they're right, check the CA\n"
     "  bundle above: behind a TLS-inspecting proxy, it must be your\n"
@@ -463,13 +482,13 @@ if __name__ == "__main__":
     print("─" * 40)
     cid, csec, burl = get_credentials()
     print(f"  Source    : {get_credentials_source()}")
-    print(f"  Base URL  : {burl}")
     print(f"  CA bundle : {describe_ca_bundle()}")
     print(f"  Client ID : {cid[:8]}...{cid[-4:]}")
     print(f"  Secret    : {'set' if csec else 'missing'}")
-    print()
     try:
         wf_client = get_client()
+        print(f"  Base URL  : {describe_base_url(wf_client, burl)}")
+        print()
         if wf_client.token_expired():
             print(
                 "  Authentication FAILED: could not obtain token (Workflows)",
