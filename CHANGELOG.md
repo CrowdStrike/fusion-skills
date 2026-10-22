@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`base_url` is optional on US-1, US-2, and EU-1** — FalconPy discovers those regions, so it's needed only on other clouds such as US-3 and GovCloud.
 - **The setup guidance points to Client Management** — the console's new name for API clients and keys.
 - **Python 3.13 through 3.15 is accepted** — the managed venv setup was capped at 3.14.
+- **Setup doesn't open with an error on a fresh install** — it checks for a credentials file or env vars before running the self-test, so a first run goes straight to configuring credentials. When you use 1Password, it asks for the item name instead of searching your vaults, which was slow and needed extra approvals.
 - **A failed first install no longer leaves a broken venv** — scripts used to run in a venv with no packages and fail with `No module named 'falconpy'`; the wrapper now rebuilds a venv whose install didn't finish.
 
 ## [1.3.0] - 2026-10-01

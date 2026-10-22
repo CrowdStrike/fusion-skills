@@ -31,7 +31,7 @@ metadata:
 >   land in the conversation transcript. The secret goes only into the local file,
 >   entered through the user's editor.
 > - Print, echo, or repeat a secret you happen to see in the file.
-> - Run `op item get` without the `jq` filter shown in Step 2a. Without it, `op` prints the secret values.
+> - Search 1Password yourself (`op item list`, `op item get`). Ask the user for the item name instead. `op item get` without a `jq` filter also prints the secret values.
 > - Suggest `export FALCON_CLIENT_SECRET=...` for interactive use — it leaks the
 >   secret into shell history. (Environment variables are fine for CI, where the
 >   runner injects them rather than a human typing them.)
@@ -48,33 +48,31 @@ identically on macOS, Linux, and Windows.
 
 ## Step 1 — Check for existing credentials
 
-Run the auth self-test. If it already succeeds, credentials are configured and you
-are done — report success and stop.
+First check, without running any script, whether there's anything to test: does `~/.cache/crowdstrike-falcon-fusion/credentials.toml` exist, or are `FALCON_CLIENT_ID` and `FALCON_CLIENT_SECRET` set? Check the variables without printing their values. If neither is the case, nothing is configured. Go straight to Step 2a, and don't run the self-test, because it would only report the missing credentials as an error.
+
+Otherwise, run the auth self-test:
 
 ```bash
 ../../scripts/python.sh ../../common/scripts/auth.py
 ```
 
-- **"Authentication successful"** for both clients → done.
-- **An error about missing credentials** → continue to Step 2a.
-- **An authentication failure** (creds present but rejected) → the file exists but
-  the values are wrong; go to Step 2a or 2b and have the user correct them.
+- **"Authentication successful"** for both clients → credentials are configured. Report success and stop.
+- **An error about missing credentials** (for example, the file exists but has no usable profile) → continue to Step 2a.
+- **An authentication failure** (creds present but rejected) → the values are wrong; go to Step 2a or 2b and have the user correct them.
 
 ## Step 2a — Offer 1Password
 
-Before writing the template, ask: "Do you keep your Falcon API client ID and secret in 1Password?" If they don't, or aren't sure, skip to Step 2b.
+Before writing the template, ask: "Do you keep your Falcon API client ID and secret in 1Password, or want to?" If they don't, or aren't sure, skip to Step 2b.
 
-If they do, the profile holds 1Password secret references instead of the values. References aren't secrets, so you can write the file yourself and the user doesn't need to edit it.
+If they do, the profile holds 1Password secret references instead of the values. References aren't secrets, so you can write the file yourself and the user doesn't need to edit it. Build the references from the user's answers. Don't call `op` to look up or search for the item: every call is slow and may need its own approval, and the self-test in Step 3 verifies the references anyway.
 
-1. Ask for the item's name, and ask which cloud they're on (US-1, US-2, EU-1, US-3, or GovCloud). If they haven't created an item yet, have them create an **API Credential** item in the 1Password app with the client ID in `username` and the client secret in `credential`.
-2. Print the item's references. This shows only `op://` paths, never values:
+1. Ask whether they already have a 1Password item for the API client. If not, walk them through creating one:
+   1. In the Falcon console, go to **Support and resources** > **Client Management** > **Create API client**. Grant **Workflow** (read and write) and, for the `lookup-files` skill, **NGSIEM Lookup Files** (read and write). The secret is shown only once, so keep the page open.
+   2. In the 1Password app, create an **API Credential** item (for example, "Falcon API client"). Paste the client ID into `username` and the client secret into `credential`, and save.
 
-   ```bash
-   op item get "<item name>" --format json | jq -r '.fields[].reference'
-   ```
-
-   1Password may ask the user to authorize the CLI. If the command fails (for example, `op` or `jq` isn't installed), ask the user to run it in their own terminal and paste the output, which contains no secrets. `RequestDelegatedSession: cannot setup session` means the 1Password app needs them to sign in to their account again.
-3. Pick the client ID reference (the `username` field) and the secret reference (`credential`, or `password` on a Login item). Show both to the user and confirm before writing.
+   They paste both values into 1Password, never into the chat.
+2. Ask for the item's name, its vault, and which cloud they're on (US-1, US-2, EU-1, US-3, or GovCloud). The CLI can name a vault differently from the app. In a 1Password Business account, the personal vault the app shows as "Employee" is `Private` to `op`, so use `Private` for it.
+3. Build the references as `op://<vault>/<item>/username` and `op://<vault>/<item>/credential`. On a Login item instead of an API Credential item, the secret field is `password`.
 4. If `~/.cache/crowdstrike-falcon-fusion/credentials.toml` doesn't exist, write it with that profile. If it does, add the profile as a new section and leave the existing ones alone. For example:
 
    ```toml
@@ -85,7 +83,9 @@ If they do, the profile holds 1Password secret references instead of the values.
    client_secret = "op://Private/Falcon API client/credential"
    ```
 
-   Set `base_url` only on clouds other than US-1, US-2, and EU-1 (see the template in Step 2b). Apply the same `chmod` as in Step 2b, then go to Step 3.
+   Set `base_url` only on clouds other than US-1, US-2, and EU-1 (see the template in Step 2b). Apply the same `chmod` as in Step 2b, then go to Step 3. Tell the user that 1Password will ask them to authorize the CLI when the self-test runs.
+
+If the self-test reports that a vault, item, or field doesn't exist, ask the user to run the reference-listing command in [Keeping the secret in 1Password](#keeping-the-secret-in-1password) in their own terminal and paste its output, which contains only `op://` paths. Then fix the profile. `RequestDelegatedSession: cannot setup session` means the 1Password app needs them to sign in to their account again.
 
 See [Keeping the secret in 1Password](#keeping-the-secret-in-1password) for how `auth.py` reads the references.
 
