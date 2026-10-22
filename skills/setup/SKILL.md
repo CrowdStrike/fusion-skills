@@ -66,14 +66,22 @@ Before writing the template, ask: "Do you keep your Falcon API client ID and sec
 
 If they do, the profile holds 1Password secret references instead of the values. References aren't secrets, so you can write the file yourself and the user doesn't need to edit it. Build the references from the user's answers. Don't call `op` to look up or search for the item: every call is slow and may need its own approval, and the self-test in Step 3 verifies the references anyway.
 
-1. Ask whether they already have a 1Password item for the API client. If not, walk them through creating one:
+1. Check that the 1Password CLI is installed with `op --version`. It's fast and doesn't touch the account, so it needs no approval. If `op` isn't found, offer to install it, and run the install only after the user agrees:
+
+   ```bash
+   brew install 1password-cli     # macOS
+   winget install 1password-cli   # Windows
+   ```
+
+   On Linux, 1Password's apt and yum repositories need setup first, so point the user to the [1Password CLI install guide](https://www.1password.dev/cli/get-started/) instead. If the user declines, use Step 2b. After installing, have the user open the 1Password app and turn on **Settings** > **Developer** > **Integrate with 1Password CLI**. Without it, `op` can't use the app's sign-in.
+2. Ask whether they already have a 1Password item for the API client. If not, walk them through creating one:
    1. In the Falcon console, go to **Support and resources** > **Client Management** > **Create API client**. Name it something specific, such as "Falcon Fusion skills", so it isn't mistaken for another client and reused with broader scopes. Grant **Workflow** (read and write) and, for the `lookup-files` skill, **NGSIEM Lookup Files** (read and write). The secret is shown only once, so keep the page open.
    2. In the 1Password app, create an **API Credential** item with the same name as the API client (for example, "Falcon Fusion skills"). Paste the client ID into `username` and the client secret into `credential`, and save.
 
    They paste both values into 1Password, never into the chat.
-2. Ask for the item's name, its vault, and which cloud they're on (US-1, US-2, EU-1, US-3, or GovCloud). The CLI can name a vault differently from the app. In a 1Password Business account, the personal vault the app shows as "Employee" is `Private` to `op`, so use `Private` for it.
-3. Build the references as `op://<vault>/<item>/username` and `op://<vault>/<item>/credential`. On a Login item instead of an API Credential item, the secret field is `password`.
-4. If `~/.cache/crowdstrike-falcon-fusion/credentials.toml` doesn't exist, write it with that profile. If it does, add the profile as a new section and leave the existing ones alone. For example:
+3. Ask for the item's name, its vault, and which cloud they're on (US-1, US-2, EU-1, US-3, or GovCloud). The CLI can name a vault differently from the app. In a 1Password Business account, the personal vault the app shows as "Employee" is `Private` to `op`, so use `Private` for it.
+4. Build the references as `op://<vault>/<item>/username` and `op://<vault>/<item>/credential`. On a Login item instead of an API Credential item, the secret field is `password`.
+5. If `~/.cache/crowdstrike-falcon-fusion/credentials.toml` doesn't exist, write it with that profile. If it does, add the profile as a new section and leave the existing ones alone. For example:
 
    ```toml
    default = "us-2"
@@ -194,7 +202,7 @@ client_id = "op://Private/Falcon Fusion skills/username"
 client_secret = "op://Private/Falcon Fusion skills/credential"
 ```
 
-`auth.py` reads each `op://` value with the [1Password CLI](https://developer.1password.com/docs/cli/get-started/) and keeps the results in memory only. The user needs `op` installed and signed in. Both references are read in one `op` call, so 1Password asks for approval at most once per script run. A reference takes the form `op://<vault>/<item>/<field>`; see [secret reference syntax](https://developer.1password.com/docs/cli/secret-reference-syntax/). Plain values keep working as before.
+`auth.py` reads each `op://` value with the [1Password CLI](https://www.1password.dev/cli/get-started/) and keeps the results in memory only. The user needs `op` installed and signed in. Both references are read in one `op` call, so 1Password asks for approval at most once per script run. A reference takes the form `op://<vault>/<item>/<field>`; see [secret reference syntax](https://developer.1password.com/docs/cli/secret-reference-syntax/). Plain values keep working as before.
 
 Building a workflow runs many scripts, so in a long session those approvals add up. To approve once per session instead, the user can start the assistant under `op run` with the references in environment variables. `op run` resolves them at launch, and the scripts then read plain values without calling `op`:
 

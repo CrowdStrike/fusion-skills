@@ -207,7 +207,7 @@ def _resolve_secret_refs(fields):
         _fail(
             f"{names} is a 1Password reference (op://...), but the 1Password "
             "CLI (op) isn't installed. Install it from "
-            "https://developer.1password.com/docs/cli/get-started/ or use a "
+            "https://www.1password.dev/cli/get-started/ or use a "
             "plain value."
         )
     except subprocess.TimeoutExpired:
