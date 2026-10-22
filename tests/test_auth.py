@@ -325,6 +325,15 @@ class TestSecretReferences:
         assert run.call_count == 1
         assert "shell" not in run.call_args.kwargs
 
+    def test_says_it_is_waiting_on_1password(self, monkeypatch, capsys):
+        monkeypatch.setenv("FALCON_CLIENT_ID", "env_id")
+        monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
+        with patch("auth.subprocess.run", return_value=_op_result("secret\n")):
+            auth.get_credentials()
+        captured = capsys.readouterr()
+        assert "Approve the 1Password prompt" in captured.err
+        assert captured.out == ""  # stdout stays clean for JSON output
+
     def test_only_op_values_go_to_op(self, monkeypatch):
         monkeypatch.setenv("FALCON_CLIENT_ID", "env_id")
         monkeypatch.setenv("FALCON_CLIENT_SECRET", "op://Vault/Falcon API/credential")
@@ -577,6 +586,34 @@ class TestSelfTestMain:
         assert "Authentication successful (FalconPy Workflows client)" in out
         assert "Authentication successful (FalconPy NGSIEM client)" in out
         assert "7890" not in out  # no part of the secret is printed
+
+    @patch("falconpy.NGSIEM")
+    @patch("falconpy.Workflows")
+    def test_self_test_shows_discovered_base_url(
+        self, mock_wf, mock_ngsiem, fake_credentials, capsys
+    ):
+        wf = MagicMock(base_url="https://api.us-2.crowdstrike.com")
+        wf.token_expired.return_value = False
+        mock_wf.return_value = wf
+        mock_ngsiem.return_value.token_expired.return_value = False
+        runpy.run_path(auth.__file__, run_name="__main__")
+        assert (
+            "Base URL  : https://api.us-2.crowdstrike.com (discovered)"
+            in capsys.readouterr().out
+        )
+
+    @patch("falconpy.NGSIEM")
+    @patch("falconpy.Workflows")
+    def test_self_test_configured_base_url_has_no_note(
+        self, mock_wf, mock_ngsiem, fake_credentials, capsys
+    ):
+        wf = MagicMock(base_url="https://api.crowdstrike.com")
+        wf.token_expired.return_value = False
+        mock_wf.return_value = wf
+        mock_ngsiem.return_value.token_expired.return_value = False
+        runpy.run_path(auth.__file__, run_name="__main__")
+        out = capsys.readouterr().out
+        assert "Base URL  : https://api.crowdstrike.com\n" in out
 
     @patch("falconpy.Workflows")
     def test_self_test_workflows_token_expired(
