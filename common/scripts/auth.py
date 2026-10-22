@@ -42,7 +42,7 @@ Secret-manager references
 Either source can hold a 1Password secret reference instead of a plain value
 for the client ID or secret, so the secret never sits on disk:
 
-    client_secret = "op://Private/Falcon API client/credential"
+    client_secret = "op://Private/Falcon Fusion skills/credential"
 
 Values starting with op:// are read with the 1Password CLI, all in one
 `op inject` call, when credentials are resolved. The resolved values stay in

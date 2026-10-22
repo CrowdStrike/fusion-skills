@@ -67,8 +67,8 @@ Before writing the template, ask: "Do you keep your Falcon API client ID and sec
 If they do, the profile holds 1Password secret references instead of the values. References aren't secrets, so you can write the file yourself and the user doesn't need to edit it. Build the references from the user's answers. Don't call `op` to look up or search for the item: every call is slow and may need its own approval, and the self-test in Step 3 verifies the references anyway.
 
 1. Ask whether they already have a 1Password item for the API client. If not, walk them through creating one:
-   1. In the Falcon console, go to **Support and resources** > **Client Management** > **Create API client**. Grant **Workflow** (read and write) and, for the `lookup-files` skill, **NGSIEM Lookup Files** (read and write). The secret is shown only once, so keep the page open.
-   2. In the 1Password app, create an **API Credential** item (for example, "Falcon API client"). Paste the client ID into `username` and the client secret into `credential`, and save.
+   1. In the Falcon console, go to **Support and resources** > **Client Management** > **Create API client**. Name it something specific, such as "Falcon Fusion skills", so it isn't mistaken for another client and reused with broader scopes. Grant **Workflow** (read and write) and, for the `lookup-files` skill, **NGSIEM Lookup Files** (read and write). The secret is shown only once, so keep the page open.
+   2. In the 1Password app, create an **API Credential** item with the same name as the API client (for example, "Falcon Fusion skills"). Paste the client ID into `username` and the client secret into `credential`, and save.
 
    They paste both values into 1Password, never into the chat.
 2. Ask for the item's name, its vault, and which cloud they're on (US-1, US-2, EU-1, US-3, or GovCloud). The CLI can name a vault differently from the app. In a 1Password Business account, the personal vault the app shows as "Employee" is `Private` to `op`, so use `Private` for it.
@@ -79,8 +79,8 @@ If they do, the profile holds 1Password secret references instead of the values.
    default = "us-2"
 
    [us-2]
-   client_id = "op://Private/Falcon API client/username"
-   client_secret = "op://Private/Falcon API client/credential"
+   client_id = "op://Private/Falcon Fusion skills/username"
+   client_secret = "op://Private/Falcon Fusion skills/credential"
    ```
 
    Set `base_url` only on clouds other than US-1, US-2, and EU-1 (see the template in Step 2b). Apply the same `chmod` as in Step 2b, then go to Step 3. Tell the user that 1Password will ask them to authorize the CLI when the self-test runs.
@@ -98,7 +98,7 @@ Write tool:
 ```toml
 # CrowdStrike Falcon API credentials for fusion-skills.
 # Fill in client_id and client_secret below, then save this file.
-# Either can be a 1Password reference instead, e.g. "op://Private/Falcon API client/credential".
+# Either can be a 1Password reference instead, e.g. "op://Private/Falcon Fusion skills/credential".
 #
 # Create an API client in the Falcon console:
 #   Support and resources -> Client Management -> Create API client
@@ -186,12 +186,12 @@ A successful run prints where the credentials came from (environment variables o
 
 If the user keeps API secrets in 1Password and can't store them in plain text, `client_id` and `client_secret` can each hold a 1Password secret reference instead of the value (the same works for `FALCON_CLIENT_ID` and `FALCON_CLIENT_SECRET`).
 
-Have the user create an **API Credential** item in the 1Password app (for example, "Falcon API client"), put the client ID in its `username` field and the client secret in its `credential` field, and then reference both fields in the profile:
+Have the user create an **API Credential** item in the 1Password app (for example, "Falcon Fusion skills"), put the client ID in its `username` field and the client secret in its `credential` field, and then reference both fields in the profile:
 
 ```toml
 [us-2]
-client_id = "op://Private/Falcon API client/username"
-client_secret = "op://Private/Falcon API client/credential"
+client_id = "op://Private/Falcon Fusion skills/username"
+client_secret = "op://Private/Falcon Fusion skills/credential"
 ```
 
 `auth.py` reads each `op://` value with the [1Password CLI](https://developer.1password.com/docs/cli/get-started/) and keeps the results in memory only. The user needs `op` installed and signed in. Both references are read in one `op` call, so 1Password asks for approval at most once per script run. A reference takes the form `op://<vault>/<item>/<field>`; see [secret reference syntax](https://developer.1password.com/docs/cli/secret-reference-syntax/). Plain values keep working as before.
@@ -199,8 +199,8 @@ client_secret = "op://Private/Falcon API client/credential"
 Building a workflow runs many scripts, so in a long session those approvals add up. To approve once per session instead, the user can start the assistant under `op run` with the references in environment variables. `op run` resolves them at launch, and the scripts then read plain values without calling `op`:
 
 ```bash
-FALCON_CLIENT_ID="op://Private/Falcon API client/username" \
-FALCON_CLIENT_SECRET="op://Private/Falcon API client/credential" \
+FALCON_CLIENT_ID="op://Private/Falcon Fusion skills/username" \
+FALCON_CLIENT_SECRET="op://Private/Falcon Fusion skills/credential" \
 op run -- claude
 ```
 
