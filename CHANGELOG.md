@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Recon notification trigger** — `trigger-types.md` covers `event: ReconNotification` (needs `version_constraint: ~1`). `validate.py` and `trigger_search.py --fields` flag the release-invalid `EDRs.Email` and `EDRs.HostName`, and point to the paginated Get exposed data records action, which can include a plaintext `password`.
 - **1Password secret references for credentials** — `client_id` and `client_secret` in the TOML profile, and `FALCON_CLIENT_ID` / `FALCON_CLIENT_SECRET`, accept `op://` references, read with the 1Password CLI so the secret isn't stored in plain text. `/crowdstrike-falcon-fusion:setup` asks whether you use 1Password and writes the `op://` profile for you. Both references are read in one `op` call, so 1Password asks for approval at most once per script run (or once per session under `op run`).
 - **`ca_bundle` profile option for TLS-inspecting proxies** — points the Python client at your organization's CA bundle, which fixes "could not obtain token" on networks that re-sign TLS traffic. It replaces an inherited `REQUESTS_CA_BUNDLE`, and the self-test shows which bundle is in use.
-- **The auth self-test shows where credentials and the CA bundle came from** — environment variables or a named profile, so a leftover `FALCON_CLIENT_ID` or `REQUESTS_CA_BUNDLE` is obvious, and a token failure points at the CA bundle.
+- **The auth self-test shows where credentials and the CA bundle came from** — environment variables or a named profile, so a leftover `FALCON_CLIENT_ID` or `REQUESTS_CA_BUNDLE` is obvious, and a token failure points at the CA bundle. On US-1, US-2, and EU-1, it prints the region FalconPy discovered instead of the default URL, and it says when it's waiting on a 1Password approval.
 - **Package mirror support for the Python setup** — uv honors `PIP_INDEX_URL`, and a failed install suggests setting it (or `UV_DEFAULT_INDEX`) when public PyPI is blocked.
 
 ### Fixed
@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`base_url` is optional on US-1, US-2, and EU-1** — FalconPy discovers those regions, so it's needed only on other clouds such as US-3 and GovCloud.
 - **The setup guidance points to Client Management** — the console's new name for API clients and keys.
 - **Python 3.13 through 3.15 is accepted** — the managed venv setup was capped at 3.14.
+- **Setup doesn't open with an error on a fresh install** — it checks for a credentials file or env vars before running the self-test, so a first run goes straight to configuring credentials. When you use 1Password, it asks for the item name instead of searching your vaults, which was slow and needed extra approvals.
 - **A failed first install no longer leaves a broken venv** — scripts used to run in a venv with no packages and fail with `No module named 'falconpy'`; the wrapper now rebuilds a venv whose install didn't finish.
 
 ## [1.3.0] - 2026-10-01
