@@ -14,7 +14,7 @@ match(file="<filename>", column=<key_column>, field=<event_field>, include=<outp
 | `file` | Name of the lookup file (as uploaded via `create_lookup.py`) |
 | `column` | Column **in the lookup file** to match against (a CSV header, e.g. `ip`) — NOT the event field |
 | `field` | The **event field** whose value is matched against that column (e.g. `RemoteIP`) — NOT a lookup column |
-| `include` | Column(s) from the lookup file to add to the event |
+| `include` | Column(s) from the lookup file to add to the event. Optional: leave it out to add every column except `column` |
 | `strict` | If `true`, only return events that have a match (default: `false`) |
 
 **Do not swap `column` and `field`.** `column=` must be a real header in the CSV;
@@ -22,6 +22,8 @@ match(file="<filename>", column=<key_column>, field=<event_field>, include=<outp
 `column=RemoteIP` when the lookup's header is `ip`) matches a non-existent column
 and silently returns nothing. Read the CSV's headers with `get_lookup.py` and use
 one of those for `column=`; use the event's own field name for `field=`.
+
+**What a match adds to the event (verified live).** Without `include=`, a match adds every lookup column except the `column=` key, so `include=` narrows the output rather than enabling it. With `include=category` (or `include=[category, source]`), only those columns are added. The `column=` key itself is never added, so read the matched value from the event's own `field=` (e.g. `RemoteIP`), which equals the key on a strict match. A workflow that reads `results[0].ip` after `column=ip` gets an empty value.
 
 **These five are the ONLY valid `match()` parameters.** `file`, `column`, and
 `field` are required. Do NOT invent SPL/Splunk-style parameters — there is no
