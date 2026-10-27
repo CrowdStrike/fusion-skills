@@ -132,6 +132,11 @@ class TestExtractNameFromYaml:
     def test_file_not_found(self):
         assert query_workflows.extract_name_from_yaml("/nonexistent") is None
 
+    def test_returns_none_for_invalid_yaml(self, tmp_path):
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: [unclosed\n")
+        assert query_workflows.extract_name_from_yaml(str(f)) is None
+
 
 class TestFormatDefinition:
     """Test human-readable definition formatting."""
@@ -263,6 +268,16 @@ class TestMain:
         monkeypatch.setattr("sys.argv", ["query_workflows.py", "--search", "xyz"])
         query_workflows.main()
         assert "No workflows found" in capsys.readouterr().out
+
+    def test_api_error_json_output_exits_2(self, monkeypatch, capsys):
+        def boom():
+            raise RuntimeError("API error 401: access denied")
+        monkeypatch.setattr(query_workflows, "fetch_all_definitions", boom)
+        monkeypatch.setattr("sys.argv", ["query_workflows.py", "--list", "--json"])
+        with pytest.raises(SystemExit) as exc:
+            query_workflows.main()
+        assert exc.value.code == 2
+        assert "access denied" in json.loads(capsys.readouterr().out)["error"]
 
     def test_requires_a_mode(self, monkeypatch):
         monkeypatch.setattr("sys.argv", ["query_workflows.py"])

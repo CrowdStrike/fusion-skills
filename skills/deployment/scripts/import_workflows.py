@@ -94,12 +94,13 @@ def extract_name_from_yaml(file_path):
 
     Parses the YAML rather than matching lines, so quoting and trailing
     comments (``name: "X" # note``) can't produce a name that dodges the
-    duplicate check. Returns None if the file has no string ``name``.
+    duplicate check. Returns None if the file is missing, unparseable, or has
+    no string ``name``.
     """
     try:
         with open(file_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-    except yaml.YAMLError:
+    except (OSError, yaml.YAMLError):
         return None
     name = data.get("name") if isinstance(data, dict) else None
     return name if isinstance(name, str) else None

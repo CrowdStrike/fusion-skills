@@ -79,6 +79,9 @@ class TestExtractNameFromYaml:
         f.write_text("- just\n- a list\n")
         assert import_workflows.extract_name_from_yaml(str(f)) is None
 
+    def test_returns_none_for_missing_file(self, tmp_path):
+        assert import_workflows.extract_name_from_yaml(str(tmp_path / "nope.yaml")) is None
+
 
 class TestCheckDuplicate:
     """Test duplicate name checking."""
@@ -169,6 +172,19 @@ class TestImportFile:
 
 class TestImportSingleFile:
     """Test the per-file orchestration helper."""
+
+    def test_missing_file_with_skip_validate_fails_without_raising(self, tmp_path, monkeypatch):
+        # Regression: with --skip-validate, a missing file used to raise
+        # FileNotFoundError from the duplicate check and abort the whole batch.
+        mock_client = MagicMock()
+        mock_client.import_definition.side_effect = FileNotFoundError("No such file")
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        basename, status, wf_id = import_workflows._import_single_file(
+            str(tmp_path / "nope.yaml"), {}, skip_validate=True
+        )
+        assert basename == "nope.yaml"
+        assert status == "IMPORT FAILED"
+        assert wf_id is None
 
     def test_duplicate_is_skipped(self, tmp_path, monkeypatch):
         f = tmp_path / "wf.yaml"

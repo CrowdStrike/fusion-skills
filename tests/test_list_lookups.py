@@ -4,6 +4,8 @@ import json
 import sys
 from unittest.mock import MagicMock
 
+import pytest
+
 import list_lookups
 
 
@@ -176,3 +178,19 @@ class TestMain:
         monkeypatch.setattr(sys, "argv", ["list_lookups.py", "--search", "zzz"])
         list_lookups.main()
         assert "No lookup files found" in capsys.readouterr().out
+
+    def test_api_error_exits_1_with_json_error(self, monkeypatch, fake_credentials, capsys):
+        # An API error must fail loudly, not print "No lookup files found".
+        mock_client = MagicMock()
+        mock_client.list_lookup_files.return_value = {
+            "status_code": 403,
+            "body": {"resources": [], "errors": [{"code": 403, "message": "access denied"}]},
+        }
+        monkeypatch.setattr(list_lookups, "get_ngsiem_client", lambda: mock_client)
+        monkeypatch.setattr(sys, "argv", ["list_lookups.py", "--list", "--json"])
+        with pytest.raises(SystemExit) as exc:
+            list_lookups.main()
+        assert exc.value.code == 1
+        captured = capsys.readouterr()
+        assert "access denied" in json.loads(captured.out)["error"]
+        assert "No lookup files found" not in captured.out
