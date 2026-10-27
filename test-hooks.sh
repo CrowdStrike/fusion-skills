@@ -242,7 +242,8 @@ DEFAULT_PARENT=$(mktemp -d)
 echo '{"hook_event_name":"UserPromptSubmit","prompt":"create a fusion workflow"}' |
   env -u FUSION_HOOK_STATE_DIR -u XDG_RUNTIME_DIR TMPDIR="$DEFAULT_PARENT" bash "$ROUTER" >/dev/null
 DEFAULT_DIR="$DEFAULT_PARENT/fusion-skills-$(id -u)"
-PERMS=$(stat -f '%Lp' "$DEFAULT_DIR" 2>/dev/null || stat -c '%a' "$DEFAULT_DIR" 2>/dev/null)
+# GNU first: GNU `stat -f` means filesystem status and succeeds with the wrong output.
+PERMS=$(stat -c '%a' "$DEFAULT_DIR" 2>/dev/null || stat -f '%Lp' "$DEFAULT_DIR" 2>/dev/null)
 if [ "$PERMS" = "700" ] && [ -f "$DEFAULT_DIR/.fusion-skill-router-active" ]; then pass "default state dir is 0700 and holds the marker"; else fail "default state dir is 0700 and holds the marker (perms=$PERMS)"; fi
 rm -rf "$DEFAULT_PARENT"
 
