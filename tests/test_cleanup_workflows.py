@@ -73,8 +73,10 @@ def test_matches_selector_pattern():
 def test_matches_selector_all_test():
     args = cw.parse_args(["--all-test"])
     assert cw.matches_selector("wf-a-run-1", args) is True
-    assert cw.matches_selector("Test QueryEvent", args) is True   # "Test *" convention
     assert cw.matches_selector("prod-workflow", args) is False
+    # Real workflow names that a broad glob would have swept up.
+    assert cw.matches_selector("Test connectivity to ServiceNow", args) is False
+    assert cw.matches_selector("Phishing-run-book", args) is False
 
 
 # --------------------------------------------------------------------------
@@ -123,7 +125,7 @@ def test_run_deletes_matched_ids(monkeypatch):
         "body": {"resources": ["id-a", "id-b"], "errors": []}
     }
     _install_client(monkeypatch, client)
-    assert cw.run(cw.parse_args(["--all-test"])) == 0
+    assert cw.run(cw.parse_args(["--all-test", "--yes"])) == 0
     # Only the two -run- workflows are deleted; prod is left alone.
     called_ids = client.delete_definitions.call_args.kwargs["ids"]
     assert set(called_ids) == {"id-a", "id-b"}
@@ -134,6 +136,24 @@ def test_run_dry_run_deletes_nothing(monkeypatch):
     _install_client(monkeypatch, client)
     assert cw.run(cw.parse_args(["--all-test", "--dry-run"])) == 0
     client.delete_definitions.assert_not_called()
+
+
+def test_run_pattern_without_yes_deletes_nothing(monkeypatch):
+    client = _client_with([{"id": "id-a", "name": "wf-a-run-1"}])
+    _install_client(monkeypatch, client)
+    assert cw.run(cw.parse_args(["--all-test"])) == 2
+    client.delete_definitions.assert_not_called()
+
+
+def test_run_list_api_error_is_not_nothing_matched(monkeypatch, capsys):
+    """A 401 on list must fail (exit 1), not report 'Nothing to delete'."""
+    client = MagicMock()
+    client.search_definitions.return_value = {
+        "status_code": 401, "body": {"resources": [], "errors": [{"message": "access denied"}]},
+    }
+    _install_client(monkeypatch, client)
+    assert cw.run(cw.parse_args(["--all-test", "--yes"])) == 1
+    assert "access denied" in capsys.readouterr().err
 
 
 def test_run_returns_0_when_nothing_matches(monkeypatch):
@@ -161,7 +181,16 @@ def test_run_returns_1_on_delete_error(monkeypatch):
         "body": {"resources": [], "errors": [{"message": "boom"}]}
     }
     _install_client(monkeypatch, client)
-    assert cw.run(cw.parse_args(["--all-test"])) == 1
+    assert cw.run(cw.parse_args(["--all-test", "--yes"])) == 1
+
+
+def test_run_returns_1_on_delete_error_status(monkeypatch):
+    client = _client_with([{"id": "id-a", "name": "wf-a-run-1"}])
+    client.delete_definitions.return_value = {
+        "status_code": 403, "body": {"resources": [], "errors": []}
+    }
+    _install_client(monkeypatch, client)
+    assert cw.run(cw.parse_args(["--all-test", "--yes"])) == 1
 
 
 def test_run_returns_1_on_list_exception(monkeypatch):

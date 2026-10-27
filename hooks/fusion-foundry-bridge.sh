@@ -16,17 +16,32 @@
 # Receives JSON on stdin with tool_input.skill (the skill being invoked).
 # Outputs JSON with additionalContext. Always exits 0.
 
-set -euo pipefail
+# No `set -e`: an advisory hook must exit 0 even when jq is missing or the
+# input isn't the JSON we expect, so failures are guarded explicitly instead.
+set -uo pipefail
 
+HOOK_DIR="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")/host-output.sh"
+source "$HOOK_DIR/host-output.sh"
+# shellcheck disable=SC1091
+source "$HOOK_DIR/state-dir.sh"
+
+command -v jq >/dev/null 2>&1 || exit 0
 
 INPUT=$(cat)
 
-SKILL_NAME=$(echo "$INPUT" | jq -r '.tool_input.skill // empty')
+# `objects` guards against a non-object tool_input (e.g. a string), which would
+# otherwise make jq error out.
+SKILL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_input | objects | .skill // empty' 2>/dev/null) || exit 0
+# Claude Code namespaces plugin skills ("crowdstrike-falcon-fusion:workflows");
+# match Fusion skills on the bare name.
+case "$SKILL_NAME" in
+  crowdstrike-falcon-fusion:*) SKILL_NAME="${SKILL_NAME#crowdstrike-falcon-fusion:}" ;;
+esac
 # Same session-scoped marker path as fusion-skill-router.sh.
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .conversation_id // empty' | tr -cd 'A-Za-z0-9_-')
-MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // empty' 2>/dev/null | tr -cd 'A-Za-z0-9_-')
+STATE_DIR=$(fusion_state_dir) || STATE_DIR=""
+MARKER="${STATE_DIR:+$STATE_DIR/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}}"
 
 # Detect whether the sibling Foundry plugin is installed on the host that is
 # running this hook. Claude Code records installed plugins in JSON; Codex records
@@ -80,7 +95,7 @@ case "$SKILL_NAME" in
   # A Foundry development skill is being invoked. If the user's intent this turn
   # was a standalone Fusion workflow (marker present), advise the Fusion path.
   crowdstrike-falcon-foundry:*|*development-workflow|*workflows-development)
-    if [ -f "$MARKER" ]; then
+    if [ -n "$MARKER" ] && [ -f "$MARKER" ]; then
       emit_advisory "PreToolUse" "Cross-plugin note: For a STANDALONE Fusion workflow (no Foundry app, no manifest.yml), use the workflows skill from crowdstrike-falcon-fusion instead. Only route to Foundry if the user needs an app wrapper — UI pages, serverless functions, or collections."
       exit 0
     fi

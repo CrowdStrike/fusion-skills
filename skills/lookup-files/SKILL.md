@@ -174,7 +174,7 @@ does not.
 | CSV header missing | The first row MUST be column names — `match()` references them by name |
 | `match()` returns no results | Column names are case-sensitive; verify they match the header exactly |
 | Upload rate limited | Wait 30 seconds between batches of 5 uploads |
-| Wrong search domain | Use `--domain falcon` for files queried in Next-Gen SIEM |
+| Wrong search domain | Keep the default `--domain all` when listing, getting, or deleting: `create_lookup.py` uploads to the global namespace, which a narrower domain such as `falcon` doesn't search |
 | Duplicate name overwrites silently | Always `list_lookups.py --search` before `create_lookup.py` |
 | "File not found" on get/update/delete | Confirm the exact filename with `list_lookups.py --search` |
 | CSV parse error on upload | Ensure UTF-8 encoding and comma delimiters |

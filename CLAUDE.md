@@ -19,7 +19,7 @@ Each thought on the left has led to a broken workflow; the right column says wha
 |---------|---------|
 | "I'll write the YAML without searching actions" | Resolve IDs first — Common Action IDs table, then `action_search.py`; action IDs are opaque catalog identifiers, only discoverable via API |
 | "I'll use a placeholder ID for now" | Resolve every action ID before writing YAML. No `PLACEHOLDER_*` values |
-| "version_constraint is optional" | Every action requires it: `~<major>` of its `semantic_version` (`~0` when none, e.g. Charlotte AI at `0.0.100`) |
+| "version_constraint is optional" | Required on class-based actions and expected on every new action: `~<major>` of its `semantic_version` (`~0` when none, e.g. Charlotte AI at `0.0.100`). Adding one to an existing action means shortening its output paths too |
 | "Validation can wait until deploy" | Authoring validates; deployment validates again as a pre-flight |
 | "I'll deploy without releasing" | Workflows must be released before they can execute |
 | "This is basically a Foundry app" | If it needs UI/functions/collections, route to foundry-skills instead |

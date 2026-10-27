@@ -60,7 +60,7 @@ metadata:
 > - Call FalconPy directly for ANY workflow operation — including a
 >   `python - <<EOF ... delete_definition(...)` snippet to clean up a failed
 >   import attempt. Deleting is fine, but it MUST go through `delete_workflow.py`
->   (or `scripts/cleanup_workflows.py`), which wrap the supported endpoints. Never
+>   (or the repo's `../../scripts/cleanup_workflows.py`), which wrap the supported endpoints. Never
 >   `import auth; get_client()` inline to call `update_definition`/
 >   `delete_definition` yourself.
 
@@ -107,7 +107,7 @@ Fix every structural error before continuing. A definition that fails validation
 Workflow names must be unique within the tenant. Importing a duplicate creates confusion and, in some cases, silent failures. Check first:
 
 ```bash
-# Exact-name check (exit 0 if it exists, 1 if not)
+# Exact-name check (exit 0 if it exists, 1 if not, 2 if the API call failed)
 ../../scripts/python.sh scripts/query_workflows.py --check-name "My Workflow"
 
 # Or extract the name straight from the YAML and check
@@ -116,7 +116,8 @@ Workflow names must be unique within the tenant. Importing a duplicate creates c
 
 If a duplicate is found, this is almost always your own earlier attempt at the
 same workflow. Iterate in place with `import_workflows.py --replace` (it deletes
-the existing same-name definition, then re-imports). **Do not rename the
+every existing definition with exactly that name, then re-imports; a name that
+differs only in case is left alone and reported as a duplicate). **Do not rename the
 workflow to `<name> v2` to get past the check** — a renamed copy leaves the old
 definition orphaned in the CID, and every retry sprawls another dead workflow.
 Keep the name stable across attempts; use `--replace` (or delete the old
@@ -227,7 +228,8 @@ All scripts add `common/scripts` to `sys.path` and import `get_client` from the 
 | `query_workflows.py` | List, search, and check for existing workflows | `--list`, `--search TERM`, `--check-name NAME`, `--check-yaml FILE...`, `--json` |
 | `import_workflows.py` | Validate, dedupe, and import definitions | `FILE\|DIR...` (positional), `--skip-validate`, `--skip-duplicate-check`, `--replace` |
 | `release_workflow.py` | Release (enable) a definition by ID | `--id DEF_ID` (required), `--json` |
-| `delete_workflow.py` | Delete a definition by ID or exact name | `--id DEF_ID`, `--name NAME` (repeatable), `--yes`, `--json` |
+| `delete_workflow.py` | Delete a definition by ID or exact name | `--id DEF_ID`, `--name NAME` (repeatable), `--yes`, `--json` (requires `--yes`) |
+| `export_workflow.py` | Export a deployed definition back to YAML | `DEF_ID` (positional), `-o FILE`, `--no-sanitize` |
 
 ### query_workflows.py
 
@@ -238,7 +240,7 @@ All scripts add `common/scripts` to `sys.path` and import `get_client` from the 
 ../../scripts/python.sh scripts/query_workflows.py --check-yaml *.yaml     # Batch duplicate check
 ```
 
-`--check-name` and `--check-yaml` exit non-zero when a duplicate exists, so they compose cleanly in shell pipelines and CI gates.
+`--check-name` and `--check-yaml` exit 0 when a duplicate exists, 1 when the name is free, and 2 when the API call failed (the answer is unknown, so don't treat it as free).
 
 ### import_workflows.py
 
@@ -249,7 +251,7 @@ All scripts add `common/scripts` to `sys.path` and import `get_client` from the 
 ../../scripts/python.sh scripts/import_workflows.py ./workflows/          # Glob a directory
 ```
 
-Supports YAML and JSON definitions, batch mode (multiple files), and directory expansion (`*.yaml`/`*.yml`). Prints a per-file summary and exits non-zero if any file failed or was a duplicate.
+Supports YAML and JSON definitions, batch mode (multiple files), and directory expansion (`*.yaml`/`*.yml`). Prints a per-file summary and exits non-zero if any file failed or was a duplicate. `--replace` can't be combined with `--skip-duplicate-check`, since it needs the duplicate check to find what to replace.
 
 ### release_workflow.py
 
@@ -271,7 +273,8 @@ Calls the Workflows definition-action endpoint with `action_name="enable"`. The 
 Deletes a whole definition via the Workflows delete endpoint (FalconPy
 `delete_definitions`). Use it to remove test, duplicate, or throwaway workflows.
 Deletion is permanent, so it prompts for confirmation unless `--yes` is passed
-(or `FUSION_SKILLS_SUPPRESS_CONFIRM=1` is set for test harnesses). This is the
+(or `FUSION_SKILLS_SUPPRESS_CONFIRM=1` is set for test harnesses). `--json` can't
+prompt, so it refuses to delete without `--yes`. This is the
 supported way to *remove* a workflow — it is **not** a way to *edit* a deployed
 one: to change a workflow, fix the source YAML and re-import (see pitfall 5).
 
@@ -294,7 +297,7 @@ one: to change a workflow, fix the source YAML and re-import (see pitfall 5).
 ## Handoff
 
 - **Came from authoring?** You have a validated YAML file — start at step 2 (duplicate check).
-- **Going to execution?** Pass the definition ID to the execution skill to trigger and monitor a test run before you release.
+- **Going to execution?** Once the user approves the release, pass the definition ID to the execution skill to trigger and monitor a test run (a disabled definition can't execute).
 
 ## Reading Guide
 

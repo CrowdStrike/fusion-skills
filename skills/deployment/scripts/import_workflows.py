@@ -94,27 +94,32 @@ def extract_name_from_yaml(file_path):
 
     Parses the YAML rather than matching lines, so quoting and trailing
     comments (``name: "X" # note``) can't produce a name that dodges the
-    duplicate check. Returns None if the file has no string ``name``.
+    duplicate check. Returns None if the file is missing, unparseable, or has
+    no string ``name``.
     """
     try:
         with open(file_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-    except yaml.YAMLError:
+    except (OSError, yaml.YAMLError):
         return None
     name = data.get("name") if isinstance(data, dict) else None
     return name if isinstance(name, str) else None
 
 
+def index_by_name(defs):
+    """Group definitions by lowercased name: {name_lower: [def, ...]}."""
+    index = {}
+    for d in defs:
+        index.setdefault(d.get("name", "").lower(), []).append(d)
+    return index
+
+
 def check_duplicate(name, existing_names):
     """
-    Check if a workflow name already exists.
-    Returns the existing definition ID if found, None otherwise.
+    Check if a workflow name already exists (case-insensitive).
+    Returns the list of existing definitions with that name (empty if none).
     """
-    name_lower = name.lower()
-    found = existing_names.get(name_lower)
-    if found:
-        return found.get("id", "?")
-    return None
+    return existing_names.get(name.lower(), [])
 
 
 def delete_definition_by_id(wf_id):
@@ -188,31 +193,42 @@ def _import_single_file(fp, existing_names, skip_validate, replace=False):
         if not passed:
             return basename, "VALIDATION FAILED", None
 
-    if existing_names:
-        wf_name = extract_name_from_yaml(fp)
-        if wf_name:
-            dup_id = check_duplicate(wf_name, existing_names)
-            if dup_id:
-                if replace:
-                    # Iterate in place (YAML-only): delete the existing same-name
-                    # definition, then re-import the corrected YAML below. Yields
-                    # ONE definition per name instead of a renamed copy per retry.
-                    print(f"    REPLACE: deleting existing '{wf_name}' (ID: {dup_id})")
-                    ok, msg = delete_definition_by_id(dup_id)
-                    if not ok:
-                        print(f"    REPLACE FAILED: could not delete existing definition: {msg}")
-                        return basename, "REPLACE FAILED", None
-                else:
-                    print(f"    DUPLICATE: '{wf_name}' already exists (ID: {dup_id})")
-                    print("    Skipping — re-run with --replace to iterate in place "
-                          "(deletes the old definition, then re-imports). Do NOT "
-                          "rename the workflow to dodge this check: a renamed copy "
-                          "orphans the existing definition and sprawls the CID.")
-                    return basename, "DUPLICATE", None
+    wf_name = extract_name_from_yaml(fp) if existing_names is not None else None
+    if wf_name:
+        dups = check_duplicate(wf_name, existing_names)
+        exact = [d for d in dups if d.get("name") == wf_name]
+        if dups and replace and len(exact) == len(dups):
+            # Iterate in place (YAML-only): delete every existing definition with
+            # exactly this name, then re-import the corrected YAML below. Yields
+            # ONE definition per name instead of a renamed copy per retry.
+            for d in exact:
+                dup_id = d.get("id", "?")
+                print(f"    REPLACE: deleting existing '{wf_name}' (ID: {dup_id})")
+                ok, msg = delete_definition_by_id(dup_id)
+                if not ok:
+                    print(f"    REPLACE FAILED: could not delete existing definition: {msg}")
+                    return basename, "REPLACE FAILED", None
+            existing_names.pop(wf_name.lower(), None)
+        elif dups:
+            for d in dups:
+                print(f"    DUPLICATE: '{d.get('name', '?')}' already exists (ID: {d.get('id', '?')})")
+            if replace:
+                print("    Not replacing — an existing name differs only in case, so it "
+                      "may be a different workflow. Delete it explicitly with "
+                      "delete_workflow.py --id if it should go.")
+            else:
+                print("    Skipping — re-run with --replace to iterate in place "
+                      "(deletes the old definition, then re-imports). Do NOT "
+                      "rename the workflow to dodge this check: a renamed copy "
+                      "orphans the existing definition and sprawls the CID.")
+            return basename, "DUPLICATE", None
 
     ok, msg, wf_id = import_file(fp)
     if ok:
         print(f"    Imported — ID: {wf_id}")
+        if wf_name and existing_names is not None:
+            # Later files in the same batch must see this name as taken.
+            existing_names.setdefault(wf_name.lower(), []).append({"id": wf_id, "name": wf_name})
         return basename, "IMPORTED", wf_id
     print(f"    IMPORT FAILED: {msg}")
     # A 500 is server-side and not fixable by editing the YAML or reimporting.
@@ -268,6 +284,10 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.replace and args.skip_duplicate_check:
+        parser.error("--replace needs the duplicate check to find the definition "
+                     "to replace; drop --skip-duplicate-check")
+
     if args.skip_validate:
         print(
             "  NOTE: --skip-validate bypasses local validation. An invalid workflow "
@@ -284,12 +304,12 @@ def main():
         print("  No definition files to import.", file=sys.stderr)
         sys.exit(1)
 
-    existing_names = {}
+    existing_names = None
     if not args.skip_duplicate_check:
         print("\n  Checking for duplicate workflow names...")
         try:
             all_defs = fetch_all_definitions()
-            existing_names = {d.get("name", "").lower(): d for d in all_defs}
+            existing_names = index_by_name(all_defs)
             print(f"    Found {len(all_defs)} existing workflow(s)")
         except (ConnectionError, RuntimeError, OSError) as exc:
             # Fail closed: importing blind can create a duplicate definition.

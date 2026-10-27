@@ -18,6 +18,19 @@ import time
 import sys
 import os
 
+# Bootstrap with THIS script's path before importing get_execution_results:
+# its own ensure_deps call would otherwise re-exec get_execution_results.py
+# with monitor's arguments.
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "..", "..", "..", "common", "scripts",
+    ),
+)
+import _bootstrap  # pylint: disable=wrong-import-position
+_bootstrap.ensure_deps(__file__)  # re-exec via managed venv if deps are missing
+
 # fetch_results and TERMINAL_STATUSES live alongside this script; they own the
 # auth client and API-response parsing, so this script needs no direct client.
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))

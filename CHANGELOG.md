@@ -29,6 +29,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Python 3.13 through 3.15 is accepted** — the managed venv setup was capped at 3.14.
 - **Setup doesn't open with an error on a fresh install** — it checks for a credentials file or env vars before running the self-test, so a first run goes straight to configuring credentials. When you use 1Password, it asks for the item name instead of searching your vaults, which was slow and needed extra approvals.
 - **A failed first install no longer leaves a broken venv** — scripts used to run in a venv with no packages and fail with `No module named 'falconpy'`; the wrapper now rebuilds a venv whose install didn't finish.
+- **API errors no longer look like empty results** — a 401, 403, 429, or 5xx while listing workflows, lookup files, or actions used to read as "nothing found", which let an import skip the duplicate check and told the agent an action didn't exist. The scripts now report the error and exit non-zero. `query_workflows.py --check-name` and `--check-yaml` exit 2 on an API error, since 1 already means the name is free.
+- **`--replace` replaces every copy, and only exact names** — it deletes all definitions with exactly the workflow's name instead of one of them, and won't delete a name that differs only in case. It can't be combined with `--skip-duplicate-check`, and two files with the same name in one import batch no longer both get imported.
+- **Deletes always need confirmation** — `delete_workflow.py --json` requires `--yes` instead of deleting without asking, and `--name` matches the exact name, so `--name probe` no longer deletes a workflow called `Probe`. `cleanup_workflows.py --pattern` and `--all-test` require `--yes` (or preview with `--dry-run`), and `--all-test` matches only the test harness's `<name>-run-<N>` names.
+- **`trigger_workflow.py --json` prints only JSON on stdout** — progress lines go to stderr. Without `--params` or `--autofill` it exits with an error instead of waiting for interactive input. `--autofill` stops on an API error instead of executing with no inputs filled.
+- **`monitor_execution.py` works when launched with a bare `python`** — it used to restart as `get_execution_results.py` when the managed venv had to take over.
+- **`validate.py` reports a missing file instead of crashing**, and its `version_constraint` hint suggests the action's own major version rather than `~1`.
+- **The cross-plugin advisory fires in Claude Code** — it now recognizes namespaced skill names such as `crowdstrike-falcon-fusion:workflows`.
+- **The hooks always exit 0** — they used to error on every prompt when `jq` was missing or the input wasn't JSON. Their marker files moved from a fixed name in shared `/tmp` to a private per-user directory.
+- **Broken commands in the docs** — the README Quick Start, the cache-refresh tip, `GEMINI.md`'s orchestrator import, the lookup enrichment use case's nonexistent `--domain` flag, and a reference to a nonexistent `execute.py` are fixed. The deployment skill documents the `--check-name` exit codes correctly and lists `export_workflow.py`.
 
 ## [1.3.0] - 2026-10-01
 

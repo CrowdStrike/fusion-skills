@@ -79,61 +79,37 @@ BASELINE_JSON="$AB_RESULTS_DIR/baseline.json"
 EXTRA_TEST_FLAGS=()
 [ "$SKIP_DEPLOY" = "1" ] && EXTRA_TEST_FLAGS+=(--skip-deploy)
 
-# Find the generated workflow YAML under a run directory (top-level 'trigger:').
-find_workflow_file() {
-  local dir="$1" f
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    if grep -qE '^trigger:' "$f" 2>/dev/null; then
-      echo "$f"; return
-    fi
-  done < <(find "$dir" \( -name "*.yaml" -o -name "*.yml" \) -maxdepth 3 2>/dev/null)
-  echo ""
-}
-
 # Clean up deployed Fusion workflows from a phase directory.
 #
-# Deletes via the Workflows delete API (scripts/cleanup_workflows.py, FalconPy
-# delete_definitions) — no browser. Collects the workflow names deployed by each
-# run in the phase, then deletes them by name. Skipped entirely in --skip-deploy
-# mode, where nothing was imported.
+# Deletes via the Workflows delete API (delete_workflow.py, FalconPy
+# delete_definitions) — no browser. Deletes exactly the definition IDs the
+# phase's runs imported (the import script's "Imported — ID: <id>" line in each
+# run log), never by name: a model-chosen name can match a real workflow that
+# already exists in the tenant. Skipped entirely in --skip-deploy mode, where
+# nothing was imported.
 cleanup_phase_workflows() {
   local phase_dir="$1"
   [ "$SKIP_DEPLOY" = "1" ] && return 0
   [ -d "$phase_dir" ] || return 0
 
-  # Collect the workflow names deployed in this phase.
-  local names=()
-  for dir in "$phase_dir"/run-*/; do
-    [ -d "$dir" ] || continue
-    local wf_file wf_name
-    wf_file=$(find_workflow_file "$dir")
-    [ -n "$wf_file" ] || continue
-    # Strip the "name:" prefix and any surrounding quotes. Uses three simple
-    # substitutions rather than one lazy-quantified capture group, because BSD
-    # (macOS) sed rejects the '.+?' non-greedy operator with "RE error:
-    # repetition-operator operand invalid".
-    wf_name=$(grep -m1 -E '^name:' "$wf_file" 2>/dev/null \
-      | sed -E "s/^name:[[:space:]]*//; s/^[\"']//; s/[\"'][[:space:]]*$//")
-    [ -n "$wf_name" ] && names+=("$wf_name")
+  local ids=()
+  local log def_id
+  for log in "$phase_dir"/run-*.log; do
+    [ -f "$log" ] || continue
+    while IFS= read -r def_id; do
+      [ -n "$def_id" ] && ids+=(--id "$def_id")
+    done < <(grep -oE 'Imported — ID: [a-f0-9]{32}' "$log" 2>/dev/null | grep -oE '[a-f0-9]{32}')
   done
 
-  if [ ${#names[@]} -eq 0 ]; then
+  if [ ${#ids[@]} -eq 0 ]; then
     return 0
   fi
 
-  local cleanup_py="$REPO_ROOT/scripts/cleanup_workflows.py"
-  if [ ! -f "$cleanup_py" ]; then
-    echo "  NOTE: scripts/cleanup_workflows.py not found — skipping cleanup."
-    echo "        Remove these manually in Falcon console → Fusion → Workflows:"
-    printf '          - %s\n' "${names[@]}"
-    return 0
-  fi
-
-  echo "  Deleting ${#names[@]} workflow(s) via the delete API..."
+  local delete_py="$REPO_ROOT/skills/deployment/scripts/delete_workflow.py"
+  echo "  Deleting $(( ${#ids[@]} / 2 )) imported workflow(s) by definition ID..."
   # Best-effort: a failed delete must never abort the A/B run, so swallow
-  # non-zero exit. cleanup_workflows.py reports per-name.
-  python3 "$cleanup_py" --names "${names[@]}" || \
+  # non-zero exit. delete_workflow.py reports what it deleted.
+  python3 "$delete_py" "${ids[@]}" --yes || \
     echo "  NOTE: cleanup reported issues (see output above). Continuing."
 }
 

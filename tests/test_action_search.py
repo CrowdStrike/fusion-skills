@@ -520,6 +520,54 @@ class TestPaginateAll:
         assert action_search._load_cache() is None  # NOT persisted
         assert "scan incomplete" in capsys.readouterr().out
 
+    def test_first_page_failure_raises(self, tmp_path, monkeypatch):
+        """No data at all must be an error, not an empty catalog ('no actions found')."""
+        monkeypatch.setattr(action_search, "_CACHE_FILE", str(tmp_path / ".c.json"))
+        monkeypatch.setattr(action_search.time, "sleep", lambda _s: None)
+        client = MagicMock()
+        client.search_activities.return_value = {"status_code": 401, "body": {"resources": []}}
+        monkeypatch.setattr(action_search, "get_client", lambda: client)
+        with pytest.raises(RuntimeError, match="action catalog"):
+            action_search._paginate_all()
+
+
+class TestHardFailures:
+    """Auth/rate-limit/server errors must surface, not read as 'not found'."""
+
+    @pytest.mark.parametrize("status", [401, 403, 429, 500])
+    def test_details_raises_on_hard_failure(self, monkeypatch, status):
+        client = MagicMock()
+        client.search_activities.return_value = {
+            "status_code": status, "body": {"errors": [{"message": "nope"}]},
+        }
+        monkeypatch.setattr(action_search, "get_client", lambda: client)
+        with pytest.raises(RuntimeError, match=str(status)):
+            action_search.get_action_details("abc")
+
+    def test_details_404_is_not_found(self, monkeypatch):
+        client = MagicMock()
+        client.search_activities.return_value = {"status_code": 404, "body": {"resources": []}}
+        monkeypatch.setattr(action_search, "get_client", lambda: client)
+        assert action_search.get_action_details("missing") is None
+
+    def test_main_reports_error_and_exits_1(self, monkeypatch, capsys):
+        def boom(_aid):
+            raise RuntimeError("Action catalog request failed (HTTP 401)")
+        monkeypatch.setattr(action_search, "get_action_details", boom)
+        monkeypatch.setattr("sys.argv", ["action_search.py", "--details", "abc"])
+        with pytest.raises(SystemExit) as exc:
+            action_search.main()
+        assert exc.value.code == 1
+        assert "401" in capsys.readouterr().err
+
+    def test_details_json_not_found_exits_1(self, monkeypatch, capsys):
+        monkeypatch.setattr(action_search, "get_action_details", lambda _aid: None)
+        monkeypatch.setattr("sys.argv", ["action_search.py", "--details", "abc", "--json"])
+        with pytest.raises(SystemExit) as exc:
+            action_search.main()
+        assert exc.value.code == 1
+        assert capsys.readouterr().out.strip() == "null"
+
 
 class TestListVendors:
     """Cover the vendor aggregation."""

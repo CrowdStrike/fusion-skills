@@ -12,11 +12,13 @@ Usage:
     python query_workflows.py --check-name "My Workflow"      # Exit 0 if exists, 1 if not
     python query_workflows.py --check-yaml workflow.yaml      # Extract name from YAML, check if exists
     python query_workflows.py --check-yaml *.yaml             # Check multiple files
+
+Exit codes: 0 = success (for --check-*, a duplicate exists), 1 = no duplicate,
+2 = API/connection error (the answer is unknown — do not treat it as clean).
 """
 
 import argparse
 import json
-import re
 import sys
 import os
 
@@ -31,20 +33,26 @@ sys.path.insert(
 )
 import _bootstrap  # pylint: disable=wrong-import-position
 _bootstrap.ensure_deps(__file__)  # re-exec via managed venv if deps are missing
-from auth import get_client  # pylint: disable=wrong-import-position
+from auth import get_client, raise_for_api_error  # pylint: disable=wrong-import-position
+import yaml  # pylint: disable=wrong-import-position,wrong-import-order
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 def fetch_all_definitions():
-    """Fetch all workflow definitions with pagination."""
+    """Fetch all workflow definitions with pagination.
+
+    Raises RuntimeError on an API error so callers never mistake a failed
+    request (401/403/429/5xx) for a CID with no workflows.
+    """
     client = get_client()
     all_defs = []
     offset = 0
     limit = 100
     while True:
         resp = client.search_definitions(limit=limit, offset=offset)
+        raise_for_api_error(resp, "Listing workflow definitions")
         body = resp["body"]
         resources = body.get("resources", [])
         if not resources:
@@ -73,18 +81,23 @@ def find_by_exact_name(name):
 
 
 def extract_name_from_yaml(file_path):
-    """Extract the workflow name from a YAML file without requiring PyYAML."""
+    """Extract the top-level workflow name from a YAML file.
+
+    Parses the YAML rather than matching lines, so quoting and trailing
+    comments (``name: "X" # note``) can't produce a name that dodges the
+    duplicate check. Returns None if the file is missing, unparseable, or has
+    no string ``name``.
+    """
     if not os.path.isfile(file_path):
         print(f"  File not found: {file_path}", file=sys.stderr)
         return None
-
-    with open(file_path, encoding="utf-8") as f:
-        for line in f:
-            # Match top-level name: key (not indented)
-            match = re.match(r"^name:\s*['\"]?(.+?)['\"]?\s*$", line)
-            if match:
-                return match.group(1)
-    return None
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError:
+        return None
+    name = data.get("name") if isinstance(data, dict) else None
+    return name if isinstance(name, str) else None
 
 
 def format_definition(d):
@@ -216,6 +229,19 @@ def main():
     )
     args = parser.parse_args()
 
+    # Exit 2 on an API error: exit 1 already means "no duplicate" for
+    # --check-name/--check-yaml, so a failed lookup must not reuse it.
+    try:
+        _dispatch(args)
+    except (ConnectionError, RuntimeError, OSError) as exc:
+        if args.json:
+            print(json.dumps({"error": str(exc)}, indent=2))
+        print(f"  ERROR: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _dispatch(args):
+    """Run the selected query command."""
     if args.list:
         defs = fetch_all_definitions()
         if args.json:

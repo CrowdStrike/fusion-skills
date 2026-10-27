@@ -42,6 +42,30 @@ class TestFetchAllDefinitions:
         monkeypatch.setattr(query_workflows, "get_client", lambda: mock_client)
         assert query_workflows.fetch_all_definitions() == []
 
+    @pytest.mark.parametrize("resp", [
+        {"status_code": 429, "body": {"resources": [], "errors": [{"message": "rate limited"}]}},
+        {"status_code": 403, "body": {"errors": []}},
+    ])
+    def test_api_error_raises_instead_of_empty(self, monkeypatch, resp):
+        """A failed list must not read as 'no workflows' — that silently
+        disables the import duplicate check."""
+        mock_client = MagicMock()
+        mock_client.search_definitions.return_value = resp
+        monkeypatch.setattr(query_workflows, "get_client", lambda: mock_client)
+        with pytest.raises(RuntimeError):
+            query_workflows.fetch_all_definitions()
+
+    def test_check_name_api_error_exits_2(self, monkeypatch, capsys):
+        """exit 1 means 'no duplicate', so an API error must use a different code."""
+        def boom():
+            raise RuntimeError("Listing workflow definitions failed: API returned HTTP 401")
+        monkeypatch.setattr(query_workflows, "fetch_all_definitions", boom)
+        monkeypatch.setattr("sys.argv", ["query_workflows.py", "--check-name", "X"])
+        with pytest.raises(SystemExit) as exc:
+            query_workflows.main()
+        assert exc.value.code == 2
+        assert "401" in capsys.readouterr().err
+
 
 class TestSearchDefinitions:
     """Test substring search filtering."""
@@ -107,6 +131,11 @@ class TestExtractNameFromYaml:
 
     def test_file_not_found(self):
         assert query_workflows.extract_name_from_yaml("/nonexistent") is None
+
+    def test_returns_none_for_invalid_yaml(self, tmp_path):
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: [unclosed\n")
+        assert query_workflows.extract_name_from_yaml(str(f)) is None
 
 
 class TestFormatDefinition:
@@ -239,6 +268,16 @@ class TestMain:
         monkeypatch.setattr("sys.argv", ["query_workflows.py", "--search", "xyz"])
         query_workflows.main()
         assert "No workflows found" in capsys.readouterr().out
+
+    def test_api_error_json_output_exits_2(self, monkeypatch, capsys):
+        def boom():
+            raise RuntimeError("API error 401: access denied")
+        monkeypatch.setattr(query_workflows, "fetch_all_definitions", boom)
+        monkeypatch.setattr("sys.argv", ["query_workflows.py", "--list", "--json"])
+        with pytest.raises(SystemExit) as exc:
+            query_workflows.main()
+        assert exc.value.code == 2
+        assert "access denied" in json.loads(capsys.readouterr().out)["error"]
 
     def test_requires_a_mode(self, monkeypatch):
         monkeypatch.setattr("sys.argv", ["query_workflows.py"])

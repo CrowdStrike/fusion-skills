@@ -943,6 +943,12 @@ actions:
         assert passed is True
         assert any("header comment" in m for m in messages)
 
+    def test_missing_file_fails_without_crashing(self, tmp_path):
+        """A typo'd path must fail validation, not raise FileNotFoundError mid-batch."""
+        passed, messages = validate.validate_file(str(tmp_path / "nope.yaml"), preflight_only=False)
+        assert passed is False
+        assert any("File not found" in m for m in messages)
+
 
 class TestStructuralEdgeCases:
     """Cover defensive branches for malformed / non-dict structures."""

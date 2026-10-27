@@ -218,7 +218,7 @@ def preflight_check(file_path):
     issues = []
 
     if not os.path.isfile(file_path):
-        return [f"File not found: {file_path}"]
+        return [f"ERROR: File not found: {file_path}"]
 
     with open(file_path, encoding="utf-8") as f:
         content = f.read()
@@ -308,7 +308,8 @@ def _validate_action(label, action, issues):
     if "class" in action and "version_constraint" not in action:
         issues.append(
             f"ERROR: Action '{label}' has 'class' but missing "
-            f"'version_constraint' (add: version_constraint: ~1)"
+            f"'version_constraint' (add ~<major> of the action's semantic_version, "
+            f"~0 if it has none; see action_search.py --details <id>)"
         )
     _validate_action_properties(label, action, issues)
 

@@ -19,7 +19,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "common", "scripts"))
 import _bootstrap  # pylint: disable=wrong-import-position
 _bootstrap.ensure_deps(__file__)  # re-exec via managed venv if deps are missing
-from auth import get_ngsiem_client  # pylint: disable=wrong-import-position
+from auth import get_ngsiem_client, raise_for_api_error  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -51,6 +51,7 @@ def fetch_all_lookups(search_domain="all", limit=50):
             offset=str(offset),
             search_domain=search_domain,
         )
+        raise_for_api_error(resp, "Listing lookup files")
         body = resp["body"]
         resources = body.get("resources", [])
         if not resources:
@@ -77,6 +78,7 @@ def search_lookups(term, search_domain="all", limit=50):
             filter=fql,
             search_domain=search_domain,
         )
+        raise_for_api_error(resp, "Searching lookup files")
         body = resp["body"]
         resources = body.get("resources", [])
         if not resources:
@@ -152,6 +154,17 @@ def main():
     )
     args = parser.parse_args()
 
+    try:
+        _run(args)
+    except (ConnectionError, RuntimeError, OSError) as exc:
+        if args.json:
+            print(json.dumps({"error": str(exc)}, indent=2))
+        print(f"  ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _run(args):
+    """Run the selected list/search command."""
     if args.list:
         items = fetch_all_lookups(search_domain=args.domain)
         if args.json:

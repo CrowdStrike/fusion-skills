@@ -458,6 +458,28 @@ def reset_client():
     _ca_bundle_note = ""
 
 
+def raise_for_api_error(resp, action):
+    """
+    Raise RuntimeError if a FalconPy response carries errors or a 4xx/5xx status.
+
+    FalconPy does not raise on HTTP errors: a 401/403/429/500 comes back as a
+    dict with an empty or missing ``resources`` list, which reads exactly like
+    "no results". List and search helpers call this so an auth or rate-limit
+    failure can't masquerade as an empty CID (and silently disable a
+    duplicate check or report "nothing to delete").
+    """
+    body = resp.get("body") or {}
+    errors = body.get("errors") or []
+    status = resp.get("status_code")
+    if errors:
+        detail = "; ".join(
+            e.get("message", str(e)) if isinstance(e, dict) else str(e) for e in errors
+        )
+        raise RuntimeError(f"{action} failed (HTTP {status}): {detail}")
+    if isinstance(status, int) and status >= 400:
+        raise RuntimeError(f"{action} failed: API returned HTTP {status}")
+
+
 def describe_base_url(client, configured):
     """
     Return the base URL a client settled on, marked "(discovered)" when it

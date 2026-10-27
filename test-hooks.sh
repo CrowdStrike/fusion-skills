@@ -14,7 +14,11 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROUTER="$SCRIPT_DIR/hooks/fusion-skill-router.sh"
 BRIDGE="$SCRIPT_DIR/hooks/fusion-foundry-bridge.sh"
-MARKER="/tmp/.fusion-skill-router-active"
+# Isolate marker state from any real session's markers.
+FUSION_HOOK_STATE_DIR=$(mktemp -d)
+export FUSION_HOOK_STATE_DIR
+trap 'rm -rf "$FUSION_HOOK_STATE_DIR"' EXIT
+MARKER="$FUSION_HOOK_STATE_DIR/.fusion-skill-router-active"
 
 # Colors (fall back to plain if not a TTY)
 if [ -t 1 ]; then
@@ -205,6 +209,44 @@ echo '{"hook_event_name":"UserPromptSubmit","prompt":"what is the capital of Fra
 if [ ! -f "$STALE" ]; then pass "stale session marker is pruned"; else fail "stale session marker is pruned"; fi
 rm -f "$STALE"
 
+# 7i. Advisory hooks exit 0 on input they can't parse, and without jq.
+echo 'not json' | bash "$ROUTER" >/dev/null 2>&1
+RC=$?; if [ "$RC" -eq 0 ]; then pass "router exits 0 on non-JSON input"; else fail "router exits 0 on non-JSON input (got $RC)"; fi
+echo 'not json' | bash "$BRIDGE" >/dev/null 2>&1
+RC=$?; if [ "$RC" -eq 0 ]; then pass "bridge exits 0 on non-JSON input"; else fail "bridge exits 0 on non-JSON input (got $RC)"; fi
+OUT=$(echo '{"tool_input":"x"}' | bash "$BRIDGE" 2>&1)
+RC=$?; if [ "$RC" -eq 0 ] && [ -z "$OUT" ]; then pass "bridge ignores a non-object tool_input"; else fail "bridge ignores a non-object tool_input (rc=$RC out=$OUT)"; fi
+NOJQ_BIN=$(mktemp -d)
+for tool in bash cat dirname id mkdir tr find rm touch grep; do
+  p=$(command -v "$tool") && ln -s "$p" "$NOJQ_BIN/$tool"
+done
+OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"create a fusion workflow"}' | PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$ROUTER" 2>&1)
+RC=$?; if [ "$RC" -eq 0 ]; then pass "router exits 0 when jq is missing"; else fail "router exits 0 when jq is missing (got $RC: $OUT)"; fi
+OUT=$(echo '{"tool_input":{"skill":"workflows"}}' | PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$BRIDGE" 2>&1)
+RC=$?; if [ "$RC" -eq 0 ]; then pass "bridge exits 0 when jq is missing"; else fail "bridge exits 0 when jq is missing (got $RC: $OUT)"; fi
+rm -rf "$NOJQ_BIN"
+
+# 7j. An untrusted state dir (a symlink planted by someone else) is never used,
+# but the prompt advisory still fires.
+EVIL_TARGET=$(mktemp -d)
+EVIL_DIR="$(mktemp -d)/state"
+ln -s "$EVIL_TARGET" "$EVIL_DIR"
+OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"create a fusion workflow"}' | FUSION_HOOK_STATE_DIR="$EVIL_DIR" bash "$ROUTER")
+RC=$?
+assert_contains "advisory still fires with an untrusted state dir" "$OUT" "FUSION PLUGIN DETECTED"
+if [ "$RC" -eq 0 ] && [ -z "$(ls -A "$EVIL_TARGET")" ]; then pass "no marker written through a symlinked state dir"; else fail "no marker written through a symlinked state dir"; fi
+rm -rf "$EVIL_TARGET" "$(dirname "$EVIL_DIR")"
+
+# 7k. The default state dir is private to the user.
+DEFAULT_PARENT=$(mktemp -d)
+echo '{"hook_event_name":"UserPromptSubmit","prompt":"create a fusion workflow"}' |
+  env -u FUSION_HOOK_STATE_DIR -u XDG_RUNTIME_DIR TMPDIR="$DEFAULT_PARENT" bash "$ROUTER" >/dev/null
+DEFAULT_DIR="$DEFAULT_PARENT/fusion-skills-$(id -u)"
+# GNU first: GNU `stat -f` means filesystem status and succeeds with the wrong output.
+PERMS=$(stat -c '%a' "$DEFAULT_DIR" 2>/dev/null || stat -f '%Lp' "$DEFAULT_DIR" 2>/dev/null)
+if [ "$PERMS" = "700" ] && [ -f "$DEFAULT_DIR/.fusion-skill-router-active" ]; then pass "default state dir is 0700 and holds the marker"; else fail "default state dir is 0700 and holds the marker (perms=$PERMS)"; fi
+rm -rf "$DEFAULT_PARENT"
+
 echo ""
 echo "Testing fusion-foundry-bridge.sh"
 echo "────────────────────────────────"
@@ -218,6 +260,10 @@ rm -f "$MARKER"
 # 9. Fusion skill invoked -> advise foundry for app capabilities
 OUT=$(echo '{"tool_input":{"skill":"workflows"}}' | bash "$BRIDGE")
 assert_contains "fusion skill emits foundry advisory" "$OUT" "Foundry app wrapper"
+
+# 9a. Claude Code passes plugin skills namespaced.
+OUT=$(echo '{"tool_input":{"skill":"crowdstrike-falcon-fusion:workflows"}}' | bash "$BRIDGE")
+assert_contains "namespaced fusion skill emits foundry advisory" "$OUT" "Foundry app wrapper"
 
 # Codex stores enabled plugins in config.toml. The bridge should recognize the
 # sibling there instead of telling the user to install it again.

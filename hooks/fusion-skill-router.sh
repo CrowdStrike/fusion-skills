@@ -18,31 +18,41 @@
 # Receives JSON on stdin with hook_event_name and event-specific fields.
 # Outputs JSON with additionalContext. Always exits 0 — never blocks the user.
 
-set -euo pipefail
+# No `set -e`: an advisory hook must exit 0 even when jq is missing or the
+# input isn't the JSON we expect, so failures are guarded explicitly instead.
+set -uo pipefail
 
+HOOK_DIR="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")/host-output.sh"
+source "$HOOK_DIR/host-output.sh"
+# shellcheck disable=SC1091
+source "$HOOK_DIR/state-dir.sh"
+
+command -v jq >/dev/null 2>&1 || exit 0
 
 INPUT=$(cat)
 
-HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty')
+HOOK_EVENT=$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null) || exit 0
 # Cursor names these beforeSubmitPrompt and preToolUse, and sends conversation_id.
 case "$HOOK_EVENT" in
   beforeSubmitPrompt) HOOK_EVENT=UserPromptSubmit ;;
   preToolUse) HOOK_EVENT=PreToolUse ;;
 esac
-# Keep only filename-safe characters so the ID can't escape the /tmp filename.
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .conversation_id // empty' | tr -cd 'A-Za-z0-9_-')
-MARKER="/tmp/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}"
-NUDGED="$MARKER.nudged"
+# Keep only filename-safe characters so the ID can't escape the marker filename.
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // empty' 2>/dev/null | tr -cd 'A-Za-z0-9_-')
+STATE_DIR=$(fusion_state_dir) || STATE_DIR=""
+MARKER="${STATE_DIR:+$STATE_DIR/.fusion-skill-router-active${SESSION_ID:+-$SESSION_ID}}"
+NUDGED="${MARKER:+$MARKER.nudged}"
 
 case "$HOOK_EVENT" in
   UserPromptSubmit)
-    # Each prompt is classified on its own; never carry a detection forward.
-    rm -f "$MARKER" "$NUDGED"
-    # Sessions that end mid-detection leave their markers behind; prune old ones.
-    find /tmp/ -maxdepth 1 -name '.fusion-skill-router-active-*' -mmin +1440 -delete 2>/dev/null || true
-    USER_PROMPT=$(echo "$INPUT" | jq -r '.prompt // .user_prompt // .query // empty')
+    if [ -n "$MARKER" ]; then
+      # Each prompt is classified on its own; never carry a detection forward.
+      rm -f "$MARKER" "$NUDGED" 2>/dev/null
+      # Sessions that end mid-detection leave their markers behind; prune old ones.
+      find "$STATE_DIR" -maxdepth 1 -name '.fusion-skill-router-active-*' -mmin +1440 -delete 2>/dev/null
+    fi
+    USER_PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // .user_prompt // .query // empty' 2>/dev/null)
     PROMPT_LOWER=$(echo "$USER_PROMPT" | tr '[:upper:]' '[:lower:]')
 
     FUSION_MATCH=false
@@ -94,7 +104,7 @@ case "$HOOK_EVENT" in
     fi
 
     if [ "$FUSION_MATCH" = true ]; then
-      echo "$$" > "$MARKER"
+      [ -n "$MARKER" ] && echo "$$" > "$MARKER" 2>/dev/null
 
       emit_advisory "UserPromptSubmit" "FUSION PLUGIN DETECTED: This prompt involves Falcon Fusion workflow automation. Load and follow the crowdstrike-falcon-fusion workflows orchestrator skill. It routes to authoring (discover actions, write/validate YAML), deployment (import/release to CID), and execution (trigger/monitor). Do NOT hand-write workflow YAML or guess action IDs."
       exit 0
@@ -102,20 +112,20 @@ case "$HOOK_EVENT" in
     ;;
 
   PreToolUse)
-    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
+    TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
     # Only intercept when the current prompt was detected as Fusion intent.
-    if [ -f "$MARKER" ]; then
+    if [ -n "$MARKER" ] && [ -f "$MARKER" ]; then
       # A Skill call is the goal: stop reminding, but leave the marker for
       # fusion-foundry-bridge.sh, which runs alongside this hook.
       if [ "$TOOL_NAME" = "Skill" ]; then
-        touch "$NUDGED"
+        touch "$NUDGED" 2>/dev/null
         exit 0
       fi
 
       # Advisory nudge, once per detected prompt — never block tools.
       [ -f "$NUDGED" ] && exit 0
-      touch "$NUDGED"
+      touch "$NUDGED" 2>/dev/null
       emit_advisory "PreToolUse" "Fusion plugin reminder: Consider invoking the crowdstrike-falcon-fusion workflows skill for Fusion workflow tasks. It coordinates action discovery, YAML authoring/validation, deployment, and execution."
       exit 0
     fi

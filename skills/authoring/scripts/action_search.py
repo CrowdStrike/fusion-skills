@@ -78,6 +78,20 @@ def _usable_body(resp):
     return None
 
 
+def _raise_if_hard_failure(resp):
+    """Raise RuntimeError for auth, rate-limit, and server errors.
+
+    A 404 with no resources can just mean "no such action" (see _usable_body),
+    but a 401/403/429/5xx means the answer is unknown. Reporting it as "no
+    actions found" would steer the agent toward "that action doesn't exist".
+    """
+    status = resp.get("status_code")
+    if isinstance(status, int) and (status in (401, 403, 429) or status >= 500):
+        errors = (resp.get("body") or {}).get("errors") or []
+        detail = "; ".join(e.get("message", str(e)) for e in errors if isinstance(e, dict))
+        raise RuntimeError(f"Action catalog request failed (HTTP {status}){': ' + detail if detail else ''}")
+
+
 def _fql_search(query, vendor_filter=None, limit=200):
     """Search actions using server-side FQL filter.  Returns (results, total).
 
@@ -213,6 +227,11 @@ def _paginate_all(progress=False):
     total = None
     while True:
         body = _fetch_page_with_retry(client, offset, progress=progress)
+        if body is None and not resources:
+            raise RuntimeError(
+                "Could not fetch the action catalog (check credentials and the "
+                "Workflow API scope with: python common/scripts/auth.py)"
+            )
         if body is None:
             # A page fetch failed mid-scan. Return whatever we gathered for THIS
             # run's immediate use, but do NOT persist it — a truncated cache with
@@ -338,6 +357,7 @@ def list_actions(limit=25, offset=0, vendor_filter=None):
         return page, len(all_for_vendor)
     client = get_client()
     resp = client.search_activities(limit=limit, offset=offset)
+    _raise_if_hard_failure(resp)
     body = _usable_body(resp) or {}
     resources = body.get("resources", [])
     total = body.get("meta", {}).get("pagination", {}).get("total", 0)
@@ -348,6 +368,7 @@ def get_action_details(action_id):
     """Get full details for a specific action by ID."""
     client = get_client()
     resp = client.search_activities(filter=f"id:'{_fql_quote(action_id)}'")
+    _raise_if_hard_failure(resp)
     body = _usable_body(resp) or {}
     resources = body.get("resources", [])
     return resources[0] if resources else None
@@ -519,6 +540,8 @@ def _handle_details(args):
     action = get_action_details(args.details)
     if args.json:
         print(json.dumps(action, indent=2))
+        if not action:
+            sys.exit(1)
     elif not action:
         print(f"Action '{args.details}' not found.")
         sys.exit(1)
@@ -580,6 +603,15 @@ def main():
         parser.error("one of --search, --details, --list, --vendors, --vendor, "
                      "--use-case, or --clear-cache is required")
 
+    try:
+        _dispatch(args)
+    except (ConnectionError, RuntimeError, OSError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _dispatch(args):
+    """Run the selected action-search command."""
     if args.clear_cache:
         print("Cache cleared." if _clear_cache() else "No cache file found.")
     elif args.vendors:

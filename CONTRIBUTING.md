@@ -12,7 +12,7 @@ Open an issue on GitHub for bugs, documentation fixes, and enhancement requests.
 
 1. Fork the repo and create a feature branch from `main`.
 2. Make focused, single-purpose changes — smaller PRs review faster.
-3. Run both test scripts locally and confirm they pass (see Testing below).
+3. Run the test suites locally and confirm they pass (see Testing below).
 4. Update the relevant `SKILL.md`, reference docs, and `CHANGELOG.md` as needed.
 5. Open the PR with a clear description of what changed and why.
 
@@ -20,9 +20,9 @@ Open an issue on GitHub for bugs, documentation fixes, and enhancement requests.
 
 A change merges when it:
 
-- Passes `test-hooks.sh` and `test-skill.sh` with no failures.
+- Passes `pytest tests/`, `test-hooks.sh`, and `test-validate.sh` with no failures (CI also runs pylint, ShellCheck, and markdownlint).
 - Keeps every Python script syntactically valid and self-contained (shared auth via `common/scripts/auth.py` only).
-- Preserves the discipline rules — no hardcoded credentials, no placeholder action IDs, every action carries a `version_constraint`.
+- Preserves the discipline rules — no hardcoded credentials, no placeholder action IDs, every new action carries a `version_constraint` (required on class-based actions).
 - Updates `CHANGELOG.md` for any user-facing change.
 - Has at least one maintainer approval.
 
@@ -55,7 +55,7 @@ Follow the established pattern so the orchestrator and tests stay consistent:
 3. Put executable scripts in `<skill>/scripts/` and import auth from `common/scripts/auth.py`.
 4. Put long-form docs in `<skill>/references/` and link them from a Reading Guide table.
 5. Add a routing entry to the `workflows` orchestrator decision tree.
-6. Add any new reference docs to the `check_ref` list in `test-skill.sh`.
+6. Add any new reference docs to the `check_ref` list in `test-validate.sh`.
 
 ## Code Standards
 

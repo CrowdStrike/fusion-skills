@@ -16,9 +16,9 @@
 # complete. The agent polls for the login to finish, then proceeds.
 #
 # Usage:
-#   bin/export-trigger-yaml.sh                       # NG-SIEM Detection trigger
-#   bin/export-trigger-yaml.sh --trigger "Detection > NG-SIEM Detection"
-#   bin/export-trigger-yaml.sh --out /tmp/trigger.yaml --cloud us-2
+#   scripts/export-trigger-yaml.sh                   # NG-SIEM Detection trigger
+#   scripts/export-trigger-yaml.sh --trigger "Detection > NG-SIEM Detection"
+#   scripts/export-trigger-yaml.sh --out /tmp/trigger.yaml --cloud us-2
 #
 # Flags:
 #   --trigger LABEL   Trigger event source to pick in the console picker
@@ -125,15 +125,17 @@ env -u CLAUDECODE claude --no-session-persistence -p "$PROMPT" \
   > "$LOG_FILE" 2>&1 || true
 
 # Recover the exported definition from between the fences. The streamed log is
-# JSON lines, so the fenced block may be embedded inside a JSON string with
-# escaped newlines; try a raw extraction first, then a de-escaped fallback.
-EXPORT_YAML="$(awk '/---BEGIN-EXPORT---/{f=1;next} /---END-EXPORT---/{f=0} f' "$LOG_FILE" 2>/dev/null)"
+# JSON lines: the agent's text is one JSON string with escaped newlines, so both
+# fences sit on the same physical line. De-escape the assistant text with jq
+# first. A raw pass over the log would match the opening fence, skip the rest of
+# that line, and then capture every later line (the cleanup tool calls) as the
+# "export". The raw fallback requires each fence on its own line for that reason.
+FENCE_SLICE='/^---BEGIN-EXPORT---[[:space:]]*$/{f=1;next} /^---END-EXPORT---[[:space:]]*$/{f=0} f'
+EXPORT_YAML="$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' "$LOG_FILE" 2>/dev/null \
+  | awk "$FENCE_SLICE")"
 
 if [ -z "$EXPORT_YAML" ]; then
-  # Fallback: pull assistant text out of the stream-json log, de-escape it,
-  # then slice between the fences.
-  EXPORT_YAML="$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' "$LOG_FILE" 2>/dev/null \
-    | awk '/---BEGIN-EXPORT---/{f=1;next} /---END-EXPORT---/{f=0} f')"
+  EXPORT_YAML="$(awk "$FENCE_SLICE" "$LOG_FILE" 2>/dev/null)"
 fi
 
 if [ -n "$EXPORT_YAML" ]; then
