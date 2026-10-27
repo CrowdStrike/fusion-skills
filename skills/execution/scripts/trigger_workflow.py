@@ -257,6 +257,11 @@ def main():
     parser.add_argument("--timeout", type=int, default=120, help="Poll timeout in seconds (default: 120)")
     parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
     args = parser.parse_args()
+    # The interactive prompt writes to stdout and waits on stdin, which would
+    # corrupt the JSON document and hang a non-interactive caller.
+    if args.json and args.params is None and not args.autofill:
+        parser.error("--json can't prompt for parameters; pass --params "
+                     "(use --params '{}' for none) or --autofill")
 
     # Get parameters
     if args.params:

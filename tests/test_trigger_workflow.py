@@ -244,6 +244,23 @@ class TestGetTriggerParameters:
         assert "trigger parameters" in capsys.readouterr().err
 
 
+    def test_main_json_without_params_refuses_to_prompt(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "builtins.input", lambda *_a: pytest.fail("must not prompt under --json"),
+        )
+        monkeypatch.setattr(
+            trigger_workflow, "execute_workflow",
+            lambda *_a, **_k: pytest.fail("must not execute"),
+        )
+        monkeypatch.setattr("sys.argv", ["trigger_workflow.py", "--id", "def_id", "--json"])
+        with pytest.raises(SystemExit) as exc:
+            trigger_workflow.main()
+        assert exc.value.code == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "--params" in captured.err
+
+
 class TestHeuristicValue:
     """Test schema-valid placeholder derivation for required params."""
 

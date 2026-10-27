@@ -124,7 +124,7 @@ All scripts add `common/scripts` to `sys.path` and import from the shared `auth`
 
 | Script | Purpose | Key flags |
 |--------|---------|-----------|
-| `trigger_workflow.py` | Execute a workflow with params; optionally wait | `--id DEF_ID` (required), `--params JSON`, `--wait`, `--timeout SECS`, `--json` |
+| `trigger_workflow.py` | Execute a workflow with params; optionally wait | `--id DEF_ID` (required), `--params JSON`, `--wait`, `--timeout SECS`, `--json` (needs `--params` or `--autofill`) |
 | `monitor_execution.py` | Poll an execution until terminal/timeout | `--execution-id ID` (required), `--interval SECS`, `--timeout SECS`, `--json` |
 | `get_execution_results.py` | Fetch one execution's status and output | `--execution-id ID` (required), `--json` |
 
