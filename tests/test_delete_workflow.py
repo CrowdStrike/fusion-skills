@@ -38,9 +38,21 @@ def test_resolve_names_maps_and_flags_missing(monkeypatch):
         {"id": "id-2", "name": "Beta"},
     ])
     monkeypatch.setattr(dw, "get_client", lambda: client)
-    id_map, missing = dw.resolve_names_to_ids(["alpha", "Gamma"])
-    assert id_map == {"alpha": ["id-1"]}      # case-insensitive match
+    id_map, missing = dw.resolve_names_to_ids(["Alpha", "Gamma"])
+    assert id_map == {"Alpha": ["id-1"]}
     assert missing == ["Gamma"]
+
+
+def test_resolve_names_requires_exact_case(monkeypatch):
+    # "probe" must not delete "Probe": a case-only match may be a different workflow.
+    client = _client([
+        {"id": "id-1", "name": "Probe"},
+        {"id": "id-2", "name": "probe"},
+    ])
+    monkeypatch.setattr(dw, "get_client", lambda: client)
+    id_map, missing = dw.resolve_names_to_ids(["probe", "PROBE"])
+    assert id_map == {"probe": ["id-2"]}
+    assert missing == ["PROBE"]
 
 
 # --------------------------------------------------------------------------

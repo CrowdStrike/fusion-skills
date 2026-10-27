@@ -45,7 +45,8 @@ def resolve_names_to_ids(names):
 
     Returns (id_map, missing) where id_map is {name: [ids]} for names that
     matched at least one definition, and missing is the list of names with no
-    match. Name matching is case-insensitive, mirroring query_workflows.py.
+    match. Name matching is exact, including case: "Probe" and "probe" may be
+    different workflows, and a delete should never take out the wrong one.
     """
     client = get_client()
     all_defs = []
@@ -66,7 +67,7 @@ def resolve_names_to_ids(names):
     id_map = {}
     missing = []
     for name in names:
-        matches = [d.get("id") for d in all_defs if d.get("name", "").lower() == name.lower()]
+        matches = [d.get("id") for d in all_defs if d.get("name") == name]
         if matches:
             id_map[name] = matches
         else:
