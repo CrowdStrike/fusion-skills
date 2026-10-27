@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- **What `match()` returns** — the CQL `match()` reference now says that leaving out `include=` adds every lookup column except the `column=` key, and that the key column is never added, so read the matched value from the event's `field=`.
 - **`.distinct()` in the CEL reference** — the list de-duplication function is now documented with the List comprehensions, with a verified-live note that it keeps the first occurrence of each value in order.
 - **Recon notification trigger** — `trigger-types.md` covers `event: ReconNotification` (needs `version_constraint: ~1`). `validate.py` and `trigger_search.py --fields` flag the release-invalid `EDRs.Email` and `EDRs.HostName`, and point to the paginated Get exposed data records action, which can include a plaintext `password`.
 - **1Password secret references for credentials** — `client_id` and `client_secret` in the TOML profile, and `FALCON_CLIENT_ID` / `FALCON_CLIENT_SECRET`, accept `op://` references, read with the 1Password CLI so the secret isn't stored in plain text. `/crowdstrike-falcon-fusion:setup` asks whether you use 1Password and writes the `op://` profile for you. Both references are read in one `op` call, so 1Password asks for approval at most once per script run (or once per session under `op run`).
