@@ -243,26 +243,8 @@ def report_result(result, as_json):
         sys.exit(1)
 
 
-def main():
-    """CLI entry point for workflow execution."""
-    parser = argparse.ArgumentParser(description="Trigger a Fusion workflow")
-    parser.add_argument("--id", required=True, metavar="DEF_ID", help="Workflow definition ID")
-    parser.add_argument("--params", metavar="JSON", help="Execution parameters as JSON string")
-    parser.add_argument("--autofill", action="store_true",
-                        help="Fill any required trigger params missing from --params "
-                             "using name/type heuristics (non-interactive verification)")
-    parser.add_argument("--email", metavar="ADDR",
-                        help="Override value for email-type required params when --autofill is set")
-    parser.add_argument("--wait", action="store_true", help="Poll for execution results")
-    parser.add_argument("--timeout", type=int, default=120, help="Poll timeout in seconds (default: 120)")
-    parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
-    args = parser.parse_args()
-    # The interactive prompt writes to stdout and waits on stdin, which would
-    # corrupt the JSON document and hang a non-interactive caller.
-    if args.json and args.params is None and not args.autofill:
-        parser.error("--json can't prompt for parameters; pass --params "
-                     "(use --params '{}' for none) or --autofill")
-
+def _gather_params(args):
+    """Build the execution parameters from --params, --autofill, or prompts."""
     # Get parameters
     if args.params:
         params = json.loads(args.params)
@@ -289,6 +271,30 @@ def main():
             overrides = {n: args.email for n in required
                          if "email" in n.lower()}
         params = autofill_params(params, properties, required, overrides)
+    return params
+
+
+def main():
+    """CLI entry point for workflow execution."""
+    parser = argparse.ArgumentParser(description="Trigger a Fusion workflow")
+    parser.add_argument("--id", required=True, metavar="DEF_ID", help="Workflow definition ID")
+    parser.add_argument("--params", metavar="JSON", help="Execution parameters as JSON string")
+    parser.add_argument("--autofill", action="store_true",
+                        help="Fill any required trigger params missing from --params "
+                             "using name/type heuristics (non-interactive verification)")
+    parser.add_argument("--email", metavar="ADDR",
+                        help="Override value for email-type required params when --autofill is set")
+    parser.add_argument("--wait", action="store_true", help="Poll for execution results")
+    parser.add_argument("--timeout", type=int, default=120, help="Poll timeout in seconds (default: 120)")
+    parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
+    args = parser.parse_args()
+    # The interactive prompt writes to stdout and waits on stdin, which would
+    # corrupt the JSON document and hang a non-interactive caller.
+    if args.json and args.params is None and not args.autofill:
+        parser.error("--json can't prompt for parameters; pass --params "
+                     "(use --params '{}' for none) or --autofill")
+
+    params = _gather_params(args)
 
     # Under --json, progress goes to stderr so stdout is a single JSON document.
     log = sys.stderr if args.json else sys.stdout
