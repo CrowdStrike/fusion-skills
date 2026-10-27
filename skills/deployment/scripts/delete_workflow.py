@@ -14,7 +14,7 @@ Usage:
     python delete_workflow.py --id <def_id>              # Delete by definition ID
     python delete_workflow.py --id <id1> --id <id2>      # Delete several by ID
     python delete_workflow.py --name "My Workflow"       # Delete by exact name
-    python delete_workflow.py --id <def_id> --json       # Machine-readable output
+    python delete_workflow.py --id <def_id> --json --yes # Machine-readable (--json needs --yes)
     python delete_workflow.py --name "Probe" --yes       # Skip the confirmation prompt
 """
 
@@ -34,7 +34,7 @@ sys.path.insert(
 )
 import _bootstrap  # pylint: disable=wrong-import-position
 _bootstrap.ensure_deps(__file__)  # re-exec via managed venv if deps are missing
-from auth import get_client  # pylint: disable=wrong-import-position
+from auth import get_client, raise_for_api_error  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -53,6 +53,7 @@ def resolve_names_to_ids(names):
     limit = 100
     while True:
         resp = client.search_definitions(limit=limit, offset=offset)
+        raise_for_api_error(resp, "Listing workflow definitions")
         resources = resp["body"].get("resources", [])
         if not resources:
             break
@@ -113,6 +114,40 @@ def _gather_ids(args):
     return unique, missing
 
 
+def _resolve_or_exit(args):
+    """Resolve --id/--name to IDs; exit 1 on an API error or when nothing matches."""
+    try:
+        ids, missing = _gather_ids(args)
+    except (ConnectionError, RuntimeError, OSError) as exc:
+        if args.json:
+            print(json.dumps({"deleted": [], "success": False, "message": str(exc)}, indent=2))
+        else:
+            print(f"\n  ERROR: {exc}\n", file=sys.stderr)
+        sys.exit(1)
+
+    if not ids:
+        msg = "No matching workflow definitions found"
+        if args.json:
+            print(json.dumps({"deleted": [], "missing": missing, "message": msg}, indent=2))
+        else:
+            print(f"\n  {msg}.\n", file=sys.stderr)
+            for name in missing:
+                print(f"    no match: {name}", file=sys.stderr)
+        sys.exit(1)
+    return ids, missing
+
+
+def _confirm_or_exit(ids):
+    """Prompt before a permanent delete; exit 1 unless the user types 'delete'."""
+    print(f"\n  About to permanently delete {len(ids)} workflow definition(s):")
+    for i in ids:
+        print(f"    {i}")
+    answer = input("\n  Type 'delete' to confirm: ").strip().lower()
+    if answer != "delete":
+        print("  Aborted.\n", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     """CLI entry point for workflow deletion."""
     parser = argparse.ArgumentParser(
@@ -139,29 +174,21 @@ def main():
     if not args.id and not args.name:
         parser.error("provide at least one --id or --name")
 
-    ids, missing = _gather_ids(args)
-
-    if not ids:
-        msg = "No matching workflow definitions found"
-        if args.json:
-            print(json.dumps({"deleted": [], "missing": missing, "message": msg}, indent=2))
-        else:
-            print(f"\n  {msg}.\n", file=sys.stderr)
-            for name in missing:
-                print(f"    no match: {name}", file=sys.stderr)
+    suppress = args.yes or os.environ.get("FUSION_SKILLS_SUPPRESS_CONFIRM") == "1"
+    if args.json and not suppress:
+        # --json can't prompt, and must not turn into "delete without asking".
+        print(json.dumps({
+            "deleted": [], "success": False,
+            "message": "--json requires --yes to confirm a permanent delete",
+        }, indent=2))
         sys.exit(1)
+
+    ids, missing = _resolve_or_exit(args)
 
     # Confirm before a permanent delete unless suppressed (scripts pass --yes,
     # tests set the env var used by import's confirm suppression).
-    suppress = args.yes or os.environ.get("FUSION_SKILLS_SUPPRESS_CONFIRM") == "1"
-    if not args.json and not suppress:
-        print(f"\n  About to permanently delete {len(ids)} workflow definition(s):")
-        for i in ids:
-            print(f"    {i}")
-        answer = input("\n  Type 'delete' to confirm: ").strip().lower()
-        if answer != "delete":
-            print("  Aborted.\n", file=sys.stderr)
-            sys.exit(1)
+    if not suppress:
+        _confirm_or_exit(ids)
 
     ok, msg, resources = delete_definitions(ids)
 

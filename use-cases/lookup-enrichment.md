@@ -17,7 +17,8 @@ each detection carries the extra context automatically.
 
 1. **Create the lookup file.** Use the **lookup-files** skill to upload a CSV with a header row
    whose first column is the match key (e.g. `ip,reputation,source`). List first to avoid a
-   silent overwrite (`list_lookups.py --search`), then `create_lookup.py --domain falcon`.
+   silent overwrite (`list_lookups.py --search`), then `create_lookup.py` (it uploads to the
+   global namespace, the only place `match()` can find the file).
 2. **Verify it landed.** `get_lookup.py --name "<file>.csv"` confirms the content before any
    query depends on it.
 3. **Enrich with `match()`.** In a CQL query (Next-Gen SIEM search or an Event Query action in a

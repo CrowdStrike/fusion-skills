@@ -197,7 +197,7 @@ that can't be tested with the execute endpoint.
 ### Poll for results
 The execute endpoint returns immediately with an execution ID. To get results:
 ```bash
-python execute.py --id <def_id> --params '{"key":"val"}' --wait --timeout 120
+python skills/execution/scripts/trigger_workflow.py --id <def_id> --params '{"key":"val"}' --wait --timeout 120
 ```
 
 ### Execution statuses
@@ -205,6 +205,7 @@ python execute.py --id <def_id> --params '{"key":"val"}' --wait --timeout 120
 | Status | Meaning |
 |--------|---------|
 | `In progress` | Still running |
+| `Completed` | Completed successfully (the usual success status) |
 | `Succeeded` | Completed successfully |
 | `Failed` | One or more actions failed |
 | `ActionRequired` | Waiting for human input |

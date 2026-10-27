@@ -84,16 +84,22 @@ class TestCheckDuplicate:
     """Test duplicate name checking."""
 
     def test_finds_duplicate(self):
-        existing = {"my workflow": {"id": "abc123", "name": "My Workflow"}}
-        assert import_workflows.check_duplicate("My Workflow", existing) == "abc123"
+        existing = import_workflows.index_by_name([{"id": "abc123", "name": "My Workflow"}])
+        assert [d["id"] for d in import_workflows.check_duplicate("My Workflow", existing)] == ["abc123"]
 
     def test_case_insensitive(self):
-        existing = {"my workflow": {"id": "abc123", "name": "My Workflow"}}
-        assert import_workflows.check_duplicate("MY WORKFLOW", existing) == "abc123"
+        existing = import_workflows.index_by_name([{"id": "abc123", "name": "My Workflow"}])
+        assert [d["id"] for d in import_workflows.check_duplicate("MY WORKFLOW", existing)] == ["abc123"]
 
     def test_no_duplicate(self):
-        existing = {"other workflow": {"id": "xyz", "name": "Other Workflow"}}
-        assert import_workflows.check_duplicate("New Workflow", existing) is None
+        existing = import_workflows.index_by_name([{"id": "xyz", "name": "Other Workflow"}])
+        assert import_workflows.check_duplicate("New Workflow", existing) == []
+
+    def test_index_keeps_every_same_name_definition(self):
+        existing = import_workflows.index_by_name([
+            {"id": "a", "name": "Dup"}, {"id": "b", "name": "Dup"}, {"id": "c", "name": "Other"},
+        ])
+        assert [d["id"] for d in existing["dup"]] == ["a", "b"]
 
 
 class TestImportFile:
@@ -167,7 +173,7 @@ class TestImportSingleFile:
     def test_duplicate_is_skipped(self, tmp_path, monkeypatch):
         f = tmp_path / "wf.yaml"
         f.write_text("name: My Workflow\n")
-        existing = {"my workflow": {"id": "abc123", "name": "My Workflow"}}
+        existing = {"my workflow": [{"id": "abc123", "name": "My Workflow"}]}
         # get_client should never be called for a duplicate.
         monkeypatch.setattr(import_workflows, "get_client", lambda: (_ for _ in ()).throw(AssertionError))
         basename, status, wf_id = import_workflows._import_single_file(
@@ -249,7 +255,7 @@ class TestImportSingleFile:
         the corrected YAML under the same name (iterate in place)."""
         f = tmp_path / "wf.yaml"
         f.write_text("name: My Workflow\n")
-        existing = {"my workflow": {"id": "old_id", "name": "My Workflow"}}
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
         mock_client = MagicMock()
         mock_client.delete_definitions.return_value = {"body": {"resources": ["old_id"], "errors": []}}
         mock_client.import_definition.return_value = {"body": {"resources": [{"id": "new_id"}], "errors": []}}
@@ -265,7 +271,7 @@ class TestImportSingleFile:
         """If the delete step fails, do not import (would create a duplicate)."""
         f = tmp_path / "wf.yaml"
         f.write_text("name: My Workflow\n")
-        existing = {"my workflow": {"id": "old_id", "name": "My Workflow"}}
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
         mock_client = MagicMock()
         mock_client.delete_definitions.return_value = {"body": {"resources": [], "errors": [{"message": "nope"}]}}
         monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
@@ -280,7 +286,7 @@ class TestImportSingleFile:
         """A replacement that fails validation must leave the existing definition alone."""
         f = tmp_path / "wf.yaml"
         f.write_text("name: My Workflow\n")
-        existing = {"my workflow": {"id": "old_id", "name": "My Workflow"}}
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
         monkeypatch.setattr(
             import_workflows, "validate_file",
             lambda _fp: (False, ["structural error: missing trigger"])
@@ -298,7 +304,7 @@ class TestImportSingleFile:
         """A 403 with an empty errors array is still a failed delete."""
         f = tmp_path / "wf.yaml"
         f.write_text("name: My Workflow\n")
-        existing = {"my workflow": {"id": "old_id", "name": "My Workflow"}}
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
         mock_client = MagicMock()
         mock_client.delete_definitions.return_value = {
             "status_code": 403, "body": {"resources": [], "errors": []}
@@ -314,12 +320,62 @@ class TestImportSingleFile:
         """Without --replace, an existing name is skipped as before (no delete)."""
         f = tmp_path / "wf.yaml"
         f.write_text("name: My Workflow\n")
-        existing = {"my workflow": {"id": "old_id", "name": "My Workflow"}}
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
         monkeypatch.setattr(import_workflows, "get_client", lambda: (_ for _ in ()).throw(AssertionError))
         basename, status, wf_id = import_workflows._import_single_file(
             str(f), existing, skip_validate=True, replace=False
         )
         assert status == "DUPLICATE"
+
+    def test_replace_deletes_every_exact_name_copy(self, tmp_path, monkeypatch):
+        """Two same-name definitions in the CID: --replace must delete both, or
+        the run ends with two definitions while reporting IMPORTED."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+        existing = import_workflows.index_by_name([
+            {"id": "old_1", "name": "My Workflow"}, {"id": "old_2", "name": "My Workflow"},
+        ])
+        mock_client = MagicMock()
+        mock_client.delete_definitions.return_value = {"body": {"resources": [], "errors": []}}
+        mock_client.import_definition.return_value = {"body": {"resources": [{"id": "new_id"}], "errors": []}}
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        _, status, _ = import_workflows._import_single_file(
+            str(f), existing, skip_validate=True, replace=True
+        )
+        assert status == "IMPORTED"
+        deleted = [c.kwargs["ids"] for c in mock_client.delete_definitions.call_args_list]
+        assert deleted == [["old_1"], ["old_2"]]
+
+    def test_replace_refuses_case_only_match(self, tmp_path, monkeypatch):
+        """A name differing only in case may be an unrelated workflow — never delete it."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: Contain Host\n")
+        existing = import_workflows.index_by_name([{"id": "other", "name": "contain host"}])
+        mock_client = MagicMock()
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        _, status, _ = import_workflows._import_single_file(
+            str(f), existing, skip_validate=True, replace=True
+        )
+        assert status == "DUPLICATE"
+        mock_client.delete_definitions.assert_not_called()
+        mock_client.import_definition.assert_not_called()
+
+    def test_same_name_twice_in_one_batch(self, tmp_path, monkeypatch):
+        """The second file with a name imported earlier in the batch is a duplicate,
+        even when the CID started empty."""
+        a = tmp_path / "a.yaml"
+        b = tmp_path / "b.yaml"
+        a.write_text("name: Same\n")
+        b.write_text("name: Same\n")
+        mock_client = MagicMock()
+        mock_client.import_definition.return_value = {"body": {"resources": [{"id": "new_1"}], "errors": []}}
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        existing = {}
+        first = import_workflows._import_single_file(str(a), existing, skip_validate=True)
+        second = import_workflows._import_single_file(str(b), existing, skip_validate=True)
+        assert first[1] == "IMPORTED"
+        assert second[1] == "DUPLICATE"
+        assert mock_client.import_definition.call_count == 1
 
 
 class TestMain:
@@ -407,3 +463,15 @@ class TestMain:
         err = capsys.readouterr().err
         assert "network down" in err
         assert "--skip-duplicate-check" in err
+
+    def test_replace_with_skip_duplicate_check_is_rejected(self, tmp_path, monkeypatch):
+        """--replace can't find what to replace without the duplicate check."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+        monkeypatch.setattr(
+            "sys.argv",
+            ["import_workflows.py", "--replace", "--skip-duplicate-check", str(f)],
+        )
+        with pytest.raises(SystemExit) as exc:
+            import_workflows.main()
+        assert exc.value.code == 2

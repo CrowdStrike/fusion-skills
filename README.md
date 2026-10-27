@@ -15,6 +15,7 @@ AI coding assistant skills for building [CrowdStrike Falcon Fusion](https://www.
 
 - **CrowdStrike Account** with the **Workflow** API scope (plus **NGSIEM Lookup Files** for the lookup-files skill)
 - **AI Coding Assistant**: Claude Code, Codex, Copilot CLI, Cursor, Antigravity CLI, or any tool that can read local reference documentation
+- **[jq](https://jqlang.org/)** for the skill-routing hooks (without it, the hooks stay silent)
 
 ### Install
 
@@ -177,15 +178,15 @@ A workflow goes from idea to running in five steps. The orchestrator coordinates
 4. **Deploy** — check for duplicates, then import and release to your CID:
    ```bash
    python skills/deployment/scripts/query_workflows.py --search "My Workflow"
-   python skills/deployment/scripts/import_workflows.py --file my-workflow.yml
+   python skills/deployment/scripts/import_workflows.py my-workflow.yml
    python skills/deployment/scripts/release_workflow.py --id <definition_id>
    # Remove a test/duplicate workflow when you're done with it:
    python skills/deployment/scripts/delete_workflow.py --id <definition_id>
    ```
 5. **Execute** — trigger and monitor:
    ```bash
-   python skills/execution/scripts/trigger_workflow.py --name "My Workflow" --payload '{"device_id":"..."}'
-   python skills/execution/scripts/monitor_execution.py --id <execution_id>
+   python skills/execution/scripts/trigger_workflow.py --id <definition_id> --params '{"device_id":"..."}'
+   python skills/execution/scripts/monitor_execution.py --execution-id <execution_id>
    ```
 
 ### Use Cases
@@ -239,7 +240,8 @@ If the credentials are right but the self-test still reports "could not obtain t
 Action discovery caches results locally. If a newly shipped action type (e.g., a new native action) doesn't appear, refresh the cache:
 
 ```bash
-python skills/authoring/scripts/action_search.py --search "contain" --clear-cache
+python skills/authoring/scripts/action_search.py --clear-cache
+python skills/authoring/scripts/action_search.py --search "contain"
 ```
 
 ### Workflow won't execute

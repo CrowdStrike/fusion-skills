@@ -105,7 +105,7 @@ These show how intent maps to routing. Use them as templates for your own dispat
 **Full lifecycle:**
 ```
 User: "Create a Fusion workflow that contains a host on critical detection, then test it"
-→ authoring:  action_search.py "contain", write YAML (Signal/EPP trigger), validate
+→ authoring:  action_search.py --search "contain", write YAML (Signal/EPP trigger), validate
 → deployment: query_workflows.py (dupe check), import, release
 → execution:  trigger with a test device_id, monitor, verify result
 ```
@@ -246,7 +246,7 @@ Each of these thoughts skips a step the lifecycle requires; the right column say
 | "Release failed — I'll re-import as `<name>-v2`." | The name is the workflow's identity, not a version. Renaming orphans the old definition and sprawls the CID. Fix the source YAML, keep the SAME name, re-import with `--replace`. |
 | "I'll build the dependency myself" | If it needs a Foundry function/collection, route to foundry-skills. |
 | "They want all high-severity alerts — I'll Event Query the alert population." | Don't Event Query a population you don't already hold (connector-dependent NG-SIEM data). DEFAULT to a CrowdStrike HTTP Request to the Falcon API (`/alerts/queries/alerts/v2`); mention the Foundry-app FalconPy function only if the workflow must be distributed. Enriching a detection the workflow ALREADY holds stays an Event Query. |
-| "version_constraint is optional" | Every action requires it: `~<major>` of the action's `semantic_version` (`~0` when it declares none) — `1.0.4` → `~1`, `0.0.100` → `~0`. |
+| "version_constraint is optional" | Required on class-based actions; set it on every new action too: `~<major>` of the action's `semantic_version` (`~0` when it declares none) — `1.0.4` → `~1`, `0.0.100` → `~0`. Pinning an existing action shortens its output paths. |
 | "I'll trigger before it's released" | Trigger only after deployment releases the workflow. |
 
 ## Reading Guide

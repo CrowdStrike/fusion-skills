@@ -117,12 +117,39 @@ def test_delete_definitions_handles_exception(monkeypatch):
 def test_main_deletes_by_id_json(monkeypatch, capsys):
     client = _client(delete_body={"resources": ["id-1"], "errors": []})
     monkeypatch.setattr(dw, "get_client", lambda: client)
-    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--id", "id-1", "--json"])
+    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--id", "id-1", "--json", "--yes"])
     with pytest.raises(SystemExit) as exc:
         dw.main()
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "id-1" in out
+
+
+def test_main_json_without_yes_refuses_to_delete(monkeypatch, capsys):
+    """--json can't prompt, so it must not become a confirmation bypass."""
+    client = _client([{"id": "id-1", "name": "Contain Host"}])
+    monkeypatch.setattr(dw, "get_client", lambda: client)
+    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--name", "Contain Host", "--json"])
+    with pytest.raises(SystemExit) as exc:
+        dw.main()
+    assert exc.value.code == 1
+    client.delete_definitions.assert_not_called()
+    assert "--yes" in capsys.readouterr().out
+
+
+def test_main_list_api_error_is_reported_not_missing(monkeypatch, capsys):
+    client = MagicMock()
+    client.search_definitions.return_value = {
+        "status_code": 401, "body": {"errors": [{"message": "access denied"}]},
+    }
+    monkeypatch.setattr(dw, "get_client", lambda: client)
+    monkeypatch.setenv("FUSION_SKILLS_SUPPRESS_CONFIRM", "1")
+    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--name", "X"])
+    with pytest.raises(SystemExit) as exc:
+        dw.main()
+    assert exc.value.code == 1
+    assert "access denied" in capsys.readouterr().err
+    client.delete_definitions.assert_not_called()
 
 
 def test_main_reports_actual_deleted_count_not_request_size(monkeypatch, capsys):
@@ -148,7 +175,7 @@ def test_main_errors_without_selector(monkeypatch):
 def test_main_exits_1_when_nothing_resolves(monkeypatch):
     client = _client([])   # no definitions -> name resolves to nothing
     monkeypatch.setattr(dw, "get_client", lambda: client)
-    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--name", "Ghost", "--json"])
+    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--name", "Ghost", "--json", "--yes"])
     with pytest.raises(SystemExit) as exc:
         dw.main()
     assert exc.value.code == 1

@@ -42,6 +42,30 @@ class TestFetchAllDefinitions:
         monkeypatch.setattr(query_workflows, "get_client", lambda: mock_client)
         assert query_workflows.fetch_all_definitions() == []
 
+    @pytest.mark.parametrize("resp", [
+        {"status_code": 429, "body": {"resources": [], "errors": [{"message": "rate limited"}]}},
+        {"status_code": 403, "body": {"errors": []}},
+    ])
+    def test_api_error_raises_instead_of_empty(self, monkeypatch, resp):
+        """A failed list must not read as 'no workflows' — that silently
+        disables the import duplicate check."""
+        mock_client = MagicMock()
+        mock_client.search_definitions.return_value = resp
+        monkeypatch.setattr(query_workflows, "get_client", lambda: mock_client)
+        with pytest.raises(RuntimeError):
+            query_workflows.fetch_all_definitions()
+
+    def test_check_name_api_error_exits_2(self, monkeypatch, capsys):
+        """exit 1 means 'no duplicate', so an API error must use a different code."""
+        def boom():
+            raise RuntimeError("Listing workflow definitions failed: API returned HTTP 401")
+        monkeypatch.setattr(query_workflows, "fetch_all_definitions", boom)
+        monkeypatch.setattr("sys.argv", ["query_workflows.py", "--check-name", "X"])
+        with pytest.raises(SystemExit) as exc:
+            query_workflows.main()
+        assert exc.value.code == 2
+        assert "401" in capsys.readouterr().err
+
 
 class TestSearchDefinitions:
     """Test substring search filtering."""

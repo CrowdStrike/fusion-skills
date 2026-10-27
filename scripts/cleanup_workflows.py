@@ -12,21 +12,23 @@ For a single known definition ID, prefer the deployment skill's
 that test harnesses call to remove throwaway workflows after a run.
 
 Usage:
-    python bin/cleanup_workflows.py --names "wf-1" "wf-2"
-    python bin/cleanup_workflows.py --pattern "contain-host-*-run-*"
-    python bin/cleanup_workflows.py --all-test
-    python bin/cleanup_workflows.py --all-test --dry-run
+    python scripts/cleanup_workflows.py --names "wf-1" "wf-2"
+    python scripts/cleanup_workflows.py --pattern "contain-host-*-run-*" --dry-run
+    python scripts/cleanup_workflows.py --pattern "contain-host-*-run-*" --yes
+    python scripts/cleanup_workflows.py --all-test --dry-run
+    python scripts/cleanup_workflows.py --all-test --yes
 
 Flags:
     --names NAME [NAME ...]  Delete specific workflows by exact name
     --pattern GLOB           Delete workflows whose name matches a glob (fnmatch)
     --all-test               Delete workflows matching test conventions
     --dry-run                List what would be deleted; delete nothing
+    --yes                    Required to actually delete with --pattern/--all-test
 
 Exit codes:
     0  All targeted deletions succeeded (or dry-run, or nothing matched)
     1  One or more deletions failed, or credentials/API error
-    2  Bad arguments
+    2  Bad arguments, or --pattern/--all-test without --yes or --dry-run
 """
 
 import argparse
@@ -43,14 +45,14 @@ sys.path.insert(
 import _bootstrap  # pylint: disable=wrong-import-position
 _bootstrap.ensure_deps(__file__)  # re-exec via the managed venv if deps are missing
 try:
-    from auth import get_client  # pylint: disable=wrong-import-position
+    from auth import get_client, raise_for_api_error  # pylint: disable=wrong-import-position
 except ImportError:
     get_client = None
 
-# Test naming conventions swept by --all-test:
-#   "*-run-*"  — workflows named by run-ab-test.sh / verify-workflows.sh
-#   "Test *"   — probe/scratch workflows a model may create while iterating
-TEST_PATTERNS = ("*-run-*", "Test *")
+# Test naming convention swept by --all-test: "<slug>-run-<N>", the names the
+# test harnesses generate. Keep it narrow — a broad glob such as "Test *"
+# matches real workflows ("Test connectivity to ServiceNow").
+TEST_PATTERNS = ("*-run-[0-9]*",)
 
 
 def parse_args(argv=None):
@@ -76,6 +78,10 @@ def parse_args(argv=None):
         "--dry-run", action="store_true",
         help="List what would be deleted without deleting",
     )
+    parser.add_argument(
+        "--yes", "-y", action="store_true",
+        help="Confirm deletion for --pattern/--all-test (not needed for --names)",
+    )
     return parser.parse_args(argv)
 
 
@@ -97,6 +103,7 @@ def fetch_all_definitions(client):
     limit = 100
     while True:
         resp = client.search_definitions(limit=limit, offset=offset)
+        raise_for_api_error(resp, "Listing workflow definitions")
         resources = resp["body"].get("resources", [])
         if not resources:
             break
@@ -171,9 +178,19 @@ def run(args):
         print("\n  --dry-run: no workflows were deleted.")
         return 0
 
+    if not args.names and not args.yes:
+        print("\n  Nothing deleted: a --pattern/--all-test delete is permanent and "
+              "can match more than intended. Review the list above, then re-run "
+              "with --yes.", file=sys.stderr)
+        return 2
+
     for name in skipped:
         print(f"  — SKIP: {name} (not found)")
+    return _delete_and_report(ids, skipped)
 
+
+def _delete_and_report(ids, skipped):
+    """Delete the resolved IDs and print a per-ID summary. Returns exit code."""
     if not ids:
         print(f"\n  Summary: 0 deleted, {len(skipped)} skipped (not found), 0 failed.")
         return 0
@@ -201,7 +218,10 @@ def run(args):
 def client_delete(ids):
     """Delete definitions by ID; return the response body or raise RuntimeError."""
     try:
-        return get_client().delete_definitions(ids=ids)["body"]
+        resp = get_client().delete_definitions(ids=ids)
+        if not resp["body"].get("errors"):
+            raise_for_api_error(resp, "Deleting workflow definitions")
+        return resp["body"]
     except (ConnectionError, RuntimeError, OSError) as exc:
         raise RuntimeError(f"delete failed: {exc}") from exc
 

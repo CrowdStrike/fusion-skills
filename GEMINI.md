@@ -1,2 +1,2 @@
 @./AGENTS.md
-@./workflows/SKILL.md
+@./skills/workflows/SKILL.md
