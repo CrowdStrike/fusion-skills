@@ -39,6 +39,12 @@ list.filter(item, cond)      # Filter:    [1,2,3].filter(x, x > 1) → [2,3]
 list.exists(item, cond)      # Any match: [1,2,3].exists(x, x > 2) → true
 list.all(item, cond)         # All match: [1,2,3].all(x, x > 0) → true
 list.exists_one(item, cond)  # Exactly one match
+list.distinct()              # De-duplicate: ['a','b','a'].distinct() → ['a','b']
+```
+
+`.distinct()` keeps the first occurrence of each value in its original order (verified live). Chain it after `.filter(...).map(...)` or `.split(...)` to de-duplicate extracted values, as the Content Library's close-duplicate-detections playbook does:
+```
+${data['DuplicateNGSIEMDetectionsQuery.results'].filter(e, e.alerted_before == true)[0].previous_alert_id.split("\n").distinct()}
 ```
 
 **Real example** (from RAN-004 — extracting host IDs from ThreatGraph results):
