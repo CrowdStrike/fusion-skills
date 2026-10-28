@@ -234,6 +234,18 @@ Response body is capped at 10 MB and must be a JSON **object**, not an array.
 Branch on `response_status_code` with a condition node (e.g. `== 200` vs `== 404`)
 to handle success and error paths separately.
 
+**A non-2xx response does not fail the action.** A 404 (or any other HTTP error
+status) completes the HTTP Action normally: the next node runs, and the error
+body arrives in `raw_response_body` with the code in `response_status_code`
+(live-verified: an Okta user lookup that returned 404 completed, and the loop
+iteration went on to the next step, with or without `continue_on_error`). So a
+"not found" path needs a status-code condition, not error handling. Check
+`== 200` before reading body fields, and send everything else to the not-found
+or error branch. Inside a loop, that `else` branch is where you record the item
+as skipped. Store plugin actions behave differently: an API error fails them, so
+they need `continue_on_error: true` (see "Third-party / plugin actions" in
+`yaml-schema.md`).
+
 ## Templates
 
 130+ vendor APIs (VirusTotal, Slack, PagerDuty, ServiceNow, …) have console

@@ -43,6 +43,9 @@ response, authored as workflow YAML and deployed directly to a CID.
    ("script output does not validate against the output JSON schema") that no local check, import,
    or release catches. See `../skills/authoring/references/http-actions.md` "Reading the response".
 5. **Branch on the response.** Add a CEL condition on `response_status_code` (200 vs 404 vs error).
+   A 404 or other error status doesn't fail the action. It completes and the next node runs, so
+   the status-code condition is the only place a "not found" gets handled (verified live). Check
+   for 200 first, then put a 404 condition on its `else` branch, as the source post does.
 6. **Validate, deploy, then configure the credential.** Run `validate.py`, import and release to the
    CID, then configure the API key in the console: open the action → Authentication → Create new →
    API key → secret key → location Header → header name (e.g. `x-apikey`) → Test → **Schema builder**

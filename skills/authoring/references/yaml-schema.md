@@ -154,6 +154,32 @@ OktaRevokeSessions:
 
 **Warning**: `config_id` values are CID-specific. Workflows using them cannot be imported into a different CID without updating these IDs.
 
+**An API error fails a plugin action, unlike an HTTP Action.** When the vendor
+API returns an error, such as a 404 from Okta Get User for an unknown login, the
+plugin action is marked Failed and the nodes after it are skipped. In a loop,
+that iteration ends as failed and never reaches a "not found" branch
+(`continue_on_partial_execution` only keeps the other iterations going). To
+handle the error, set `continue_on_error: true` on the action: the next node then
+runs, and the vendor's error body is in `<ActionLabel>.body` (for Okta,
+`body.errorCode` is `E0000007`). There's no status-code output, so branch on
+whether a success field is present, e.g. `data[?'OktaGetUser.body.id'].orValue('') != ''`.
+Verified live with Okta Get User with login, with and without `continue_on_error`.
+
+```yaml
+OktaGetUser:
+    id: 1bafcb79d5dd4c65b652d03cd3fa7b89
+    name: Okta - Get User with login
+    continue_on_error: true        # a 404 would otherwise fail the iteration
+    next:
+        - UserFound                # condition on body.id, else -> record skipped
+    properties:
+        config_id: bb72f1a93d89473b8c0bd1a3317fb1a9  # per-CID; ask the user
+        params:
+            path:
+                Okta login: ${data['user_emails.#']}
+    version_constraint: ~0
+```
+
 ---
 
 ## loops
