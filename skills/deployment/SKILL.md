@@ -213,6 +213,10 @@ node's `next:`. Do not hand-edit the deployed definition to add the missing flag
 copy per attempt — do NOT rename-and-reimport to dodge the duplicate check, which
 sprawls the CID with dead definitions. (Note: each `--replace` assigns a new
 definition ID; true in-place update via the PUT endpoint is not currently usable.)
+It exports the old definition before deleting it. If the new import then fails
+(a server-side error can follow a clean validation), it re-imports that export and
+prints `RESTORED previous version (new ID: …)`; if the restore fails too, it prints
+the path of the saved export.
 
 Reaching for `python - <<EOF ... update_definition(...)` to patch the deployed
 copy is never step 2. It does not fix the source, so the next re-import

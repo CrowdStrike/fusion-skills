@@ -173,6 +173,14 @@ class TestImportFile:
 class TestImportSingleFile:
     """Test the per-file orchestration helper."""
 
+    @pytest.fixture(autouse=True)
+    def _export_backup(self, monkeypatch):
+        # --replace exports each definition before deleting it; never hit the API.
+        monkeypatch.setattr(
+            import_workflows, "export_definition",
+            lambda wf_id: f"name: My Workflow\n# backup of {wf_id}\n",
+        )
+
     def test_missing_file_with_skip_validate_fails_without_raising(self, tmp_path, monkeypatch):
         # Regression: with --skip-validate, a missing file used to raise
         # FileNotFoundError from the duplicate check and abort the whole batch.
@@ -282,6 +290,69 @@ class TestImportSingleFile:
         assert status == "IMPORTED"
         assert wf_id == "new_id"
         assert mock_client.delete_definitions.call_args.kwargs["ids"] == ["old_id"]
+
+    def test_replace_restores_old_definition_when_import_fails(self, tmp_path, monkeypatch, capsys):
+        """If the import fails after the delete, re-import the exported backup so
+        the CID never ends up with neither version."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
+        imported = []
+
+        def fake_import(data_file):
+            with open(data_file, encoding="utf-8") as fh:
+                imported.append(fh.read())
+            if len(imported) == 1:
+                return {"status_code": 500, "body": {"resources": [], "errors": [
+                    {"message": "Internal Server Error: trace-id='abc'"}]}}
+            return {"body": {"resources": [{"id": "restored_id"}], "errors": []}}
+
+        mock_client = MagicMock()
+        mock_client.delete_definitions.return_value = {"body": {"resources": ["old_id"], "errors": []}}
+        mock_client.import_definition.side_effect = fake_import
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        basename, status, wf_id = import_workflows._import_single_file(
+            str(f), existing, skip_validate=True, replace=True
+        )
+        assert status == "IMPORT FAILED"
+        assert wf_id is None
+        assert imported[1] == "name: My Workflow\n# backup of old_id\n"
+        assert "RESTORED previous version (new ID: restored_id)" in capsys.readouterr().out
+
+    def test_replace_keeps_backup_file_when_restore_fails(self, tmp_path, monkeypatch, capsys):
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
+        mock_client = MagicMock()
+        mock_client.delete_definitions.return_value = {"body": {"resources": ["old_id"], "errors": []}}
+        mock_client.import_definition.return_value = {
+            "status_code": 500, "body": {"resources": [], "errors": [{"message": "boom"}]}}
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        import_workflows._import_single_file(str(f), existing, skip_validate=True, replace=True)
+        out = capsys.readouterr().out
+        assert "RESTORE FAILED" in out
+        backup_path = out.split("backup saved at ", 1)[1].split()[0]
+        with open(backup_path, encoding="utf-8") as fh:
+            assert "backup of old_id" in fh.read()
+
+    def test_replace_aborts_if_backup_export_fails(self, tmp_path, monkeypatch):
+        """No backup means no safe way back, so don't delete."""
+        f = tmp_path / "wf.yaml"
+        f.write_text("name: My Workflow\n")
+        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
+
+        def failing_export(_wf_id):
+            raise RuntimeError("Export failed (status 403)")
+
+        monkeypatch.setattr(import_workflows, "export_definition", failing_export)
+        mock_client = MagicMock()
+        monkeypatch.setattr(import_workflows, "get_client", lambda: mock_client)
+        basename, status, wf_id = import_workflows._import_single_file(
+            str(f), existing, skip_validate=True, replace=True
+        )
+        assert status == "REPLACE FAILED"
+        mock_client.delete_definitions.assert_not_called()
+        mock_client.import_definition.assert_not_called()
 
     def test_replace_aborts_if_delete_fails(self, tmp_path, monkeypatch):
         """If the delete step fails, do not import (would create a duplicate)."""

@@ -19,6 +19,7 @@ import argparse
 import glob
 import sys
 import os
+import tempfile
 
 import yaml
 
@@ -49,9 +50,10 @@ try:
 except ImportError:
     validate_file = None  # Validation unavailable; --skip-validate is implied.
 
-# query_workflows lives alongside this script in deployment/scripts.
+# query_workflows and export_workflow live alongside this script in deployment/scripts.
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from query_workflows import fetch_all_definitions  # pylint: disable=wrong-import-position
+from export_workflow import export_definition  # pylint: disable=wrong-import-position
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -194,6 +196,7 @@ def _import_single_file(fp, existing_names, skip_validate, replace=False):
             return basename, "VALIDATION FAILED", None
 
     wf_name = extract_name_from_yaml(fp) if existing_names is not None else None
+    backups = []
     if wf_name:
         dups = check_duplicate(wf_name, existing_names)
         exact = [d for d in dups if d.get("name") == wf_name]
@@ -201,6 +204,11 @@ def _import_single_file(fp, existing_names, skip_validate, replace=False):
             # Iterate in place (YAML-only): delete every existing definition with
             # exactly this name, then re-import the corrected YAML below. Yields
             # ONE definition per name instead of a renamed copy per retry.
+            # Export each one first: validation can pass and the import still
+            # fail server-side, and the backup is how we put the old one back.
+            backups = _backup_definitions(exact)
+            if backups is None:
+                return basename, "REPLACE FAILED", None
             for d in exact:
                 dup_id = d.get("id", "?")
                 print(f"    REPLACE: deleting existing '{wf_name}' (ID: {dup_id})")
@@ -230,13 +238,53 @@ def _import_single_file(fp, existing_names, skip_validate, replace=False):
             # Later files in the same batch must see this name as taken.
             existing_names.setdefault(wf_name.lower(), []).append({"id": wf_id, "name": wf_name})
         return basename, "IMPORTED", wf_id
+    _report_import_failure(msg, backups)
+    return basename, "IMPORT FAILED", None
+
+
+def _report_import_failure(msg, backups):
+    """Explain a failed import and restore anything --replace deleted."""
     print(f"    IMPORT FAILED: {msg}")
     # A 500 is server-side and not fixable by editing the YAML or reimporting.
     # Say so explicitly so the caller stops instead of looping.
     if "500" in msg or "Internal Server Error" in msg:
         print("    This is a server-side error, not a YAML problem. Do not retry "
               "or edit the workflow — report the trace_id and stop.")
-    return basename, "IMPORT FAILED", None
+    for backup in backups:
+        _restore_backup(backup)
+
+
+def _backup_definitions(defs):
+    """Export each definition --replace is about to delete. Returns the YAML
+    exports, or None (after printing why) if any export fails."""
+    backups = []
+    for d in defs:
+        try:
+            backups.append(export_definition(d.get("id", "?")))
+        except (ConnectionError, RuntimeError, OSError) as exc:
+            print(f"    REPLACE FAILED: could not back up existing definition "
+                  f"(ID: {d.get('id', '?')}) before deleting it: {exc}")
+            print("    Nothing was deleted. If that definition is broken and you don't "
+                  "need it back, delete it with delete_workflow.py --id, then import "
+                  "without --replace.")
+            return None
+    return backups
+
+
+def _restore_backup(backup_yaml):
+    """Re-import an exported definition that --replace deleted. The restored
+    copy gets a new ID. If the restore fails too, keep the export on disk."""
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", prefix="fusion-replace-backup-", delete=False, encoding="utf-8"
+    ) as fh:
+        fh.write(backup_yaml)
+        path = fh.name
+    ok, msg, wf_id = import_file(path)
+    if ok:
+        os.remove(path)
+        print(f"    RESTORED previous version (new ID: {wf_id})")
+    else:
+        print(f"    RESTORE FAILED: {msg} — backup saved at {path}")
 
 
 def _print_summary(results):
