@@ -53,3 +53,4 @@ net for when the Foundry plugin is absent, not a competitor with it when present
 | A trigger plus existing Fusion actions only (no UI, function, collection, or custom integration) | **`workflows`** — handle it as a standalone workflow |
 | "a workflow inside a Foundry app" | **Here** — the app owns the workflow; Foundry scaffolds it |
 | Fetch/summarize a population of alerts/detections the workflow doesn't already hold | **`workflows`** — a standalone CrowdStrike HTTP Request handles this without an app |
+| Distribute it to other customers or CIDs as an installable (or certified) app | **Here** — a standalone workflow only moves by export/import, and its credential configs are CID-specific and don't travel. In a Foundry app, a FalconPy function (e.g. `Alerts`) authenticates automatically with the API scopes the app declares in `manifest.yml`, so the app works in each CID that installs it. Say this when you redirect. |

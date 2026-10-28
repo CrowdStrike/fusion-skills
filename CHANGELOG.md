@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- **Distribution requests redirect to Falcon Foundry with the reason** — the foundry-redirect skill now routes "distribute this to other customers as an installable app" to foundry-skills and explains why: a workflow's credential configs don't travel between CIDs, while a Foundry app's FalconPy function authenticates with the scopes in its `manifest.yml`.
 - **What `match()` returns** — the CQL `match()` reference now says that leaving out `include=` adds every lookup column except the `column=` key, and that the key column is never added, so read the matched value from the event's `field=`.
 - **`.distinct()` in the CEL reference** — the list de-duplication function is now documented with the List comprehensions, with a verified-live note that it keeps the first occurrence of each value in order.
 - **How API errors affect HTTP and plugin actions** — `http-actions.md` and the HTTP Actions use case now say that a 404 or other error status completes an HTTP Action and the next node runs, so a "not found" is handled with a `response_status_code` condition. `yaml-schema.md` adds that a Store plugin action is the opposite: an API error fails it and skips what follows, which in a loop silently drops that item unless the action sets `continue_on_error: true`. Both verified live.
