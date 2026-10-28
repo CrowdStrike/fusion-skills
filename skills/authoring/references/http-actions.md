@@ -242,7 +242,9 @@ iteration went on to the next step, with or without `continue_on_error`). So a
 "not found" path needs a status-code condition, not error handling. Check
 `== 200` before reading body fields, and send everything else to the not-found
 or error branch. Inside a loop, that `else` branch is where you record the item
-as skipped.
+as skipped. Store plugin actions behave differently: an API error fails them, so
+they need `continue_on_error: true` (see "Third-party / plugin actions" in
+`yaml-schema.md`).
 
 ## Templates
 
