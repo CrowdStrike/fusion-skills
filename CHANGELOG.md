@@ -18,7 +18,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
-- **`validate.py` catches HTTP response fields read without a schema in more places** — the missing-`_cs_inline_output_schema` check now covers HTTP actions inside loops and null-safe `data[?'...']` references, which it used to miss. It no longer flags the built-in outputs every HTTP action has, such as `response_status_code`.
 - **`import_workflows.py --replace` validates before it deletes** — a replacement that fails validation no longer leaves the CID with neither version.
 - **The duplicate check fails closed** — if `import_workflows.py` can't list existing definitions it stops instead of importing anyway (`--skip-duplicate-check` overrides), and the name is parsed from the YAML so a trailing comment can't slip a duplicate past it.
 - **Delete and release report HTTP errors** — `delete_workflow.py`, `release_workflow.py`, and the `--replace` delete now fail on any 4xx or 5xx status, not just a populated `errors` array.
