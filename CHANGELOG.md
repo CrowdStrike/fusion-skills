@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
-- **`import_workflows.py --replace` validates before it deletes** — a replacement that fails validation no longer leaves the CID with neither version.
+- **`import_workflows.py --replace` can't leave the CID with neither version** — it validates before it deletes, and it exports the old definition first. If the new import fails anyway (a server-side error after a clean validation), it re-imports the old one, and if that fails too, it keeps the export on disk and prints its path.
 - **The duplicate check fails closed** — if `import_workflows.py` can't list existing definitions it stops instead of importing anyway (`--skip-duplicate-check` overrides), and the name is parsed from the YAML so a trailing comment can't slip a duplicate past it.
 - **Delete and release report HTTP errors** — `delete_workflow.py`, `release_workflow.py`, and the `--replace` delete now fail on any 4xx or 5xx status, not just a populated `errors` array.
 - **`trigger_workflow.py --wait` exits non-zero when a run doesn't succeed** — it exits non-zero unless the run reaches `Completed` or `Succeeded`, and an execute response with no execution ID is an error.
