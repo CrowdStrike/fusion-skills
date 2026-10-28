@@ -170,7 +170,9 @@ bare form used inside interpolated strings as "unknown variable". The shipped
 **Some NG-SIEM indicators ARE on the trigger — the ones `trigger_search.py
 --fields Investigatable/NGSIEM` lists. Read those from the trigger directly; use
 an Event Query only for fields not in that list.** The rule is exactly the
-`--fields` output: a path it lists resolves at release; a path it does not list
+`--fields` output: a path it lists resolves at release, unless `--fields` marks
+it **NOT release-valid** (`Trigger.Detection.Description` and the
+`MitreAttack.*` fields are advertised but rejected); a path it does not list
 is rejected. Confirmed live with two release probes of identical shape (only the
 field name changed):
 

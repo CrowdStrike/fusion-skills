@@ -272,10 +272,11 @@ def search_trigger_fields(category):
 
 # Fields the trigger API advertises but the release validator rejects as an
 # unknown variable (confirmed live). Keyed by category. validate.py carries the
-# matching guards (NGSIEM_REJECTED_MITRE_FIELDS, RECON_REJECTED_EDR_FIELDS) that
-# flag a workflow using them.
+# matching guards (NGSIEM_REJECTED_TRIGGER_FIELDS, NGSIEM_REJECTED_MITRE_FIELDS,
+# RECON_REJECTED_EDR_FIELDS) that flag a workflow using them.
 RELEASE_REJECTED_FIELDS = {
     "Investigatable/NGSIEM": frozenset({
+        "Trigger.Detection.Description",
         "Trigger.Detection.MitreAttack.Tactic",
         "Trigger.Detection.MitreAttack.Technique",
     }),
