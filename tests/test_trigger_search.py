@@ -325,6 +325,24 @@ class TestTriggerFields:
         out = capsys.readouterr().out
         assert "NOT release-valid" in out
 
+    def test_fields_flags_release_rejected_description_on_ngsiem(
+        self, monkeypatch, capsys
+    ):
+        monkeypatch.setattr(
+            trigger_search,
+            "search_trigger_fields",
+            lambda cat: [
+                {"path": "Trigger.Detection.Description",
+                 "type": "string", "display": "Description"},
+            ],
+        )
+        monkeypatch.setattr(
+            "sys.argv",
+            ["trigger_search.py", "--fields", "Investigatable/NGSIEM"],
+        )
+        trigger_search.main()
+        assert "NOT release-valid" in capsys.readouterr().out
+
     def test_fields_flags_release_rejected_edrs_on_recon(self, monkeypatch, capsys):
         monkeypatch.setattr(
             trigger_search,
