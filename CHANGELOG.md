@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- **Distribution requests redirect to Falcon Foundry with the reason** — the foundry-redirect skill now routes "distribute this to other customers as an installable app" to foundry-skills and explains why: a workflow's credential configs don't travel between CIDs, while a Foundry app's FalconPy function authenticates with the scopes in its `manifest.yml`.
 - **What `match()` returns** — the CQL `match()` reference now says that leaving out `include=` adds every lookup column except the `column=` key, and that the key column is never added, so read the matched value from the event's `field=`.
 - **`.distinct()` in the CEL reference** — the list de-duplication function is now documented with the List comprehensions, with a verified-live note that it keeps the first occurrence of each value in order.
 - **Recon notification trigger** — `trigger-types.md` covers `event: ReconNotification` (needs `version_constraint: ~1`). `validate.py` and `trigger_search.py --fields` flag the release-invalid `EDRs.Email` and `EDRs.HostName`, and point to the paginated Get exposed data records action, which can include a plaintext `password`.
