@@ -2597,6 +2597,79 @@ actions:
         issues = validate.structural_check(str(f))
         assert not any("_cs_inline_output_schema" in i for i in issues)
 
+    def test_http_action_in_loop_null_safe_ref_without_schema_flagged(self, tmp_path):
+        # Inside a loop, read with the null-safe data[?'...'] form: still needs a schema.
+        f = tmp_path / "loopnoschema.yaml"
+        f.write_text("""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - Loop
+loops:
+  Loop:
+    for:
+      input: emails
+    trigger:
+      next:
+        - Lookup
+    actions:
+      Lookup:
+        id: 1ba474f407d9228fc8fa02cdce8ae8ef
+        class: Inline.HTTPRequest
+        version_constraint: ~1
+        name: Cloud HTTP Request
+        next:
+          - Record
+        properties:
+          http_transaction:
+            request_http_method: GET
+            request_content_type: NONE
+      Record:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        version_constraint: ~1
+        properties:
+          WorkflowCustomVariable:
+            status: ${data[?'Lookup.body.status'].orValue('')}
+""")
+        issues = validate.structural_check(str(f))
+        assert any("'Lookup'" in i and "_cs_inline_output_schema" in i for i in issues)
+
+    def test_http_builtin_outputs_need_no_schema(self, tmp_path):
+        # response_status_code and friends exist on every HTTP action.
+        f = tmp_path / "statuscode.yaml"
+        f.write_text("""\
+# Header
+name: Test
+trigger:
+  type: On demand
+  next:
+    - Enrich
+actions:
+  Enrich:
+    id: 1ba474f407d9228fc8fa02cdce8ae8ef
+    class: Inline.HTTPRequest
+    version_constraint: ~1
+    name: Cloud HTTP Request
+    next:
+      - Log
+    properties:
+      http_transaction:
+        request_http_method: GET
+        request_content_type: NONE
+  Log:
+    id: 04c59ceb6dff9e6cd89e5f5cf13121ab
+    name: Write to log repo
+    properties:
+      custom_json:
+        code: ${data['Enrich.response_status_code']}
+        body: ${data['Enrich.raw_response_body']}
+""")
+        issues = validate.structural_check(str(f))
+        assert not any("_cs_inline_output_schema" in i for i in issues)
+
     def test_event_query_minimal_shape_flagged(self, tmp_path):
         f = tmp_path / "eq_minimal.yaml"
         content = """\

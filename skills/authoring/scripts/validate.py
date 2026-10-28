@@ -104,6 +104,16 @@ PINNED_COLLAPSE_NAMESPACES = {
     "logscale.query_event": "results",
 }
 
+# Outputs every Inline.HTTPRequest exposes without a _cs_inline_output_schema
+# (shown in the console's Workflow data panel and returned in execution results).
+HTTP_BUILTIN_OUTPUTS = frozenset({
+    "response_status_code",
+    "raw_response_body",
+    "response_headers",
+    "request_method",
+    "request_url",
+})
+
 # Trigger fields that resolve on the base `event: Investigatable` (multi-product
 # Detection) trigger but are REJECTED at release on the dedicated
 # `event: Investigatable/NGSIEM` trigger with `unknown variable "..."` (confirmed
@@ -958,6 +968,23 @@ def _validate_recon_trigger_fields(trigger, file_path, issues):
             )
 
 
+def _collect_http_actions(data):
+    """Map label -> action for every Inline.HTTPRequest, including loop bodies."""
+    found = {}
+    actions = data.get("actions", {})
+    if isinstance(actions, dict):
+        found.update({
+            label: action for label, action in actions.items()
+            if isinstance(action, dict) and action.get("class") == "Inline.HTTPRequest"
+        })
+    loops = data.get("loops", {})
+    if isinstance(loops, dict):
+        for loop_def in loops.values():
+            if isinstance(loop_def, dict):
+                found.update(_collect_http_actions(loop_def))
+    return found
+
+
 def _validate_http_output_schema(data, file_path, issues):
     """Release requires _cs_inline_output_schema to reference HTTP response fields.
 
@@ -968,23 +995,15 @@ def _validate_http_output_schema(data, file_path, issues):
     contains unknown variable". Confirmed live; the shipped VirusTotal example
     carries the schema.
     """
-    actions = data.get("actions", {})
-    if not isinstance(actions, dict):
-        return
-    http_labels = {
-        label
-        for label, action in actions.items()
-        if isinstance(action, dict) and action.get("class") == "Inline.HTTPRequest"
-    }
-    if not http_labels:
+    actions = _collect_http_actions(data)
+    if not actions:
         return
     try:
         with open(file_path, encoding="utf-8") as handle:
             content = handle.read()
     except OSError:
         return
-    for label in http_labels:
-        action = actions[label]
+    for label, action in actions.items():
         transaction = action.get("properties", {}).get("http_transaction")
         has_schema = (
             isinstance(transaction, dict)
@@ -993,9 +1012,14 @@ def _validate_http_output_schema(data, file_path, issues):
         if has_schema:
             continue
         # Referenced with a sub-path? (a bare ${data['<label>']} with no field
-        # doesn't need a response schema — only field access does.)
-        referenced = re.search(
-            r"data\['" + re.escape(label) + r"\.[^']+'\]", content
+        # doesn't need a response schema — only field access does, and the
+        # built-in outputs every HTTP action has don't either.) Matches the
+        # null-safe data[?'...'] form too.
+        referenced = any(
+            m.group(1) not in HTTP_BUILTIN_OUTPUTS
+            for m in re.finditer(
+                r"data\[\??'" + re.escape(label) + r"\.([^'.\[]+)[^']*'\]", content
+            )
         )
         if referenced:
             issues.append(
