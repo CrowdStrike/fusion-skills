@@ -18,6 +18,12 @@ run_script:
 
 - **Inputs:** `runtime` (REQUIRED — `py0313general`) and `script`; the script
   must `print(...)` its result to stdout.
+- **Passing workflow data into the script:** reference it inside a string
+  literal, e.g. `raw = r'''${data['raw_ips']}'''`. The executor binds the value
+  rather than pasting it into the script text, so input containing `'''`,
+  `"""`, or a trailing backslash can't break out of the literal or inject code
+  (live-verified: a released on-demand probe received such an input byte-for-byte
+  and ran clean). No extra escaping or JSON-encoding is needed.
 - **Outputs:** `output_stdout`, `output_stderr`, `exit_code`, `error`. Read
   stdout downstream as `${data['run_script.output_stdout']}` — never `$(...)`.
   **For structured output, `print(json.dumps(result))` and decode it downstream
