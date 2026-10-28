@@ -18,7 +18,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
-- **The detection-hydration template drops the correlation meta-event** — the Event Query template in `event-query-action.md` now filters out `xdr_type: correlation-rule-detection`, as the shipped NG-SIEM workflow does, so `results[0]` is a real event for correlation-rule detections too.
 - **`import_workflows.py --replace` validates before it deletes** — a replacement that fails validation no longer leaves the CID with neither version.
 - **The duplicate check fails closed** — if `import_workflows.py` can't list existing definitions it stops instead of importing anyway (`--skip-duplicate-check` overrides), and the name is parsed from the YAML so a trailing comment can't slip a duplicate past it.
 - **Delete and release report HTTP errors** — `delete_workflow.py`, `release_workflow.py`, and the `--replace` delete now fail on any 4xx or 5xx status, not just a populated `errors` array.
