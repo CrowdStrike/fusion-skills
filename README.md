@@ -286,6 +286,7 @@ Run these after any hook, skill, or script change. They're fast and need no cred
 ./test-skill.sh --runs 1                  # Quick single run
 ./test-skill.sh --runs 5                  # Default: 5 runs
 ./test-skill.sh --skip-deploy             # Author + validate only (no live API)
+./test-skill.sh --release-check           # Also release each deployed workflow
 ./test-skill.sh --plugin-dir /path        # Use a different plugin directory
 ```
 
@@ -319,14 +320,17 @@ Gives each installed assistant (Claude Code, Codex, Copilot CLI, Cursor, Antigra
 ./run-ab-test.sh 3            # 3 runs per phase
 ./run-ab-test.sh --ref v1.0.0 # compare local branch against a specific tag
 ./run-ab-test.sh --skip-deploy  # author + validate only (no live API)
+./run-ab-test.sh --release-check  # also release each deployed workflow
 ```
 
 Compares baseline ref skills (RED) against local branch skills (GREEN), with smart baseline caching. Use `tail-test.sh` in another terminal to watch the active run's tool calls in real time.
 
+DEPLOYED in the scorecard means the workflow imported, which doesn't prove it will release. Add `--release-check` when a change could affect whether workflows release, such as edits to triggers, templates, or `validate.py`. It releases each run's workflow and adds a Released row to the comparison. Released workflows are live until the cleanup deletes them a few seconds later, so an NG-SIEM workflow could fire on a real detection in that window. That's why the flag is opt-in.
+
 **Tip:** Wrap long-running tests with `caffeinate -i` to prevent macOS from sleeping mid-run:
 
 ```bash
-caffeinate -i ./run-ab-test.sh --fresh 5
+caffeinate -i ./run-ab-test.sh --fresh --release-check 5
 ```
 
 ## Contributing
