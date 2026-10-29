@@ -77,9 +77,8 @@ Invoke each sub-skill in the same turn as that phase's first command (the Skill 
 3. Validate with `validate.py` (structural) and, if credentials exist, API validation.
 
 **Step 2 — Deployment** (invoke deployment skill)
-1. Check for an existing workflow of the same name (`query_workflows.py`) — if it exists, re-import with `--replace` instead of renaming.
-2. Import the validated YAML to the CID (`import_workflows.py`).
-3. Release the workflow so it becomes executable (`release_workflow.py`).
+1. Import the validated YAML to the CID (`import_workflows.py`). It checks for an existing workflow of the same name itself; if it reports `DUPLICATE`, re-import with `--replace` instead of renaming.
+2. Release the workflow so it becomes executable (`release_workflow.py`).
 
 **Step 3 — Execution** (invoke execution skill)
 1. Trigger the workflow with a test payload (`trigger_workflow.py`).
@@ -107,7 +106,7 @@ These show how intent maps to routing. Use them as templates for your own dispat
 ```
 User: "Create a Fusion workflow that contains a host on critical detection, then test it"
 → authoring:  action_search.py --search "contain", write YAML (Signal/EPP trigger), validate
-→ deployment: query_workflows.py (dupe check), import, release
+→ deployment: import (checks duplicates), release
 → execution:  trigger with a test device_id, monitor, verify result
 ```
 
