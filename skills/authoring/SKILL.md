@@ -174,7 +174,7 @@ See `references/trigger-types.md`.
 
 ### 3. Author the YAML from a template
 
-Pick the template matching the pattern, then substitute real values:
+If a complete workflow in `workflows/` already fits the request, copy it with `cp` and change it with Edit instead of retyping it (retyping ~500 lines costs ~10k output tokens), then add whatever the request asks for that it lacks. Otherwise start from a skeleton:
 
 | Pattern | Template |
 |---------|----------|
@@ -184,8 +184,7 @@ Pick the template matching the pattern, then substitute real values:
 | Loop + conditional | `assets/loop-conditional.yaml` |
 
 Add the header comment on line 1, then write `name`, `trigger`, and `actions`
-using the resolved action IDs. Templates contain `PLACEHOLDER_*` markers — they show
-the YAML shape, never the values. Substitute every one with a real value.
+with the resolved IDs. Replace every `PLACEHOLDER_*` marker: they show shape, never values.
 
 ### 4. Add CEL expressions
 
