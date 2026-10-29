@@ -115,9 +115,8 @@ search for it.
 | Send email | `07413ef9ba7c47bf5a242799f59902cc` | — | `~1` |
 | Charlotte AI - LLM Completion | `bdfecafafdb44919a458fcf51d6b93a7_98dec86072334d24b37dd798098cfd63` | — | `~0` |
 | Contain device | `bec9fbeb4999d207937854fd56088107` | — | `~0` |
-| VirusTotal File Hash Lookup | `668bf0d0b832510e21d7c00386d277ea` | — | `~1` |
-| VirusTotal IP Request | `ce0386aacfb64bc5a3a6a4a85c07217b` | — | `~0` |
-| DomainTools Iris Investigate | `b2087ff84aa1471ea209076fd4852c25` | — | `~0` |
+
+VirusTotal, DomainTools, and other threat-intel lookups aren't in this table on purpose: use a Cloud HTTP Request (see HTTP Actions below). Their Store plugin actions need a plugin configured in the console, and release rejects them without it.
 
 These IDs are stable across the commercial clouds (us-1/us-2/eu-1); GovCloud may
 differ. If an import ever rejects one of these `version_constraint` values,
