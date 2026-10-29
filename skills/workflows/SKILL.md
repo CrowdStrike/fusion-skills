@@ -69,6 +69,7 @@ User mentions lookup files / Next-Gen SIEM         → invoke lookup-files skill
 
 When the user wants an end-to-end workflow ("create, deploy, and test a workflow that…"),
 coordinate the three sub-skills in sequence. Do not skip phases.
+Invoke each sub-skill in the same turn as that phase's first command (the Skill call and the first Bash call in one message), not in a turn of its own.
 
 **Step 1 — Authoring** (invoke authoring skill)
 1. Discover real action IDs with `action_search.py` (never guess or use placeholders).
