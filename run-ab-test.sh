@@ -10,6 +10,7 @@
 #   ./run-ab-test.sh --no-skill   # no plugin vs local skills (1 baseline run, timed)
 #   ./run-ab-test.sh --fresh      # force baseline re-run even if cached
 #   ./run-ab-test.sh --skip-deploy        # author + validate only (no live API)
+#   ./run-ab-test.sh --release-check      # also release each deployed workflow
 #   ./run-ab-test.sh --skip-plugin-manage # don't disable/enable installed plugins
 #
 # Smart baseline caching:
@@ -29,6 +30,7 @@ NO_SKILL=0
 FRESH=0
 SKIP_DEPLOY=0
 SKIP_PLUGIN_MANAGE_ARG=0
+RELEASE_CHECK=0
 BASELINE_REF=main
 BASELINE_TIMEOUT=1800  # 30 minutes default for no-skill baseline
 
@@ -50,6 +52,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_PLUGIN_MANAGE_ARG=1
       shift
       ;;
+    --release-check)
+      RELEASE_CHECK=1
+      shift
+      ;;
     --ref)
       BASELINE_REF="$2"
       shift 2
@@ -63,7 +69,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: $0 [--no-skill] [--fresh] [--skip-deploy] [--skip-plugin-manage] [--ref <git-ref>] [--timeout <seconds>] [N]"
+      echo "Usage: $0 [--no-skill] [--fresh] [--skip-deploy] [--skip-plugin-manage] [--release-check] [--ref <git-ref>] [--timeout <seconds>] [N]"
       exit 1
       ;;
   esac
@@ -78,6 +84,7 @@ BASELINE_JSON="$AB_RESULTS_DIR/baseline.json"
 # Pass-through flag for the inner test harness.
 EXTRA_TEST_FLAGS=()
 [ "$SKIP_DEPLOY" = "1" ] && EXTRA_TEST_FLAGS+=(--skip-deploy)
+[ "$RELEASE_CHECK" = "1" ] && EXTRA_TEST_FLAGS+=(--release-check)
 
 # Clean up deployed Fusion workflows from a phase directory.
 #
@@ -133,7 +140,13 @@ if [ "$NO_SKILL" != "1" ] && [ "$FRESH" != "1" ]; then
     CACHED_SHA=$(cat "$BASELINE_SHA_FILE")
     # A baseline saved before test-skill.sh read tokens from the result event
     # double-counted them, so it can't be compared with a new run.
-    if ! jq -e '.token_source == "result_event"' "$BASELINE_JSON" >/dev/null 2>&1; then
+    if [ "$RELEASE_CHECK" = "1" ] && ! jq -e '[.release_results[]? | select(. != null)] | length > 0' "$BASELINE_JSON" >/dev/null 2>&1; then
+      echo "========================================="
+      echo "  BASELINE HAS NO RELEASE CHECK"
+      echo "========================================="
+      echo "  --release-check needs release results for both phases. Re-running RED phase."
+      echo ""
+    elif ! jq -e '.token_source == "result_event"' "$BASELINE_JSON" >/dev/null 2>&1; then
       echo "========================================="
       echo "  OUTDATED BASELINE DETECTED"
       echo "========================================="

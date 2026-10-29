@@ -14,6 +14,7 @@
 #   ./test-skill.sh --plugin-dir /path/to/plugin       # Use a different plugin dir
 #   ./test-skill.sh --no-plugin                        # Run without any plugin
 #   ./test-skill.sh --skip-deploy                      # Author + validate only (no live API)
+#   ./test-skill.sh --release-check                    # Also release each deployed workflow
 #   ./test-skill.sh --save results.json                # Save results to JSON
 #   ./test-skill.sh --baseline prev.json               # Compare against a baseline
 #   ./test-skill.sh --save new.json --baseline old.json --runs 5  # Full A/B
@@ -35,6 +36,7 @@ NO_PLUGIN=0
 SKIP_PLUGIN_MANAGE=0
 SKIP_DEPLOY=0
 KEEP_WORKFLOWS=0
+RELEASE_CHECK=0
 
 # Definition IDs created across all runs — deleted at the end unless
 # --keep-workflows is set, so deploy runs don't accumulate in the CID.
@@ -83,8 +85,12 @@ while [[ $# -gt 0 ]]; do
       KEEP_WORKFLOWS=1
       shift
       ;;
+    --release-check)
+      RELEASE_CHECK=1
+      shift
+      ;;
     *)
-      echo "Usage: $0 [--save <file.json>] [--baseline <file.json>] [--runs N] [--dir <path>] [--plugin-dir <path>] [--no-plugin] [--skip-plugin-manage] [--skip-deploy] [--keep-workflows]"
+      echo "Usage: $0 [--save <file.json>] [--baseline <file.json>] [--runs N] [--dir <path>] [--plugin-dir <path>] [--no-plugin] [--skip-plugin-manage] [--skip-deploy] [--keep-workflows] [--release-check]"
       exit 1
       ;;
   esac
@@ -507,6 +513,41 @@ check_run_status() {
   echo "FAILED"
 }
 
+# RELEASE CHECK (opt-in): release each run's deployed workflow, since a
+# workflow can import cleanly and still fail release (an unpinned NG-SIEM
+# trigger does exactly that). "DEPLOYED" only proves the import. The release
+# makes the workflow live, so it stays enabled only until the cleanup below
+# deletes it a few seconds later; --keep-workflows leaves it enabled. Uses the
+# LAST imported ID still on the tenant, since a --replace retry deletes earlier
+# ones. Writes "released" or "failed" to run-N.release.
+if [ "$SKIP_DEPLOY" != "1" ] && [ "$RELEASE_CHECK" = "1" ]; then
+  echo "========================================="
+  echo "  RELEASE CHECK"
+  echo "========================================="
+  RELEASE_PY="$SCRIPT_DIR/skills/deployment/scripts/release_workflow.py"
+  for i in $(seq 1 "$RUNS"); do
+    LOG_FILE="$BASE_DIR/run-$i.log"
+    REL_FILE="$BASE_DIR/run-$i.release"
+    rel_id=""
+    while IFS= read -r cand; do
+      printf '%s' "$TENANT_DEFS" | grep -q "$cand" && rel_id="$cand"
+    done < <(grep -oE 'Imported — ID: [a-f0-9]{32}' "$LOG_FILE" 2>/dev/null | grep -oE '[a-f0-9]{32}')
+    if [ -z "$rel_id" ]; then
+      echo "none" > "$REL_FILE"
+      echo "  Run $i: no deployed workflow to release"
+      continue
+    fi
+    if REL_OUT=$("$PYTHON" "$RELEASE_PY" --id "$rel_id" 2>&1) && printf '%s' "$REL_OUT" | grep -q "Released"; then
+      echo "released" > "$REL_FILE"
+      echo "  Run $i: ✅ released ($rel_id)"
+    else
+      echo "failed" > "$REL_FILE"
+      echo "  Run $i: ❌ release failed ($rel_id): $(printf '%s' "$REL_OUT" | grep -iE 'fail|error' | head -1 | sed 's/^ *//')"
+    fi
+  done
+  echo ""
+fi
+
 # Clean up the workflows these runs deployed so the CID doesn't accumulate
 # run-1..run-N copies. Deletes exactly the captured definition IDs via the
 # Workflows delete API — safer than a name-pattern blanket sweep. Skipped in
@@ -815,6 +856,7 @@ REFS_JSON=""
 SKILLS_JSON=""
 ANTI_PATTERN_COUNTS=""
 DEPLOY_CHURN_COUNTS=""
+RELEASE_RESULTS=""
 for i in $(seq 1 $RUNS); do
   LOG_FILE="$BASE_DIR/run-$i.log"
   TEXT_FILE="$BASE_DIR/run-$i.text"
@@ -872,6 +914,12 @@ for i in $(seq 1 $RUNS); do
     CHURN_COUNT=$(count_deploy_churn "$LOG_FILE")
   fi
   DEPLOY_CHURN_COUNTS="${DEPLOY_CHURN_COUNTS}${CHURN_COUNT}${SEP}"
+
+  # Release-check result per run: "released", "failed", "none", or null when
+  # the check didn't run.
+  REL_RESULT="null"
+  [ -s "$BASE_DIR/run-$i.release" ] && REL_RESULT="\"$(cat "$BASE_DIR/run-$i.release")\""
+  RELEASE_RESULTS="${RELEASE_RESULTS}${REL_RESULT}${SEP}"
 done
 
 RESULTS_JSON=$(cat <<ENDJSON
@@ -893,7 +941,8 @@ ${REFS_JSON}  },
   "skill_invocations": {
 ${SKILLS_JSON}  },
   "anti_pattern_counts": [${ANTI_PATTERN_COUNTS}],
-  "deploy_churn_counts": [${DEPLOY_CHURN_COUNTS}]
+  "deploy_churn_counts": [${DEPLOY_CHURN_COUNTS}],
+  "release_results": [${RELEASE_RESULTS}]
 }
 ENDJSON
 )
@@ -953,6 +1002,10 @@ if [ -n "$BASELINE_FILE" ]; then
   fi
   printf "  %-24s %-15s %-15s\n" "Avg time/run" "$B_ELAPSED_FMT" "$C_ELAPSED_FMT"
   printf "  %-24s %-15s %-15s\n" "Avg anti-patterns/run" "$B_AVG_AP" "$C_AVG_AP"
+  RELEASES_JQ='if ([.release_results[]? | select(. != null)] | length) > 0 then "\([.release_results[] | select(. == "released")] | length)/\(.release_results | length)" else "?" end'
+  B_RELEASES=$(jq -r "$RELEASES_JQ" "$BASELINE_FILE" 2>/dev/null || echo "?")
+  C_RELEASES=$(echo "$RESULTS_JSON" | jq -r "$RELEASES_JQ" 2>/dev/null || echo "?")
+  printf "  %-24s %-15s %-15s\n" "Released" "$B_RELEASES" "$C_RELEASES"
 
   # A baseline saved before tokens came from the result event summed
   # per-message usage, which double-counts, so its tokens can't be compared.
