@@ -11,16 +11,20 @@
 # every indicator type here; DomainTools Iris Investigate is a Store *plugin*
 # action (compound id, requires a console-configured config_id) and can be
 # swapped in for the domain branch once that credential exists in the target
-# CID - see the comment on DomainHTTPRequest below. User and host names are
-# extracted and carried into the summary directly since neither VirusTotal
-# nor DomainTools offer a username/hostname reputation lookup.
+# CID - see the comment on DomainHTTPRequest below. Neither VirusTotal nor
+# DomainTools has a username or hostname reputation lookup, so the user and
+# host branches use Falcon's own context instead: Get user identity context
+# (Falcon Identity Protection) for the user, and Device Query + Get device
+# details for the host. Both are native actions with no credential to attach.
+# A user Identity Protection doesn't know, or a host with no Falcon sensor,
+# just leaves that context empty in the summary.
 #
 # All four HTTP actions are authored credential-less (Authentication = "None")
 # per the console-credential boundary - attach a VirusTotal API key to each
 # after import: action -> Authentication -> Create new -> API key -> Header ->
 # x-apikey -> Test -> Schema builder -> Save.
 name: NG-SIEM Detection Threat Intel Enrichment - copilot
-description: Triggers on a Next-Gen SIEM detection, hydrates it with an Event Query, extracts user/host/domain/url/file-hash/ip indicators, enriches domain/url/file-hash/ip in parallel via VirusTotal Cloud HTTP Requests, summarizes all findings with Charlotte AI, and emails an HTML report.
+description: Triggers on a Next-Gen SIEM detection, hydrates it with an Event Query, extracts user/host/domain/url/file-hash/ip indicators, enriches domain/url/file-hash/ip in parallel via VirusTotal Cloud HTTP Requests and the user and host via Falcon Identity Protection and device details, summarizes all findings with Charlotte AI, and emails an HTML report.
 trigger:
     next:
         - InitEnrichmentVariable
@@ -58,6 +62,10 @@ actions:
                     hash_enrichment:
                         type: string
                     ip_enrichment:
+                        type: string
+                    user_context:
+                        type: string
+                    host_context:
                         type: string
         version_constraint: ~1
     HydrateDetection:
@@ -100,6 +108,8 @@ actions:
         class: UpdateVariable
         name: Update variable - Extract indicators from hydrated detection
         next:
+            - user_present
+            - host_present
             - domain_present
             - url_present
             - hash_present
@@ -350,6 +360,52 @@ actions:
             WorkflowCustomVariable:
                 url_enrichment: "URL: ${data['WorkflowCustomVariable.url']} | Status: ${data['URLAnalysisHTTPRequest.data.attributes.status']} | Malicious: ${data['URLAnalysisHTTPRequest.data.attributes.stats.malicious']} | Suspicious: ${data['URLAnalysisHTTPRequest.data.attributes.stats.suspicious']}"
         version_constraint: ~1
+    GetUserIdentityContext:
+        id: 19c7e2af0a24f468be7797fe180c8329
+        name: Get user identity context - Look up the detection's user
+        next:
+            - UpdateUserContext
+        properties:
+            username: ${data['WorkflowCustomVariable.user_name']}
+            continue_if_entity_not_found: true
+        version_constraint: ~1
+    UpdateUserContext:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Store user identity context
+        next:
+            - SummarizeEnrichment
+        properties:
+            WorkflowCustomVariable:
+                user_context: "User: ${data['WorkflowCustomVariable.user_name']} | Department: ${data[?'GetUserIdentityContext.Department'].orValue('')} | Email: ${data[?'GetUserIdentityContext.Email'].orValue('')} | Manager: ${data[?'GetUserIdentityContext.ManagerName'].orValue('')} | Identity risk: ${data[?'GetUserIdentityContext.RiskSeverity'].orValue('')} | Password last changed: ${data[?'GetUserIdentityContext.PasswordChange'].orValue('')}"
+        version_constraint: ~1
+    HostDeviceQuery:
+        id: 68ffa99af40c84b36462daa076f535d0
+        name: Device Query - Find the detection's host by hostname
+        next:
+            - host_found
+        properties:
+            hostnames:
+                - ${data['WorkflowCustomVariable.host_name']}
+        version_constraint: ~1
+    GetHostDetails:
+        id: 6265dc947cc2252f74a5f25261ac36a9
+        name: Get device details - Host context
+        next:
+            - UpdateHostContext
+        properties:
+            device_id: ${data['HostDeviceQuery.devices'][0]}
+        version_constraint: ~1
+    UpdateHostContext:
+        id: 6c6eab39063fa3b72d98c82af60deb8a
+        class: UpdateVariable
+        name: Update variable - Store host context
+        next:
+            - SummarizeEnrichment
+        properties:
+            WorkflowCustomVariable:
+                host_context: "Host: ${data['GetHostDetails.Hostname']} | Platform: ${data['GetHostDetails.PlatformName']} ${data['GetHostDetails.OSVersion']} | Status: ${data['GetHostDetails.Status']} | Last seen: ${data['GetHostDetails.LastSeen']} | Last login user: ${data['GetHostDetails.LastLoginUser']} | Local IP: ${data['GetHostDetails.LocalIP']}"
+        version_constraint: ~1
     SummarizeEnrichment:
         id: bdfecafafdb44919a458fcf51d6b93a7_98dec86072334d24b37dd798098cfd63
         name: Charlotte AI - LLM Completion - Summarize threat intel enrichment
@@ -359,14 +415,16 @@ actions:
             data_to_include:
                 - "Detection: ${data['Trigger.Detection.Name']} (ID ${data['Trigger.Detection.DetectionID']}), Severity ${data['Trigger.Detection.Severity']}"
                 - "User: ${data['WorkflowCustomVariable.user_name']}"
+                - "User identity context: ${data['WorkflowCustomVariable.user_context']}"
                 - "Host: ${data['WorkflowCustomVariable.host_name']}"
+                - "Host context: ${data['WorkflowCustomVariable.host_context']}"
                 - "Domain enrichment: ${data['WorkflowCustomVariable.domain_enrichment']}"
                 - "URL enrichment: ${data['WorkflowCustomVariable.url_enrichment']}"
                 - "File hash enrichment: ${data['WorkflowCustomVariable.hash_enrichment']}"
                 - "IP enrichment: ${data['WorkflowCustomVariable.ip_enrichment']}"
             model_name: Claude Sonnet 4
             temperature: 0
-            user_prompt: "You are a CrowdStrike threat analyst. Summarize this NG-SIEM detection and its threat intelligence enrichment results across all providers (VirusTotal domain/URL/file-hash/IP lookups). Call out the affected user and host, note which indicators were malicious/suspicious versus clean, and give an overall risk assessment with recommended next steps. Be concise and actionable. Respond with raw HTML only (headings, lists, bold) - do NOT wrap the response in markdown code fences such as ```html."
+            user_prompt: "You are a CrowdStrike threat analyst. Summarize this NG-SIEM detection and its threat intelligence enrichment results across all providers (VirusTotal domain/URL/file-hash/IP lookups, plus Falcon identity and device context for the user and host). Call out the affected user and host and what their context adds (department, identity risk, platform, last login), note which indicators were malicious/suspicious versus clean, and give an overall risk assessment with recommended next steps. Be concise and actionable. Respond with raw HTML only (headings, lists, bold) - do NOT wrap the response in markdown code fences such as ```html."
         version_constraint: ~0
     SendEmail:
         id: 07413ef9ba7c47bf5a242799f59902cc
@@ -379,6 +437,30 @@ actions:
             msg_type: html
         version_constraint: ~1
 conditions:
+    user_present:
+        next:
+            - GetUserIdentityContext
+        cel_expression: "data['WorkflowCustomVariable.user_name'] != null && data['WorkflowCustomVariable.user_name'] != ''"
+        display:
+            - User indicator present
+        else:
+            - SummarizeEnrichment
+    host_present:
+        next:
+            - HostDeviceQuery
+        cel_expression: "data['WorkflowCustomVariable.host_name'] != null && data['WorkflowCustomVariable.host_name'] != ''"
+        display:
+            - Host indicator present
+        else:
+            - SummarizeEnrichment
+    host_found:
+        next:
+            - GetHostDetails
+        cel_expression: "data[?'HostDeviceQuery.devices'].orValue([]).size() > 0"
+        display:
+            - Host has a Falcon sensor
+        else:
+            - SummarizeEnrichment
     domain_present:
         next:
             - DomainHTTPRequest
