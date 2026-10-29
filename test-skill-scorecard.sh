@@ -143,29 +143,45 @@ assert_eq "nonexistent file scores 0" "0" "$(count_anti_patterns "$TMP_DIR/does-
 # One point per occurrence of: an inline-FalconPy escape hatch (python -c/heredoc
 # calling update_definition/delete_definition), a release-time gateway validation
 # failure, or an API 500. Reads a run's stream-json LOG, not a workflow file.
-# Failure signals are matched only within tool OUTPUT, and only within tool
-# output that did NOT come from a Read or Skill call — skill reference docs quote
-# these very phrases to warn against them, so a doc read must not count as churn.
+# Failure signals are matched only within the output of Bash commands that run
+# a skill script — skill reference docs quote these very phrases to warn against
+# them, so reading a doc (Read, Skill, or cat/sed/grep) must not count as churn.
 count_deploy_churn() {
   local log_file="$1"
   local count=0
   [ -n "$log_file" ] && [ -f "$log_file" ] || { echo 0; return; }
+  # Scope failure/500 detection to the output of commands that run a skill
+  # script (a .py file or python.sh). Skill reference docs quote the very
+  # phrases below ("release fails", "has no condition set", "status 500") to
+  # warn against them, and the agent reads them with Read, Skill, or a Bash
+  # cat/sed/grep. None of those run a script, so their output is skipped and
+  # only real script output (validate.py, import_workflows.py,
+  # release_workflow.py, ...) can count.
   local tool_output
   tool_output=$(jq -rs '
     (map(select(.type=="assistant")
          | .message.content[]?
-         | select(.type=="tool_use" and (.name=="Read" or .name=="Skill"))
-         | .id)) as $docids
+         | select(.type=="tool_use" and .name=="Bash"
+                  and ((.input.command // "") | test("\\.py\\b|python\\.sh")))
+         | .id)) as $scriptids
     | map(select(.type=="user")
           | .message.content[]?
           | select(type=="object" and .type=="tool_result"
-                   and ((.tool_use_id) as $t | ($docids | index($t)) | not))
+                   and ((.tool_use_id) as $t | ($scriptids | index($t))))
           | .content
           | if type=="array" then (.[] | .text? // empty) else (. // empty) end)
     | .[]
   ' "$log_file" 2>/dev/null || echo "")
+  # Inline escape hatch: an actual method call `.update_definition(` /
+  # `.delete_definition(` (dot before, paren after) — a hand-rolled FalconPy
+  # patch of a deployed def. Checked against the FULL log because the call can
+  # appear in the assistant's Bash tool_use input, not just tool output; the
+  # dot+paren shape still distinguishes a real call from prose that merely names
+  # the method (e.g. skill text "do not use update_definition").
   count=$((count + $(grep -cE '\.(update_definition|delete_definition)\(' "$log_file" 2>/dev/null)))
+  # Release-time gateway validation failure — only within tool output.
   count=$((count + $(printf '%s' "$tool_output" | grep -cE 'has no condition set|not marked as default|release.*fail|enable.*fail' 2>/dev/null)))
+  # Server 500s — only within tool output.
   count=$((count + $(printf '%s' "$tool_output" | grep -cE '"status_code": *500|Internal Server Error|status 500' 2>/dev/null)))
   echo "$count"
 }
@@ -247,8 +263,63 @@ exclusive gateway has no condition set')
 # output). A genuinely churny run should sum them.
 assert_eq "stacked churn signals sum" "3" "$(count_deploy_churn "$STACKED_LOG")"
 
+# A doc read through Bash (cat/sed/grep, no script) quotes the gateway phrase
+# too. The agent does this more often than using Read, so it must score 0.
+BASH_DOC_LOG="$TMP_DIR/bashdoc.log"
+{
+  printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"cat1","name":"Bash","input":{"command":"cd skills/authoring && sed -n 280,425p references/yaml-schema.md"}}]}}'
+  jq -cn --arg t 'rejects it: exclusive gateway "<join>" outgoing flow ... has no condition set and is not marked as default' '{type:"user",message:{content:[{type:"tool_result",tool_use_id:"cat1",content:[{type:"text",text:$t}]}]}}'
+} > "$BASH_DOC_LOG"
+assert_eq "reading a doc through Bash scores 0 (no false positive)" "0" "$(count_deploy_churn "$BASH_DOC_LOG")"
+
 assert_eq "empty churn arg scores 0"        "0" "$(count_deploy_churn "")"
 assert_eq "nonexistent churn log scores 0"  "0" "$(count_deploy_churn "$TMP_DIR/nope.log")"
+
+# ── get_tokens / get_cost: mirror the functions in test-skill.sh ──
+get_tokens() {
+  local log_file="$1"
+  [ -f "$log_file" ] || { echo "0 0"; return; }
+  jq -rs '
+    def total(u): [u.input_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens]
+      | map(. // 0) | add;
+    (map(select(.type=="result" and .usage)) | last) as $r
+    | if $r then "\(total($r.usage)) \($r.usage.output_tokens // 0)"
+      else (map(select(.type=="assistant" and .message.usage))
+            | group_by(.message.id) | map(last.message.usage)) as $u
+        | "\($u | map(total(.)) | add // 0) \($u | map(.output_tokens // 0) | add // 0)"
+      end
+  ' "$log_file" 2>/dev/null || echo "0 0"
+}
+
+get_cost() {
+  local log_file="$1"
+  [ -f "$log_file" ] || { echo "null"; return; }
+  jq -rs 'map(select(.type=="result")) | last | .total_cost_usd // null' "$log_file" 2>/dev/null || echo "null"
+}
+
+printf "\n${BOLD}Token and cost extraction${RESET}\n"
+
+# Two assistant events for ONE message (two content blocks) repeat its usage,
+# and the result event has the session's true totals. The result wins.
+RESULT_LOG="$TMP_DIR/result.log"
+{
+  printf '%s\n' '{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":5,"cache_read_input_tokens":100,"output_tokens":2}}}'
+  printf '%s\n' '{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":5,"cache_read_input_tokens":100,"output_tokens":2}}}'
+  printf '%s\n' '{"type":"result","total_cost_usd":0.42,"usage":{"input_tokens":10,"cache_creation_input_tokens":20,"cache_read_input_tokens":300,"output_tokens":900}}'
+} > "$RESULT_LOG"
+assert_eq "tokens come from the result event" "330 900" "$(get_tokens "$RESULT_LOG")"
+assert_eq "cost comes from the result event" "0.42" "$(get_cost "$RESULT_LOG")"
+
+# A killed run has no result event: count each message's usage once.
+NO_RESULT_LOG="$TMP_DIR/noresult.log"
+{
+  printf '%s\n' '{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":5,"cache_read_input_tokens":100,"output_tokens":2}}}'
+  printf '%s\n' '{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":5,"cache_read_input_tokens":100,"output_tokens":2}}}'
+  printf '%s\n' '{"type":"assistant","message":{"id":"m2","usage":{"input_tokens":1,"cache_read_input_tokens":200,"output_tokens":3}}}'
+} > "$NO_RESULT_LOG"
+assert_eq "without a result event, each message counts once" "306 5" "$(get_tokens "$NO_RESULT_LOG")"
+assert_eq "without a result event, cost is null" "null" "$(get_cost "$NO_RESULT_LOG")"
+assert_eq "missing log scores 0 0" "0 0" "$(get_tokens "$TMP_DIR/nope.log")"
 
 # ── check_run_status: mirrors the deploy-mode branch in test-skill.sh ──
 # The single source of truth for a run's verdict. The detail section and the
