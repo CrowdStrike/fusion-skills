@@ -50,7 +50,7 @@ query_ngsiem_logs:
             search_name: Hydrate detection
             # The filter drops the correlation-rule meta-event, so results[0] is a
             # real event for every detection type (as the shipped
-            # ngsiem-detection-ti-enrichment-copilot.yaml does).
+            # ngsiem-detection-ti-enrichment.yaml does).
             search_query: "#repo=xdr_indicatorsrepo Ngsiem.alert.id=?detection_id | xdr_type != correlation-rule-detection | report_name != *"
             search_query_args:
                 detection_id: '*'         # placeholder default; real value bound above
