@@ -1,5 +1,5 @@
 # This is an exported workflow.
-# Workflow: NG-SIEM Detection Threat Intel Enrichment - copilot
+# Workflow: NG-SIEM Detection Threat Intel Enrichment
 # Category: threat-intel / ngsiem-detection-response
 #
 # Fires on any Next-Gen SIEM detection (Signal trigger, event:
@@ -26,7 +26,7 @@
 # per the console-credential boundary - attach a VirusTotal API key to each
 # after import: action -> Authentication -> Create new -> API key -> Header ->
 # x-apikey -> Test -> Schema builder -> Save.
-name: NG-SIEM Detection Threat Intel Enrichment - copilot
+name: NG-SIEM Detection Threat Intel Enrichment
 description: Triggers on a Next-Gen SIEM detection, hydrates it with an Event Query, extracts user/host/domain/url/file-hash/ip indicators, enriches domain/url/file-hash/ip in parallel via VirusTotal Cloud HTTP Requests and the host via Falcon device details, summarizes all findings with Charlotte AI, and emails an HTML report.
 trigger:
     next:
