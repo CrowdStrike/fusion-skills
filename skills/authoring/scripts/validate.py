@@ -11,6 +11,7 @@ Usage:
     python validate.py *.yaml                           # Validate multiple files
     python validate.py --preflight-only workflow.yaml   # Skip API call (runs pre-flight + structural)
 """
+# pylint: disable=too-many-lines
 
 import argparse
 import re
