@@ -11,6 +11,7 @@ Usage:
     python validate.py *.yaml                           # Validate multiple files
     python validate.py --preflight-only workflow.yaml   # Skip API call (runs pre-flight + structural)
 """
+# pylint: disable=too-many-lines
 
 import argparse
 import re
@@ -945,6 +946,38 @@ def _validate_ngsiem_trigger_fields(trigger, file_path, issues):
         )
 
 
+def _validate_signal_trigger_pin(trigger, file_path, issues):
+    """Flag a Signal trigger with no version_constraint that reads trigger fields.
+
+    Confirmed live on the NG-SIEM trigger: a workflow whose trigger has no
+    ``version_constraint`` imports and passes the API dry run, but release fails
+    with only "Workflow has validation errors and cannot be enabled" as soon as
+    any node reads a ``Trigger.*`` field. The same workflow releases once the
+    trigger has ``version_constraint: ~1``. A Signal trigger that reads no
+    trigger fields releases either way. Other Signal events are warned rather
+    than failed, since the failure has only been confirmed on NG-SIEM.
+    """
+    if not isinstance(trigger, dict) or trigger.get("type") != "Signal":
+        return
+    if trigger.get("version_constraint"):
+        return
+    with open(file_path, encoding="utf-8") as f:
+        content = f.read()
+    if "Trigger." not in content:
+        return
+    event = trigger.get("event", "")
+    confirmed = event == NGSIEM_EVENT
+    outcome = "fails" if confirmed else "may fail"
+    issues.append(
+        f"{'ERROR' if confirmed else 'WARNING'}: Signal trigger '{event}' has no "
+        "version_constraint but the workflow reads Trigger.* fields. Release "
+        f"{outcome} with \"Workflow has validation errors and cannot be "
+        "enabled\" even though import succeeds. Add the event's "
+        "version_constraint to the trigger (~1 for NG-SIEM; see the table in "
+        "references/trigger-types.md)."
+    )
+
+
 def _validate_recon_trigger_fields(trigger, file_path, issues):
     """Flag exposed data record fields that release rejects on the Recon trigger.
 
@@ -1384,6 +1417,7 @@ def structural_check(file_path):
     _validate_http_output_schema(data, file_path, issues)
     _validate_ngsiem_trigger_fields(trigger, file_path, issues)
     _validate_recon_trigger_fields(trigger, file_path, issues)
+    _validate_signal_trigger_pin(trigger, file_path, issues)
     _validate_pinned_data_paths(data, file_path, issues)
     _validate_custom_variable_refs(data, file_path, issues)
     _validate_fake_variable_emails(data, issues)

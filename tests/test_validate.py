@@ -389,6 +389,50 @@ actions:
         issues = validate.structural_check(str(f))
         assert not any("missing an 'event'" in i for i in issues)
 
+    @staticmethod
+    def _signal_workflow(event, pinned, reads_trigger):
+        device_id = "${data['Trigger.Detection.DetectionID']}" if reads_trigger else "abc"
+        pin = "\n  version_constraint: ~1" if pinned else ""
+        return f"""\
+# Created by the CrowdStrike Falcon Fusion authoring skill
+name: Test Workflow
+trigger:
+  type: Signal
+  event: {event}
+  name: Detection{pin}
+  next:
+    - ContainHost
+actions:
+  ContainHost:
+    id: aabbccdd11223344aabbccdd11223344
+    name: Contain device
+    properties:
+      device_id: {device_id}
+output_fields: []
+"""
+
+    def _pin_issues(self, tmp_path, **kwargs):
+        f = tmp_path / "signal_pin.yaml"
+        f.write_text(self._signal_workflow(**kwargs))
+        return [i for i in validate.structural_check(str(f)) if "no version_constraint" in i]
+
+    def test_unpinned_ngsiem_trigger_reading_trigger_fields_errors(self, tmp_path):
+        # Confirmed live: release fails without the trigger's version_constraint.
+        issues = self._pin_issues(tmp_path, event="Investigatable/NGSIEM", pinned=False, reads_trigger=True)
+        assert len(issues) == 1 and issues[0].startswith("ERROR")
+
+    def test_pinned_ngsiem_trigger_passes(self, tmp_path):
+        assert not self._pin_issues(tmp_path, event="Investigatable/NGSIEM", pinned=True, reads_trigger=True)
+
+    def test_unpinned_trigger_that_reads_no_trigger_fields_passes(self, tmp_path):
+        # Releases either way when nothing reads a Trigger.* field.
+        assert not self._pin_issues(tmp_path, event="Investigatable/NGSIEM", pinned=False, reads_trigger=False)
+
+    def test_unpinned_other_signal_trigger_only_warns(self, tmp_path):
+        # Not confirmed beyond NG-SIEM, so other Signal events get a warning.
+        issues = self._pin_issues(tmp_path, event="PhishingEmail/MicrosoftO365", pinned=False, reads_trigger=True)
+        assert len(issues) == 1 and issues[0].startswith("WARNING")
+
     def test_non_signal_trigger_needs_no_event(self, tmp_path):
         # On demand / SubModel triggers do not require an event field.
         # (Signal and Scheduled DO — covered by their own tests.)
