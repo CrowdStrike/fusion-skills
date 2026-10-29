@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- **Unpinned Signal triggers fail release** — a workflow whose Signal trigger has no `version_constraint` imports and passes validation, but release fails with only "Workflow has validation errors and cannot be enabled" once it reads a `Trigger.*` field. `validate.py` now flags it (an error on the NG-SIEM trigger, where it's confirmed, and a warning on other Signal triggers), `trigger-types.md` says to pin the trigger, and the NG-SIEM threat-intel enrichment template, which had never released, now has `version_constraint: ~1`.
 - **The auth self-test no longer prints part of the client secret** — it reports only whether a secret is set.
 - **`import_workflows.py --replace` can't leave the CID with neither version** — it validates before it deletes, and it exports the old definition first. If the new import fails anyway (a server-side error after a clean validation), it re-imports the old one, and if that fails too, it keeps the export on disk and prints its path.
 - **`--replace` replaces every copy, and only exact names** — it deletes all definitions with exactly the workflow's name instead of one of them, and won't delete a name that differs only in case. It can't be combined with `--skip-duplicate-check`, and two files with the same name in one import batch no longer both get imported.

@@ -27,6 +27,7 @@ trigger:
     name: NG-SIEM Detection
     event: Investigatable/NGSIEM
     type: Signal
+    version_constraint: ~1
 actions:
     InitEnrichmentVariable:
         id: 702d15788dbbffdf0b68d8e2f3599aa4

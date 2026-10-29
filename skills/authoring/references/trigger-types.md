@@ -71,6 +71,8 @@ trigger:
     version_constraint: ~1
 ```
 
+**Pin the trigger with its `version_constraint`** (see the table below). Without it, a workflow that reads any `Trigger.*` field imports and passes the API dry run, but release fails with only "Workflow has validation errors and cannot be enabled". Confirmed live on the NG-SIEM trigger, where adding `version_constraint: ~1` is the whole fix; `validate.py` flags it there as an error and on other Signal triggers as a warning.
+
 A Signal trigger is identified by `event` + `name`, **not** by a hex `id`. Do NOT
 add an `id:` to a Signal trigger — exported workflows carry no trigger id, and it
 is not needed for import. (This corrects earlier guidance in this file that told
