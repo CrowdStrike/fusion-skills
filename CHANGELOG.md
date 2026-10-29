@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`.distinct()` in the CEL reference** — the list de-duplication function is now documented with the List comprehensions, with a verified-live note that it keeps the first occurrence of each value in order.
 - **Distribution requests redirect to Falcon Foundry with the reason** — the foundry-redirect skill now routes "distribute this to other customers as an installable app" to foundry-skills and explains why: a workflow's credential configs don't travel between CIDs, while a Foundry app's FalconPy function authenticates with the scopes in its `manifest.yml`.
 
+### Changed
+
+- **Fewer lookup turns when authoring** — the authoring skill lists its folder layout and has a compact example of parallel branches that fan out and converge, so agents no longer spend turns finding files or reading the YAML schema reference for that common shape. In a 10-run A/B, cost per run fell about 10% and tokens about 19%, with every workflow just as complete and all 10 releasing.
+
 ### Fixed
 
 - **No Store plugin actions in the Common Action IDs table** — the authoring skill's table listed VirusTotal File Hash Lookup and DomainTools Iris Investigate, which are Store plugin actions that release rejects without a plugin configured in the console, and a VirusTotal IP Request ID that isn't in the action catalog. Workflows that used them imported but failed release. The rows are gone, and the table now points threat-intel lookups at a credential-less Cloud HTTP Request, as the rest of the skill already recommends.
