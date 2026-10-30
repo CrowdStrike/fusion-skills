@@ -946,6 +946,32 @@ def _validate_ngsiem_trigger_fields(trigger, file_path, issues):
         )
 
 
+def _validate_ondemand_param_refs(trigger, file_path, issues):
+    """Flag On demand trigger parameters read with a Trigger. prefix.
+
+    An On demand trigger's parameters are top-level data: ``data['ip']``, not
+    ``data['Trigger.ip']``. Confirmed live: the prefixed form imports and passes
+    the API dry run, but release fails with only "Workflow has validation errors
+    and cannot be enabled".
+    """
+    if not isinstance(trigger, dict) or trigger.get("type") != "On demand":
+        return
+    params = trigger.get("parameters")
+    props = params.get("properties") if isinstance(params, dict) else None
+    if not isinstance(props, dict) or not props:
+        return
+    with open(file_path, encoding="utf-8") as f:
+        content = f.read()
+    for name in props:
+        if re.search(r"\bTrigger\." + re.escape(str(name)) + r"\b", content):
+            issues.append(
+                f"ERROR: On demand parameter '{name}' is read as 'Trigger.{name}'. "
+                f"On demand parameters have no prefix: use ${{data['{name}']}}. "
+                "The prefixed form imports but release fails with \"Workflow has "
+                "validation errors and cannot be enabled\"."
+            )
+
+
 def _validate_signal_trigger_pin(trigger, file_path, issues):
     """Flag a Signal trigger with no version_constraint that reads trigger fields.
 
@@ -1418,6 +1444,7 @@ def structural_check(file_path):
     _validate_ngsiem_trigger_fields(trigger, file_path, issues)
     _validate_recon_trigger_fields(trigger, file_path, issues)
     _validate_signal_trigger_pin(trigger, file_path, issues)
+    _validate_ondemand_param_refs(trigger, file_path, issues)
     _validate_pinned_data_paths(data, file_path, issues)
     _validate_custom_variable_refs(data, file_path, issues)
     _validate_fake_variable_emails(data, issues)

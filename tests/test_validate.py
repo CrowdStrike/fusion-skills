@@ -433,6 +433,50 @@ output_fields: []
         issues = self._pin_issues(tmp_path, event="PhishingEmail/MicrosoftO365", pinned=False, reads_trigger=True)
         assert len(issues) == 1 and issues[0].startswith("WARNING")
 
+    @staticmethod
+    def _ondemand_workflow(ref):
+        return f"""\
+# Created by the CrowdStrike Falcon Fusion authoring skill
+name: Test Workflow
+trigger:
+  type: On demand
+  name: On demand
+  next:
+    - ContainHost
+  parameters:
+    $schema: https://json-schema.org/draft-07/schema
+    properties:
+      device_id:
+        type: string
+    required:
+      - device_id
+    type: object
+actions:
+  ContainHost:
+    id: aabbccdd11223344aabbccdd11223344
+    name: Contain device
+    properties:
+      device_id: {ref}
+output_fields: []
+"""
+
+    def _prefix_issues(self, tmp_path, ref):
+        f = tmp_path / "ondemand_prefix.yaml"
+        f.write_text(self._ondemand_workflow(ref))
+        return [i for i in validate.structural_check(str(f)) if "has no prefix" in i or "no prefix" in i]
+
+    def test_ondemand_param_read_with_trigger_prefix_errors(self, tmp_path):
+        # Confirmed live: release rejects data['Trigger.<param>'] on On demand.
+        issues = self._prefix_issues(tmp_path, "${data['Trigger.device_id']}")
+        assert len(issues) == 1 and issues[0].startswith("ERROR")
+
+    def test_ondemand_param_read_bare_passes(self, tmp_path):
+        assert not self._prefix_issues(tmp_path, "${data['device_id']}")
+
+    def test_ondemand_unrelated_trigger_field_passes(self, tmp_path):
+        # Only names declared as parameters are checked.
+        assert not self._prefix_issues(tmp_path, "${data['Trigger.device_id_other']}")
+
     def test_non_signal_trigger_needs_no_event(self, tmp_path):
         # On demand / SubModel triggers do not require an event field.
         # (Signal and Scheduled DO — covered by their own tests.)
