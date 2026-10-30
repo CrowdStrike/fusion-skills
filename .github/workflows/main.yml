@@ -48,6 +48,7 @@ jobs:
           ./test-skill-scorecard.sh
           ./test-skill-isolation.sh
           ./test-agy-plugin-swap.sh
+          ./test-cursor-plugin-stash.sh
           ./test-verdict-parser.sh
           ./test-bootstrap-symlink.sh
           ./test-python-wrapper.sh
