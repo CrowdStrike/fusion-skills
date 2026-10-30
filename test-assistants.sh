@@ -30,7 +30,8 @@
 #
 #   1. Disables installed Fusion plugins where the assistant supports it, and the
 #      sibling Foundry plugin in Copilot and Antigravity (Antigravity's own Fusion
-#      plugin is swapped for the working tree instead, see 3)
+#      plugin is swapped for the working tree instead, see 3). Codex and Cursor have
+#      no `plugin disable`, so their installed copies are moved aside instead
 #   2. Moves EVERY entry in ~/.agents/skills/ out of the way (not only ours — a
 #      sibling repo's `setup` skill competes for the same prompt just as much)
 #   3. Gives each assistant exactly ONE source pointing at the working tree. For
@@ -121,6 +122,12 @@ export AGY_SWAP_NAME="$AGY_NAME"
 export AGY_SWAP_REPO="$REPO"
 # shellcheck source=scripts/agy-plugin-swap.sh
 source "$REPO/scripts/agy-plugin-swap.sh"
+
+# Cursor loads --plugin-dir and its installed plugin cache together, and has no
+# `plugin disable`, so its installed Fusion and Foundry copies are moved aside for the
+# run (move-only, stashed next to the cache, restored on exit and after a killed run).
+# shellcheck source=scripts/cursor-plugin-stash.sh
+source "$REPO/scripts/cursor-plugin-stash.sh"
 
 # The ~/.agents/skills stash/restore/recover machinery. Move-only, glob-based, safe
 # from a signal trap, and unit-tested. Bind its config BEFORE sourcing (it reads the
@@ -301,6 +308,7 @@ restore() {
   [ -n "$CODEX_CACHE" ] && had=1
   [ -d "${SKILL_ISO_STASH:-/nonexistent}" ] && had=1
   [ "$AGY_SWAP_ACTIVE" -eq 1 ] && had=1
+  [ "$CURSOR_STASH_MOVED" -gt 0 ] && had=1
   [ "$had" -eq 0 ] && return 0
 
   head2 "Restoring your setup"
@@ -319,6 +327,10 @@ restore() {
     rm -rf "$CODEX_CACHE"
     mv "$CODEX_CACHE_STASH" "$CODEX_CACHE" && vok "restored Codex plugin cache"
     rm -f "$CODEX_CACHE_ORIGIN"
+  fi
+  if [ "$CURSOR_STASH_MOVED" -gt 0 ]; then
+    if cursor_unstash; then vok "restored Cursor's installed plugins"
+    else warn "could not restore Cursor's installed plugins: $CURSOR_STASH_ERR"; fi
   fi
   # Put every stashed ~/.agents/skills entry back. Delegated to the helper: move-only,
   # glob-based, and safe to call from this EXIT/INT trap.
@@ -450,12 +462,19 @@ isolate() {
     fi
   done
 
+  if cursor_stash "$AGY_NAME" "$AGY_SIBLING"; then
+    [ "$CURSOR_STASH_MOVED" -gt 0 ] && vok "moved Cursor's installed plugins aside ($CURSOR_STASH_MOVED)"
+  else
+    warn "could not move Cursor's installed plugins aside; its results will be ambiguous: $CURSOR_STASH_ERR"
+  fi
+
   # Every symlink in ~/.agents/skills, not only this repo's. A sibling repo competes
   # just as much: a foundry-skills `setup` skill loaded into a fusion run skews it.
   # Delegated to the helper — move-only, so nothing here can be destroyed.
   stash_all_agents_skills
 
   local plugins=$(( ${#DISABLED_CLAUDE[@]} + ${#DISABLED_COPILOT[@]} + ${#DISABLED_AGY[@]} ))
+  plugins=$(( plugins + CURSOR_STASH_MOVED ))
   if [ "$plugins" -eq 0 ] && [ "${SKILL_ISO_STASHED:-0}" -eq 0 ]; then
     ok "nothing to isolate — no competing sources found"
   else
@@ -778,6 +797,11 @@ mkdir -p "$LOG_DIR"
 recover_orphans           # helper: reclaim a ~/.agents/skills stash from a killed run
 recover_codex_cache_orphan
 recover_agy_plugin_orphan
+if ! cursor_recover; then
+  warn "could not recover Cursor plugins left by an interrupted run: $CURSOR_STASH_ERR"
+elif [ "$CURSOR_STASH_RECOVERED" -eq 1 ]; then
+  warn "recovered Cursor plugins left behind by an interrupted run"
+fi
 
 if [ "$ISOLATE" -eq 1 ]; then
   isolate
@@ -1008,11 +1032,17 @@ find_workflow_yaml() {   # bin
       fi
     done < <(ls -1t "${cands[@]}" 2>/dev/null)
   fi
-  # Not where we put it. Fall back to whatever YAML path the transcript mentions.
-  f=$(grep -oE '/[^ "]*\.(yml|yaml)' "$LOG_DIR/${bin}.log" 2>/dev/null | head -1)
-  if [ -n "$f" ] && [ -f "$f" ]; then
-    WF_PATH="$f"; FOUND_OUTSIDE=1
-  fi
+  # Not where we put it. Fall back to the YAML paths the transcript mentions, trying
+  # each until one is a real workflow file. The first mention is often a glob or a
+  # fragment (`/*.yaml`), and the repo's own templates and examples are mentioned
+  # too, so skip anything inside the working tree.
+  while IFS= read -r f; do
+    case "$f" in "$REPO"/*) continue ;; esac
+    [ -f "$f" ] || continue
+    if grep -qiE '^(trigger|triggers):' "$f" 2>/dev/null && grep -qiE '^(actions|nodes):' "$f" 2>/dev/null; then
+      WF_PATH="$f"; FOUND_OUTSIDE=1; return
+    fi
+  done < <(grep -oE '/[^ "]*\.(yml|yaml)' "$LOG_DIR/${bin}.log" 2>/dev/null | awk '!seen[$0]++')
 }
 
 # Present-or-not for the stages the skills are supposed to produce. Each maps to one
