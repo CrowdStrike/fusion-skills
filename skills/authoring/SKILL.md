@@ -185,6 +185,16 @@ If a complete workflow in `workflows/` already fits the request, copy it with `c
 Add the header comment on line 1, then write `name`, `trigger`, and `actions`
 with the resolved IDs. Replace every `PLACEHOLDER_*` marker: they show shape, never values.
 
+**Parallel branches** fan out by listing each branch's gate in `next:` and converge by pointing every branch's `next:` and each gate's `else:` at the same node. No join or `default: true` node (release rejects it):
+
+```yaml
+actions:
+    QueryDetection: { ..., next: [ip_present, domain_present] }
+    EnrichIP: { ..., next: [Summarize] }
+conditions:
+    ip_present: { next: [EnrichIP], cel_expression: "...", else: [Summarize] }
+```
+
 ### 4. Add CEL expressions
 
 Reference trigger inputs and prior outputs with `${data['...']}` expressions:
@@ -334,31 +344,7 @@ namespace are in `references/charlotte-ai-action.md`.
 
 ## Console-Credential Boundary
 
-This is the key thing authoring can and cannot change. The authoring skill lets
-you write workflow YAML **outside** the Falcon console. But an HTTP Action (and
-some plugin actions) references a credential configuration — `config_id`,
-`definition_id`, or `config_name` — that is **created in the console and is
-CID-specific**. This skill can author the workflow that *uses* the action, but
-the credential config it points to must already exist in the CID. Apply
-the same discipline as with action IDs:
-
-- **Discover existing config IDs** where possible (via `action_search.py
-  --details` on the plugin action, or ask the user where to find it: Falcon
-  console → CrowdStrike Store → [App] → Integration settings).
-- **Never invent a `config_id`, or substitute a placeholder for one.** A
-  fabricated ID fails at runtime — a fake UUID, `YOUR_*`, `TODO`/`FIXME`, or an
-  all-zeros UUID is NOT a valid stand-in. When you can't discover it, **ask the
-  user** via AskUserQuestion; asking is required even in non-interactive/CI runs
-  (the caller supplies the value there).
-- If the config does not yet exist, **document the dependency** and pause — the
-  user must create it in the console before the workflow will run.
-
-**HTTP Actions are the exception — do not block on a credential.** An
-`Inline.HTTPRequest` can be authored credential-less (no `definition_id`) and
-deployed; it imports with Authentication = "None" and the user attaches the API
-key in the console afterward (proven end-to-end). So for HTTP actions, prefer
-credential-less authoring over pausing — see `references/http-actions.md`. The
-"must already exist" rule applies to *plugin* actions gated on a `config_id`.
+A plugin action's `config_id` (and an HTTP action's `definition_id` or `config_name`) points at a credential created in the console, so it is CID-specific and must already exist. Discover it (`action_search.py --details`, or Falcon console → CrowdStrike Store → [App] → Integration settings) or ask the user; if it doesn't exist yet, document the dependency and pause. HTTP actions are the exception: author them credential-less (see HTTP Actions above).
 
 Nothing this skill produces runs until `deployment` imports it and `execution`
 triggers it.

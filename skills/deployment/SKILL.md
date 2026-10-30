@@ -33,7 +33,7 @@ metadata:
 >
 > **Don't:**
 > - Import without validating first.
-> - Skip the duplicate-name check.
+> - Skip the duplicate-name check (`--skip-duplicate-check`).
 > - Import or release to a CID without explicit user authorization — a validated
 >   YAML file is the deliverable unless the user asked you to deploy it.
 > - Release (enable) a workflow without the user's go-ahead. A workflow must be
@@ -104,7 +104,7 @@ Fix every structural error before continuing. A definition that fails validation
 
 ### 2. Check for an existing workflow with the same name
 
-Workflow names must be unique within the tenant. Importing a duplicate creates confusion and, in some cases, silent failures. Check first:
+Workflow names must be unique within the tenant. `import_workflows.py` checks this itself before importing (step 3): it skips a file whose name already exists, prints `DUPLICATE` with the existing ID, and exits 1. So you don't need a separate check before importing. Use `query_workflows.py` only when you want to look a name up without importing:
 
 ```bash
 # Exact-name check (exit 0 if it exists, 1 if not, 2 if the API call failed)
