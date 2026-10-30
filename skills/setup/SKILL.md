@@ -4,8 +4,8 @@ description: >
   Configure CrowdStrike Falcon API credentials for the fusion-skills plugin.
   TRIGGER when user asks to set up credentials, configure API access,
   or runs into authentication errors.
-version: 1.3.0
-updated: 2026-10-10
+version: 1.4.0
+updated: 2026-10-30
 tags: [fusion, setup, credentials, configuration]
 author: CrowdStrike
 license: MIT
