@@ -173,7 +173,7 @@ See `references/trigger-types.md`.
 
 ### 3. Author the YAML from a template
 
-If a complete workflow in `workflows/` already fits the request, copy it with `cp` and change it with Edit instead of retyping it (retyping ~500 lines costs ~10k output tokens), then add whatever the request asks for that it lacks. Otherwise start from a skeleton:
+Pick the template matching the pattern, then substitute real values:
 
 | Pattern | Template |
 |---------|----------|
