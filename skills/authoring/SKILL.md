@@ -72,7 +72,7 @@ NOT import, release, execute, or monitor workflows — hand those off to the
 
 ---
 
-> **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py`. For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/authoring"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/authoring`). The wrapper bootstraps its own Python venv. From this folder: `references/` (docs), `assets/` (skeletons), `examples/<category>/` (Content Library exports); use cases are in `../../use-cases/`.
+> **Running the scripts.** Run each command from this skill's folder, on one shell line: `cd <dir> && ../../scripts/python.sh scripts/<name>.py`. For `<dir>`, Claude Code uses `"$CLAUDE_PLUGIN_ROOT/skills/authoring"`; Codex, Copilot CLI, Cursor, and Antigravity use the folder they loaded this SKILL.md from (e.g. `~/.agents/skills/authoring`). The wrapper bootstraps its own Python venv. From this folder: `references/` (docs), `assets/` (skeletons), `examples/<category>/` (Content Library exports), `workflows/` (complete workflows); use cases are in `../../use-cases/`.
 
 ## Prerequisites
 
@@ -173,7 +173,7 @@ See `references/trigger-types.md`.
 
 ### 3. Author the YAML from a template
 
-If the request is NG-SIEM detection threat-intel enrichment (hydrate the detection, enrich its indicators, summarize, email), `workflows/ngsiem-detection-ti-enrichment.yaml` already does it: copy it with `cp` and change it with Edit instead of retyping it (retyping ~500 lines costs ~10k output tokens), then add whatever the request asks for that it lacks. Its action IDs are already resolved, so search only for actions you add. Otherwise start from a skeleton:
+If a complete workflow in `workflows/` already fits the request, copy it with `cp` and change it with Edit instead of retyping it (retyping ~500 lines costs ~10k output tokens), then add whatever the request asks for that it lacks. Its action IDs are already resolved, so search only for actions you add. Otherwise start from a skeleton:
 
 | Pattern | Template |
 |---------|----------|
