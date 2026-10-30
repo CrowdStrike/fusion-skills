@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
-- **Fewer lookup turns when authoring** — the authoring skill lists its folder layout and has a compact example of parallel branches that fan out and converge, so agents no longer spend turns finding files or reading the YAML schema reference for that common shape, and the deployment skill no longer runs a separate duplicate check that `import_workflows.py` already does. In a 10-run A/B, cost per run fell about 13%, tokens about 29%, and run time about a third, with every workflow just as complete and all 10 releasing.
+- **Fewer turns when authoring and deploying** — the authoring skill has a compact example of parallel branches that fan out and converge, so agents don't need to read the YAML schema reference for that common shape, and the deployment skill no longer runs a separate duplicate check that `import_workflows.py` already does.
 
 ### Fixed
 
