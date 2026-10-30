@@ -20,9 +20,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`.distinct()` in the CEL reference** — the list de-duplication function is now documented with the List comprehensions, with a verified-live note that it keeps the first occurrence of each value in order.
 - **Distribution requests redirect to Falcon Foundry with the reason** — the foundry-redirect skill now routes "distribute this to other customers as an installable app" to foundry-skills and explains why: a workflow's credential configs don't travel between CIDs, while a Foundry app's FalconPy function authenticates with the scopes in its `manifest.yml`.
 
-### Changed
-
-- **Fewer turns when authoring and deploying** — the authoring skill has a compact example of parallel branches that fan out and converge, so agents don't need to read the YAML schema reference for that common shape, and the deployment skill no longer runs a separate duplicate check that `import_workflows.py` already does.
 
 ### Fixed
 
