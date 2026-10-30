@@ -6,8 +6,8 @@ description: >
   list existing workflows, check for duplicates, or manage workflow definitions.
   DO NOT TRIGGER for writing YAML (use authoring), executing workflows,
   or monitoring (use execution).
-version: 1.3.0
-updated: 2026-10-10
+version: 1.4.0
+updated: 2026-10-30
 tags: [fusion, soar, workflows, deployment, import, release]
 author: CrowdStrike
 license: MIT
