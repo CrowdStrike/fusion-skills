@@ -991,6 +991,12 @@ if [ -n "$BASELINE_FILE" ]; then
   [ "$B_AVG_COST" != "?" ] && B_COST_FMT="\$$B_AVG_COST"
   [ "$C_AVG_COST" != "?" ] && C_COST_FMT="\$$C_AVG_COST"
   printf "  %-24s %-15s %-15s\n" "Avg cost/run" "$B_COST_FMT" "$C_COST_FMT"
+  # One expensive run (e.g. a template retyped through Write) moves a 10-run mean
+  # by about $0.07, as much as the changes being measured, so show the median too.
+  MEDIAN_JQ='[.tokens[]?.cost_usd | select(. != null)] | sort | if length == 0 then "?" elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end | if type == "number" then "$" + ((. * 100 | round) / 100 | tostring) else . end'
+  B_MED_COST=$(jq -r "$MEDIAN_JQ" "$BASELINE_FILE" 2>/dev/null || echo "?")
+  C_MED_COST=$(echo "$RESULTS_JSON" | jq -r "$MEDIAN_JQ" 2>/dev/null || echo "?")
+  printf "  %-24s %-15s %-15s\n" "Median cost/run" "$B_MED_COST" "$C_MED_COST"
   # Format elapsed as m:ss.
   B_ELAPSED_FMT="?"
   C_ELAPSED_FMT="?"
