@@ -24,9 +24,8 @@ metadata:
 > You deploy workflow definitions into a CID safely: validate before importing, never create duplicates, and release only with the user's go-ahead.
 >
 > **Required steps:**
-> 1. Check for an existing workflow with the same name before importing.
-> 2. Validate the YAML before importing (the import scripts do this by default).
-> 3. Import and release act on a **live production CID**. Deploy only when the
+> 1. Import with `import_workflows.py`, which validates the YAML and checks for an existing workflow with the same name by default.
+> 2. Import and release act on a **live production CID**. Deploy only when the
 >    user's request explicitly authorizes it (e.g. "import it", "deploy to my
 >    CID", "release it"). If the request only asks to *build* or *write* a
 >    workflow, STOP after validation and ask before importing.
@@ -52,17 +51,11 @@ metadata:
 >   A 500 usually means the workflow is invalid in a way the API rejects late
 >   (not a transient server issue) — re-run local validation to find the defect,
 >   fix it, and report the `trace_id` if it persists. Do not loop re-importing.
-> - Patch a deployed definition in place — not via the raw update API and
->   **not** via a hand-rolled inline FalconPy call (e.g. `update_definition`) to
->   edit a deployed copy. The only supported *update* path is: fix the source
->   YAML, then re-import. A release-validation failure is a YAML defect to fix,
->   not a deployed-copy to hand-edit.
-> - Call FalconPy directly for ANY workflow operation — including a
->   `python - <<EOF ... delete_definition(...)` snippet to clean up a failed
->   import attempt. Deleting is fine, but it MUST go through `delete_workflow.py`
->   (or the repo's `../../scripts/cleanup_workflows.py`), which wrap the supported endpoints. Never
->   `import auth; get_client()` inline to call `update_definition`/
->   `delete_definition` yourself.
+> - Patch a deployed definition in place, or call FalconPy directly for any
+>   workflow operation (an inline `update_definition` or `delete_definition`,
+>   the raw update API). The only update path is: fix the source YAML, then
+>   re-import. Delete through `delete_workflow.py` (or the repo's
+>   `../../scripts/cleanup_workflows.py`).
 
 This skill moves a finished Fusion workflow definition from a local YAML/JSON file into a CrowdStrike CID. Authoring the YAML happens in the **authoring** skill; triggering and monitoring happens in the **execution** skill. Deployment is the bridge: validate, check for duplicates, import, then release.
 
@@ -172,29 +165,7 @@ Releasing enables the definition so the Fusion engine runs it against trigger ev
 ../../scripts/python.sh scripts/release_workflow.py --id <definition_id>
 ```
 
-**If release reports validation errors, stop — do not patch the deployed
-definition.** A workflow can import successfully yet fail validation at release
-(the server validates more strictly than import). When that happens, fix the
-**source YAML**, then re-validate and re-import with `import_workflows.py` — that
-re-import is the only supported way to update a definition. Do **not** try to
-repair the deployed copy in place through *any* direct definition-mutation call.
-That includes the raw workflow update / definition API
-(`WorkflowDefinitionsUpdate`, `.../entities/definitions/v1`), **and any
-hand-rolled FalconPy call** — an inline `python - <<'EOF' ... from falconpy`
-snippet that reaches for `update_definition`, `delete_definition`, or similar is
-the same forbidden path wearing a disguise. None of those are part of this skill,
-and looping edits against them returns repeated 500s without ever fixing the
-workflow. Report the release error (include any `trace_id`) and fix the YAML at
-the source.
-
-A concrete failure mode: the release error `exclusive gateway '<name>' outgoing
-flow ... has no condition set and is not marked as default` means a condition
-node has a bare `next:` with neither `default: true` nor a `cel_expression`. Fix
-it in the **source YAML** (add a `cel_expression` to the gated branch, with its
-no-match fallthrough in `else:` — `validate.py` now catches this before deploy,
-including inside nested loops) and re-import. Never fan out with a bare
-`default: true` pass-through; list the branch targets directly in the source
-node's `next:`. Do not hand-edit the deployed definition to add the missing flag.
+**If release reports validation errors, stop and fix the source YAML.** A workflow can import successfully yet fail validation at release, because the server validates more strictly than import. Fix the YAML, re-validate, and re-import with `--replace`; don't repair the deployed copy (see Don't above). Report the release error, including any `trace_id`. A common one, `exclusive gateway '<name>' outgoing flow ... has no condition set and is not marked as default`, is a condition with neither a `cel_expression` nor an `else:` (see the authoring skill's parallel-branches example).
 
 **The exact recovery loop (do this, not the escape hatch):**
 
