@@ -52,3 +52,19 @@ def test_bundle_fails_without_a_support_url(tmp_path):
 def test_repo_manifest_has_a_support_url():
     manifest = json.loads((REPO / ".codex-plugin" / "plugin.json").read_text())
     assert manifest["interface"]["supportURL"].startswith("https://")
+
+
+def test_bundle_fetches_a_tag_that_only_exists_on_the_remote(tmp_path):
+    """Publishing a GitHub release creates its tag on GitHub, not in the local clone."""
+    # The path matches what release.sh looks for in a remote URL.
+    upstream = tmp_path / "CrowdStrike" / "fusion-skills"
+    upstream.mkdir(parents=True)
+    assert _bundle(upstream, INTERFACE).returncode == 0
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "-q", str(upstream), str(clone)], check=True, capture_output=True)
+    subprocess.run(["git", "tag", "v9.9.9"], cwd=upstream, check=True, capture_output=True)
+
+    result = subprocess.run(["bash", "release.sh", "--bundle", "v9.9.9"],
+                            cwd=clone, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert list(clone.glob("*9.9.9.zip")), result.stdout
