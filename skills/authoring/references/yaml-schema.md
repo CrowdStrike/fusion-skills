@@ -332,11 +332,11 @@ and is not marked as default` (confirmed live).
 conditions:
     ip_present:
         next: [EnrichIP]
-        cel_expression: "data['QueryDetection.results'][0].RemoteIP != null && data['QueryDetection.results'][0].RemoteIP != ''"
+        cel_expression: "data['QueryDetection.results'][0].ip_address != null && data['QueryDetection.results'][0].ip_address != ''"
         else: [SummarizeEnrichment]        # else converges straight on the target
     domain_present:
         next: [EnrichDomain]
-        cel_expression: "data['QueryDetection.results'][0].DomainName != null && data['QueryDetection.results'][0].DomainName != ''"
+        cel_expression: "data['QueryDetection.results'][0].domain_name != null && data['QueryDetection.results'][0].domain_name != ''"
         else: [SummarizeEnrichment]
 actions:
     EnrichIP:     { id: ..., next: [SummarizeEnrichment], properties: {...} }
@@ -364,13 +364,13 @@ conditions:
     domain_present:                             # CEL null check
         next:
             - EnrichDomain
-        cel_expression: data['QueryDetection.results'][0].DomainName != null
+        cel_expression: data['QueryDetection.results'][0].domain_name != null
         display:
             - Domain is present
     ip_present:                                 # FQL-style equivalent: field:!null
         next:
             - EnrichIP
-        expression: QueryDetection.results[0].RemoteIP:!null
+        expression: QueryDetection.results[0].ip_address:!null
         display:
             - IP is present
 ```
@@ -403,7 +403,7 @@ actions:
             - domain_present
             - ip_present
         properties:
-            query: ...
+            query: ...                          # reduces to one row with flat ip_address / domain_name (see event-query-vs-api.md)
     EnrichDomain: { id: ..., next: [SummarizeEnrichment], properties: {...} }
     EnrichIP:     { id: ..., next: [SummarizeEnrichment], properties: {...} }
 
@@ -411,11 +411,11 @@ conditions:
     domain_present:                            # gate (needs an expression)
         next:
             - EnrichDomain
-        cel_expression: data['QueryDetection.results'][0].DomainName != null
+        cel_expression: data['QueryDetection.results'][0].domain_name != null
     ip_present:
         next:
             - EnrichIP
-        cel_expression: data['QueryDetection.results'][0].RemoteIP != null
+        cel_expression: data['QueryDetection.results'][0].ip_address != null
 ```
 
 For a complete, real example of both patterns, see the Content Library playbooks

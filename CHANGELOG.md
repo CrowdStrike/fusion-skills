@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **The NG-SIEM enrichment template now finds indicators** — it read `IpAddress`, `HostName`, and similar fields that NG-SIEM detection events rarely have, so it enriched nothing on most detections. Its query now reads the normalized fields (`source.ip`, `host.hostname`, `user.name`) and returns one row per detection.
+
 ## [1.4.0] - 2026-10-30
 
 ### Added

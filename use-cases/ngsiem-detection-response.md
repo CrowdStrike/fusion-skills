@@ -85,6 +85,12 @@ where each is covered in depth and verified live.
   `results[0]` is the most common silent-empty/wrong-row failure. Event Query is how
   you reach the event-level detail; a Get Detection Details action returns the
   detection object instead. See `references/event-query-vs-api.md`.
+- **Hydrated events use normalized field names, and there can be hundreds of
+  them.** Read `source.ip`, `host.hostname`, `user.name` and similar, not
+  `IpAddress`/`HostName`/`UserName` (empty on nearly every detection). Collapse the
+  events to one row of indicators in the query with `coalesce()` and `groupBy`, as
+  shown in `references/event-query-vs-api.md`, so `results[0]` isn't just whichever
+  event came first.
 - **Charlotte AI needs credits**, and the org must opt in. A workflow that invokes
   it will not produce a summary in a tenant without them.
 - **Business-hours logic:** the guide implements the time gate as hardcoded
