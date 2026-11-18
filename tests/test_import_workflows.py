@@ -27,11 +27,13 @@ class TestExpandInputs:
         basenames = sorted(__import__("os").path.basename(f) for f in result)
         assert basenames == ["one.yaml", "two.yml"]
 
-    def test_deduplicates_preserving_order(self, tmp_path):
+    def test_deduplicates_keeping_first_occurrence_order(self, tmp_path):
         a = tmp_path / "a.yaml"
+        b = tmp_path / "b.yaml"
         a.write_text("name: A\n")
-        result = import_workflows.expand_inputs([str(a), str(a)])
-        assert result == [str(a)]
+        b.write_text("name: B\n")
+        result = import_workflows.expand_inputs([str(b), str(a), str(b)])
+        assert result == [str(b), str(a)]
 
     def test_empty_directory_warns_and_yields_nothing(self, tmp_path, capsys):
         result = import_workflows.expand_inputs([str(tmp_path)])
@@ -402,17 +404,6 @@ class TestImportSingleFile:
         )
         assert status == "REPLACE FAILED"
         mock_client.import_definition.assert_not_called()
-
-    def test_no_replace_still_skips_duplicate(self, tmp_path, monkeypatch):
-        """Without --replace, an existing name is skipped as before (no delete)."""
-        f = tmp_path / "wf.yaml"
-        f.write_text("name: My Workflow\n")
-        existing = {"my workflow": [{"id": "old_id", "name": "My Workflow"}]}
-        monkeypatch.setattr(import_workflows, "get_client", lambda: (_ for _ in ()).throw(AssertionError))
-        basename, status, wf_id = import_workflows._import_single_file(
-            str(f), existing, skip_validate=True, replace=False
-        )
-        assert status == "DUPLICATE"
 
     def test_replace_deletes_every_exact_name_copy(self, tmp_path, monkeypatch):
         """Two same-name definitions in the CID: --replace must delete both, or

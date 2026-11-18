@@ -1,6 +1,5 @@
 """Tests for trigger_workflow.py — parameter handling, execution, and polling."""
 
-import inspect
 import json
 from unittest.mock import MagicMock
 
@@ -13,13 +12,18 @@ import get_execution_results
 class TestExecuteWorkflow:
     """Test workflow execution request building and response parsing."""
 
-    def test_execute_workflow_signature(self):
-        """The execute_workflow function exposes the expected parameters."""
-        sig = inspect.signature(trigger_workflow.execute_workflow)
-        params = list(sig.parameters.keys())
-        assert "definition_id" in params
-        assert "params" in params
-        assert "depth" in params
+    def test_execute_workflow_sends_id_params_and_depth(self, monkeypatch):
+        """The definition id, params, and depth all reach the execute call."""
+        mock_client = MagicMock()
+        mock_client.execute.return_value = {
+            "status_code": 200, "body": {"resources": ["exec_1"], "errors": []}, "headers": {},
+        }
+        monkeypatch.setattr(trigger_workflow, "get_client", lambda: mock_client)
+        trigger_workflow.execute_workflow("def_id", {"a": 1}, depth=2)
+        kwargs = mock_client.execute.call_args.kwargs
+        assert kwargs["definition_id"] == ["def_id"]
+        assert kwargs["body"] == {"a": 1}
+        assert kwargs["depth"] == 2
 
     def test_execution_id_parsed_from_bare_string(self, monkeypatch):
         """The execute endpoint returns resources as bare ID strings, not dicts."""
@@ -276,8 +280,10 @@ class TestHeuristicValue:
     def test_url_field_by_name(self):
         assert trigger_workflow.heuristic_value("url", {"type": "string"}).startswith("http")
 
-    def test_hash_field_by_name(self):
-        assert trigger_workflow.heuristic_value("file_hash", {"type": "string"})
+    def test_hash_field_gets_md5_length_hex_value(self):
+        value = trigger_workflow.heuristic_value("file_hash", {"type": "string"})
+        assert len(value) == 32
+        int(value, 16)  # hex
 
     def test_sha256_field_gets_sha256_length_value(self):
         value = trigger_workflow.heuristic_value("sha256", {"type": "string"})
@@ -602,12 +608,16 @@ class TestMain:
                             lambda *_a, **_k: {"device_id": {"type": "string"}})
         monkeypatch.setattr(trigger_workflow, "prompt_for_params",
                             lambda *_a, **_k: {"device_id": "abc"})
-        monkeypatch.setattr(trigger_workflow, "execute_workflow",
-                            lambda *_a, **_k: (True, "exec_9", {}))
+        sent = {}
+
+        def _execute(def_id, params, **_k):
+            sent["def_id"], sent["params"] = def_id, params
+            return True, "exec_9", {}
+
+        monkeypatch.setattr(trigger_workflow, "execute_workflow", _execute)
         trigger_workflow.main()
-        out = capsys.readouterr().out
-        assert "device_id" in out
-        assert "exec_9" in out
+        assert sent == {"def_id": "def_id", "params": {"device_id": "abc"}}
+        assert "exec_9" in capsys.readouterr().out
 
     def test_main_wait_timeout_exits_1(self, monkeypatch):
         """With --wait, no results within timeout exits non-zero."""

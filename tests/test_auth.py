@@ -32,7 +32,7 @@ class TestGetCredentials:
         monkeypatch.setenv("FALCON_CLIENT_SECRET", "test")
         monkeypatch.setenv("FALCON_BASE_URL", "https://api.crowdstrike.com/")
         _, _, burl = auth.get_credentials()
-        assert not burl.endswith("/")
+        assert burl == "https://api.crowdstrike.com"
 
     def test_exits_without_credentials(self):
         with pytest.raises(SystemExit):
