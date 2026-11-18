@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
-- **NG-SIEM detection hydration extracts real indicators** — the NG-SIEM threat-intel enrichment template read `IpAddress`, `HostName`, `UserName`, `FileHash`, and `Url` from the first hydrated event, but detection events use normalized names like `source.ip`, `host.hostname`, and `user.name`, so the template enriched nothing on nearly every detection. Its query now maps each indicator to one field with `coalesce()` and collapses the detection's events (often hundreds) into one row with `groupBy`, so the extraction step gets the first value found for each indicator. `event-query-vs-api.md` and the NG-SIEM detection response use case document the pattern, and the correlation-rule guidance now says to run the query schemaless instead of restricting its output schema.
+- **The NG-SIEM enrichment template now finds indicators** — it read `IpAddress`, `HostName`, and similar fields that NG-SIEM detection events rarely have, so it enriched nothing on most detections. Its query now reads the normalized fields (`source.ip`, `host.hostname`, `user.name`) and returns one row per detection.
 
 ## [1.4.0] - 2026-10-30
 
