@@ -186,5 +186,6 @@ class TestMain:
     def test_main_requires_execution_id(self, monkeypatch):
         """argparse enforces the required --execution-id argument."""
         monkeypatch.setattr("sys.argv", ["get_execution_results.py"])
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exc:
             get_execution_results.main()
+        assert exc.value.code == 2

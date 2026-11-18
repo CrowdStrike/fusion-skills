@@ -167,8 +167,8 @@ class TestMainCli:
         trigger_search.main()
         out = capsys.readouterr().out
         data = json.loads(out)
-        assert "Scheduled" in data
-        assert data["Scheduled"]["yaml_example"] is not None
+        assert list(data) == ["Scheduled"]
+        assert "type: Scheduled" in data["Scheduled"]["yaml_example"]
 
     def test_unknown_type_exits_1(self, monkeypatch, capsys):
         monkeypatch.setattr(

@@ -333,13 +333,16 @@ class TestLoadEventMap:
     def test_paginates_and_maps_id_to_category(self, monkeypatch):
         conv._EVENT_CACHE.clear()
         client = MagicMock()
+        full_page = [{"id": f"t{i}", "category": f"Cat/{i}"} for i in range(100)]
         client.search_triggers.side_effect = [
-            {"body": {"resources": [{"id": "t1", "category": "Cat/One"}]}},
-            {"body": {"resources": []}},
+            {"body": {"resources": full_page}},
+            {"body": {"resources": [{"id": "last", "category": "Cat/Last"}]}},
         ]
         monkeypatch.setattr(conv, "get_client", lambda: client)
         result = conv._load_event_map()
-        assert result["t1"] == "Cat/One"
+        assert len(result) == 101
+        assert result["t0"] == "Cat/0"
+        assert result["last"] == "Cat/Last"
         conv._EVENT_CACHE.clear()
 
     def test_returns_empty_when_offline(self, monkeypatch):
@@ -392,7 +395,9 @@ class TestMainCli:
         out = tmp_path / "out"
         monkeypatch.setattr("sys.argv", ["c", "--dir", str(src), "--out-dir", str(out), "--event", "X/Y"])
         conv.main()
-        assert (out / "wf.yaml").exists()
+        text = (out / "wf.yaml").read_text()
+        assert "name: wf" in text
+        assert "event: X/Y" in text
 
     def test_dir_requires_out_dir(self, tmp_path, monkeypatch):
         monkeypatch.setattr("sys.argv", ["c", "--dir", str(tmp_path)])

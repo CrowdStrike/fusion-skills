@@ -149,11 +149,6 @@ class TestSearchLookups:
         # Backslash is doubled (escaped first, before quotes).
         assert call_kwargs["filter"] == "name:~'a\\\\b'"
 
-    def test_fql_quote_helper(self):
-        assert list_lookups._fql_quote("plain") == "plain"
-        assert list_lookups._fql_quote("it's") == "it\\'s"
-        assert list_lookups._fql_quote("a\\b") == "a\\\\b"
-
 
 class TestMain:
     """Test the CLI entry point."""

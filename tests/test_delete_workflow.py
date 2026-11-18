@@ -7,6 +7,7 @@ no network, no credentials. Covers arg parsing, name→ID resolution, ID
 de-duplication, the confirmation gate, and the delete envelope handling.
 """
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -126,15 +127,19 @@ def test_delete_definitions_handles_exception(monkeypatch):
 # main — end to end (confirmation suppressed via env)
 # --------------------------------------------------------------------------
 
-def test_main_deletes_by_id_json(monkeypatch, capsys):
+def test_main_json_reports_what_the_api_deleted(monkeypatch, capsys):
+    # The API confirms only id-1; the JSON must report that, not echo the request.
     client = _client(delete_body={"resources": ["id-1"], "errors": []})
     monkeypatch.setattr(dw, "get_client", lambda: client)
-    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--id", "id-1", "--json", "--yes"])
+    monkeypatch.setattr("sys.argv", ["delete_workflow.py", "--id", "id-1", "--id", "id-2",
+                                     "--json", "--yes"])
     with pytest.raises(SystemExit) as exc:
         dw.main()
     assert exc.value.code == 0
-    out = capsys.readouterr().out
-    assert "id-1" in out
+    out = json.loads(capsys.readouterr().out)
+    assert out["requested"] == ["id-1", "id-2"]
+    assert out["deleted"] == ["id-1"]
+    assert out["success"] is True
 
 
 def test_main_json_without_yes_refuses_to_delete(monkeypatch, capsys):

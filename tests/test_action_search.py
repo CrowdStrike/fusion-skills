@@ -377,10 +377,11 @@ class TestFqlSearchErrorPaths:
         results = action_search._fql_search("x")
         assert [r["id"] for r in results] == ["1", "2", "3"]
 
-    def test_fql_vendor_delegates(self, monkeypatch):
+    def test_fql_vendor_sends_quoted_vendor_filter(self, monkeypatch):
         resources = [{"id": "1", "name": "A", "vendor": "Okta"}]
-        _mock_client(monkeypatch, resources)
-        assert action_search._fql_vendor("Okta") == resources
+        client = _mock_client(monkeypatch, resources)
+        assert action_search._fql_vendor("O'kta") == resources
+        assert client.search_activities.call_args.kwargs["filter"] == "vendor:'O\\'kta'"
 
 
 class TestCacheAge:
@@ -798,13 +799,18 @@ class TestMain:
         _run_main(monkeypatch, ["--search", "Contain"])
         assert "Contain Host" in capsys.readouterr().out
 
-    def test_search_with_use_case_filter(self, monkeypatch, capsys):
+    def test_search_use_case_filter_drops_non_matching(self, monkeypatch, capsys):
         _mock_client(monkeypatch, [
             {"id": "1", "name": "Contain Host", "vendor": "CrowdStrike",
              "use_cases": ["Response"]},
+            {"id": "2", "name": "Contain Alert Detector", "vendor": "CrowdStrike",
+             "use_cases": ["Detection"]},
         ])
         _run_main(monkeypatch, ["--search", "Contain", "--use-case", "response"])
-        assert "Contain Host" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Found 1 action(s)" in out
+        assert "Contain Host" in out
+        assert "Contain Alert Detector" not in out
 
     def test_details_json(self, monkeypatch, capsys):
         _mock_client(monkeypatch, [{"id": "abc", "name": "A"}])
@@ -815,7 +821,9 @@ class TestMain:
         _mock_client(monkeypatch, [{"id": "abc", "name": "Contain",
                                     "vendor": "CrowdStrike", "properties": {}}])
         _run_main(monkeypatch, ["--details", "abc"])
-        assert "Action details" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Name        : Contain" in out
+        assert "ID          : abc" in out
 
     def test_details_not_found_exits(self, monkeypatch, capsys):
         _mock_client(monkeypatch, [])
@@ -832,7 +840,10 @@ class TestMain:
              "use_cases": ["Detection"]},
         ], total=1)
         _run_main(monkeypatch, ["--vendors"])
-        assert "Available integrations" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Available integrations (1 vendors, 1 actions)" in out
+        row = next(line for line in out.splitlines() if line.strip().startswith("CrowdStrike"))
+        assert row.split()[1:] == ["1", "Detection"]
 
     def test_vendors_json_with_use_case_filter(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(action_search, "_CACHE_FILE", str(tmp_path / ".c.json"))
@@ -849,26 +860,40 @@ class TestMain:
         assert "CrowdStrike" not in out
 
     def test_list(self, monkeypatch, capsys):
-        _mock_client(monkeypatch, [{"id": "1", "name": "A", "vendor": "CrowdStrike"}],
-                     total=1)
+        _mock_client(monkeypatch, [{"id": "1", "name": "Contain Host",
+                                    "vendor": "CrowdStrike"}], total=1)
         _run_main(monkeypatch, ["--list"])
-        assert "Actions (showing" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Actions (showing 1 of 1)" in out
+        assert "Contain Host" in out
 
     def test_list_with_use_case(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(action_search, "_CACHE_FILE", str(tmp_path / ".c.json"))
         _mock_client(monkeypatch, [
-            {"id": "1", "name": "A", "vendor": "Okta", "use_cases": ["Identity"]},
-        ], total=1)
+            {"id": "1", "name": "Okta Suspend", "vendor": "Okta", "use_cases": ["Identity"]},
+            {"id": "2", "name": "Okta Detect", "vendor": "Okta", "use_cases": ["Detection"]},
+            {"id": "3", "name": "Entra Disable", "vendor": "Microsoft",
+             "use_cases": ["Identity"]},
+        ], total=3)
         _run_main(monkeypatch, ["--list", "--use-case", "identity", "--vendor", "Okta"])
-        assert "showing" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Actions (showing 1 of 1)" in out
+        assert "Okta Suspend" in out
+        assert "Okta Detect" not in out
+        assert "Entra Disable" not in out
 
     def test_standalone_use_case(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(action_search, "_CACHE_FILE", str(tmp_path / ".c.json"))
         _mock_client(monkeypatch, [
-            {"id": "1", "name": "A", "vendor": "Okta", "use_cases": ["Identity"]},
-        ], total=1)
+            {"id": "1", "name": "Okta Suspend", "vendor": "Okta", "use_cases": ["Identity"]},
+            {"id": "2", "name": "Contain Host", "vendor": "CrowdStrike",
+             "use_cases": ["Response"]},
+        ], total=2)
         _run_main(monkeypatch, ["--use-case", "identity"])
-        assert "use case 'identity'" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Found 1 action(s) matching use case 'identity'" in out
+        assert "Okta Suspend" in out
+        assert "Contain Host" not in out
 
     def test_standalone_use_case_vendor_filter(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(action_search, "_CACHE_FILE", str(tmp_path / ".c.json"))
@@ -886,4 +911,6 @@ class TestMain:
             {"id": "1", "name": "Okta Suspend", "vendor": "Okta"},
         ])
         _run_main(monkeypatch, ["--vendor", "Okta"])
-        assert "vendor 'Okta'" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Found 1 action(s) matching vendor 'Okta'" in out
+        assert "Okta Suspend" in out
