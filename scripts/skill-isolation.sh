@@ -41,7 +41,7 @@ SKILL_ISO_REPO="${SKILL_ISO_REPO:-}"
 # and restore the caller's prior settings. Saved in a global because these run
 # in pairs around a single loop.
 _SI_GLOB_SAVED=""
-_si_glob_on()  { _SI_GLOB_SAVED="$(shopt -p nullglob dotglob 2>/dev/null)"; shopt -s nullglob dotglob; }
+_si_glob_on()  { _SI_GLOB_SAVED="$(shopt -p nullglob dotglob 2>/dev/null || true)"; shopt -s nullglob dotglob; }
 _si_glob_off() { [ -n "$_SI_GLOB_SAVED" ] && eval "$_SI_GLOB_SAVED"; return 0; }
 
 # points_into_repo <path> — true (0) only if <path> is a symlink whose target
