@@ -93,9 +93,38 @@ silently return zero. The split is about whether you already hold the object:
     | report_name != *
     ```
 
-    or project named columns with `table([field1, field2, ...])`. Restrict the
-    action's output schema to only the fields you read, so runs that omit some
-    fields don't fail schema validation. Event Query is how you reach the
+    or project named columns with `table([field1, field2, ...])`. Run the
+    action schemaless (see `use-cases/event-queries.md`), because fields vary
+    from one detection to the next and a fixed schema fails on the runs that
+    omit them.
+
+  **Any detection can hydrate to hundreds of rows, and the fields use
+  normalized names.** It isn't only correlation rules: one detection can be
+  backed by hundreds or thousands of events, so a bare `results[0]` reads one arbitrary
+  event, and a field missing from that event comes back empty even when other
+  events have it. The events also use normalized, dotted names (`source.ip`,
+  `destination.ip`, `host.hostname`, `user.name`, `process.hash.sha256`,
+  `dns.question.name`, `url.original`), not `IpAddress`/`HostName`/`UserName`,
+  which are empty on nearly every detection (verified live). To extract
+  indicators, map each one to a flat name with `coalesce()` and collapse the
+  events to one row in the query, then read `results[0].<flat_name>`:
+
+    ```
+    Ngsiem.alert.id = ?detectID
+    | xdr_type != correlation-rule-detection | report_name != *
+    | ip_address := coalesce([source.ip, destination.ip, IpAddress])
+    | host_name := coalesce([host.hostname, HostName])
+    | user_name := coalesce([user.name, UserName])
+    | groupBy([Ngsiem.alert.id], function=[collect(ip_address, limit=1), collect(host_name, limit=1), collect(user_name, limit=1)])
+    ```
+
+    Use one `collect(<field>, limit=1)` per field. A single
+    `collect([a, b, c], limit=1)` keeps only one of the fields. The template
+    `workflows/ngsiem-detection-ti-enrichment.yaml` shows the full pattern. When
+    the workflow summarizes the detection rather than extracting fields, pass
+    `raw_results` to the LLM action instead.
+
+    Event Query is how you reach the
     **event-level detail** (per-event source IP, country, and so on) that made up
     the detection. A **Get Detection Details** action returns the detection
     *object* instead — reach for it when the object's summary fields are all you

@@ -22,6 +22,13 @@
 # left out here because a CID without Identity Protection can't import a
 # workflow that uses it, and the import fails with no reason given.
 #
+# The hydration query returns every event behind the detection (hundreds for
+# some rules), and those events use normalized field names such as source.ip,
+# host.hostname, and user.name. The query maps each indicator onto one flat name
+# with coalesce() (falling back to the legacy UserName/HostName/... names) and
+# collapses the events to a single row with groupBy, so results[0] holds the
+# first value found for each indicator rather than whatever the first event had.
+#
 # All four HTTP actions are authored credential-less (Authentication = "None")
 # per the console-credential boundary - attach a VirusTotal API key to each
 # after import: action -> Authentication -> Create new -> API key -> Header ->
@@ -83,11 +90,11 @@ actions:
             workflow_export_event_query_results_to_csv: false
         inline_configuration:
             config:
-                description: Hydrate the full NG-SIEM detection context by its composite detection ID, dropping the correlation-rule meta-event.
+                description: Hydrate the NG-SIEM detection by its composite detection ID, dropping the correlation-rule meta-event, and reduce its events to one row of indicators.
                 end: now
                 repo_or_view: search-all
                 search_name: Hydrate NG-SIEM detection
-                search_query: "#repo=xdr_indicatorsrepo Ngsiem.alert.id=?detection_id | xdr_type != correlation-rule-detection | report_name != *"
+                search_query: "#repo=xdr_indicatorsrepo Ngsiem.alert.id=?detection_id | xdr_type != correlation-rule-detection | report_name != * | user_name := coalesce([user.name, UserName]) | host_name := coalesce([host.hostname, HostName]) | domain_name := coalesce([dns.question.name, DomainName]) | url := coalesce([url.original, Url]) | file_hash := coalesce([process.hash.sha256, file.hash.sha256, FileHash]) | ip_address := coalesce([source.ip, destination.ip, IpAddress]) | groupBy([Ngsiem.alert.id], function=[collect(user_name, limit=1), collect(host_name, limit=1), collect(domain_name, limit=1), collect(url, limit=1), collect(file_hash, limit=1), collect(ip_address, limit=1)])"
                 search_query_args:
                     detection_id: '*'
                 start: 7d
@@ -116,12 +123,12 @@ actions:
             - ip_present
         properties:
             WorkflowCustomVariable:
-                user_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].UserName.orValue('') : ''}"
-                host_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].HostName.orValue('') : ''}"
-                domain_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].DomainName.orValue('') : ''}"
-                url: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].Url.orValue('') : ''}"
-                file_hash: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].FileHash.orValue('') : ''}"
-                ip_address: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].IpAddress.orValue('') : ''}"
+                user_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].user_name.orValue('') : ''}"
+                host_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].host_name.orValue('') : ''}"
+                domain_name: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].domain_name.orValue('') : ''}"
+                url: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].url.orValue('') : ''}"
+                file_hash: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].file_hash.orValue('') : ''}"
+                ip_address: "${data['HydrateDetection.results'].size() > 0 ? data['HydrateDetection.results'][0].ip_address.orValue('') : ''}"
         version_constraint: ~1
     DomainHTTPRequest:
         id: 1ba474f407d9228fc8fa02cdce8ae8ef
